@@ -18,7 +18,7 @@ export default function TaskInput({ onSubmit, disabled, multiMode }: TaskInputPr
   }
 
   return (
-    <div className="flex items-center gap-2 h-12 px-4 border-t border-border flex-shrink-0 bg-white">
+    <div className="flex items-center gap-2 h-12 px-4 border-t border-slate-200/80 flex-shrink-0 bg-white/70 backdrop-blur-md">
       <input
         type="text"
         value={value}

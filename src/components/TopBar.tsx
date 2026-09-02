@@ -28,7 +28,7 @@ export default function TopBar({
   const totalCount = subtasks.length
 
   return (
-    <header className="flex items-center h-11 px-4 border-b border-border flex-shrink-0">
+    <header className="flex items-center h-11 px-4 border-b border-slate-200/80 bg-white/70 backdrop-blur-md flex-shrink-0">
       {/* Workspace */}
       <div className="flex items-center gap-1.5 text-text-secondary">
         <FolderOpen size={14} />

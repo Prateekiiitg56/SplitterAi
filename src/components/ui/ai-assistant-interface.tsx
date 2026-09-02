@@ -11,12 +11,13 @@ import {
   FileText,
   BrainCircuit,
   Sparkles,
-  Loader2,
   ArrowRight,
+  Terminal,
+  Layers,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-/* ── Agent data ───────────────────────────────────────────────── */
+/* ── Agent Data Model ─────────────────────────────────────────── */
 
 type AgentStatus = "active" | "idle" | "error";
 
@@ -26,107 +27,135 @@ interface Agent {
   desc: string;
   status: AgentStatus;
   model?: string;
-  currentTask?: string;
+  roleType: "dispatcher" | "worker";
 }
 
-const agents: Agent[] = [
-  {
-    id: "planner",
-    label: "Planner",
-    desc: "Decomposes tasks into subtasks and assigns them to workers",
-    status: "idle",
-    model: "gemini/gemini-2.5-flash",
-  },
+const plannerAgent: Agent = {
+  id: "planner",
+  label: "Planner",
+  desc: "Decomposes complex requests into executable subtasks, analyzes dependencies, and routes work to specialized worker agents in parallel or sequence.",
+  status: "idle",
+  model: "gemini/gemini-2.5-flash",
+  roleType: "dispatcher",
+};
+
+const workerAgents: Agent[] = [
   {
     id: "coder",
     label: "Coder",
-    desc: "Writes, edits, and runs code using sandboxed tools",
+    desc: "Writes, refactors, and executes code within secure isolated sandboxes using tool access.",
     status: "active",
     model: "groq/llama-3.3-70b-versatile",
-    currentTask: "Creating factorial.py with input validation",
+    roleType: "worker",
   },
   {
     id: "auditor",
     label: "Auditor",
-    desc: "Reviews code for bugs, security issues, and quality",
+    desc: "Reviews generated code for security flaws, edge cases, vulnerability patterns, and PEP 8 standards.",
     status: "active",
     model: "gemini/gemini-2.5-flash",
-    currentTask: "Reviewing scripts for PEP 8 compliance",
+    roleType: "worker",
   },
   {
     id: "tester",
     label: "Tester",
-    desc: "Writes and runs tests, verifies correctness",
+    desc: "Generates test suites, executes test scripts in shell sandboxes, and verifies runtime output.",
     status: "active",
     model: "groq/llama-3.3-70b-versatile",
-    currentTask: "Running all scripts and verifying output",
+    roleType: "worker",
   },
 ];
 
 const suggestions = [
-  "Create a REST API with Express and add tests",
-  "Audit the login page for XSS vulnerabilities",
-  "Write a Python CLI tool with argument parsing",
-  "Build three independent utility scripts in parallel",
-  "Fix the auth middleware and test the fix",
+  "Create a REST API with Express, TypeScript, and automated unit tests",
+  "Audit the login handler for XSS, SQL injection, and authorization flaws",
+  "Build a Python CLI tool with argument parsing and subcommands",
+  "Decompose and run three independent utility scripts in parallel",
+  "Fix expired JWT handling in auth middleware and verify test coverage",
 ];
 
-/* ── Node graph icon (planner → 4 workers) ────────────────────── */
+/* ── Header / Logo Lockup Component ───────────────────────────── */
 
-function NetworkIcon() {
+function BrandHeader() {
+  const navigate = useNavigate();
+
   return (
-    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Edges */}
-      <line x1="20" y1="20" x2="20" y2="6" stroke="#A1A1AA" strokeWidth="1.5" />
-      <line x1="20" y1="20" x2="34" y2="20" stroke="#A1A1AA" strokeWidth="1.5" />
-      <line x1="20" y1="20" x2="20" y2="34" stroke="#A1A1AA" strokeWidth="1.5" />
-      <line x1="20" y1="20" x2="6" y2="20" stroke="#A1A1AA" strokeWidth="1.5" />
-      {/* Center node (planner) */}
-      <circle cx="20" cy="20" r="4" fill="#18181B" />
-      {/* Worker nodes */}
-      <circle cx="20" cy="6" r="3" fill="#A1A1AA" />
-      <circle cx="34" cy="20" r="3" fill="#A1A1AA" />
-      <circle cx="20" cy="34" r="3" fill="#A1A1AA" />
-      <circle cx="6" cy="20" r="3" fill="#A1A1AA" />
-    </svg>
+    <header className="flex items-center justify-between mb-10 pb-4 border-b border-slate-200/80">
+      {/* Inline Lockup: Icon + Name + Divider + Breadcrumb */}
+      <div className="flex items-center gap-3">
+        {/* Node graph icon */}
+        <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white shadow-xs flex-shrink-0">
+          <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="20" y1="20" x2="20" y2="7" stroke="#94A3B8" strokeWidth="2.5" />
+            <line x1="20" y1="20" x2="33" y2="20" stroke="#94A3B8" strokeWidth="2.5" />
+            <line x1="20" y1="20" x2="20" y2="33" stroke="#94A3B8" strokeWidth="2.5" />
+            <line x1="20" y1="20" x2="7" y2="20" stroke="#94A3B8" strokeWidth="2.5" />
+            <circle cx="20" cy="20" r="4.5" fill="#38BDF8" />
+            <circle cx="20" cy="7" r="3.5" fill="#E2E8F0" />
+            <circle cx="33" cy="20" r="3.5" fill="#E2E8F0" />
+            <circle cx="20" cy="33" r="3.5" fill="#E2E8F0" />
+            <circle cx="7" cy="20" r="3.5" fill="#E2E8F0" />
+          </svg>
+        </div>
+
+        <span className="text-[17px] font-bold text-slate-900 tracking-tight" style={{ fontFamily: 'var(--font-sans)' }}>
+          agentcli
+        </span>
+
+        {/* Thin vertical divider */}
+        <div className="h-4 w-px bg-slate-300" />
+
+        {/* Breadcrumb / Tag */}
+        <span className="text-[12px] font-medium text-slate-500 font-mono">
+          multi-agent-orchestrator
+        </span>
+      </div>
+
+      {/* Right-aligned Live Workspace Pill */}
+      <button
+        onClick={() => navigate('/run')}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[13px] font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-xs cursor-pointer"
+      >
+        <span>Live Workspace</span>
+        <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
+      </button>
+    </header>
   );
 }
 
-/* ── Status indicator ─────────────────────────────────────────── */
+/* ── Status Indicator Pill ────────────────────────────────────── */
 
 function StatusBadge({ status }: { status: AgentStatus }) {
   if (status === "active") {
     return (
-      <span className="flex items-center gap-[var(--sp-1)]">
-        <span className="w-1.5 h-1.5 rounded-full bg-green animate-pulse-dot" />
-        <span className="t-caption text-green">Active</span>
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-[11px] font-medium text-emerald-700">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
+        Active
       </span>
     );
   }
   if (status === "error") {
     return (
-      <span className="flex items-center gap-[var(--sp-1)]">
-        <span className="w-1.5 h-1.5 rounded-full bg-red" />
-        <span className="t-caption text-red">Error</span>
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-50 border border-red-200/80 text-[11px] font-medium text-red-700">
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+        Error
       </span>
     );
   }
-  return <span className="t-caption text-text-3">Idle</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-medium text-slate-500">
+      Idle
+    </span>
+  );
 }
 
-/* ── Agent card icon (monochrome, role-based shape) ───────────── */
+/* ── Agent Icon Renderer ──────────────────────────────────────── */
 
 function AgentIcon({ role }: { role: string }) {
-  const base = "w-5 h-5 text-text-2";
+  const base = "w-5 h-5 text-slate-700";
   switch (role) {
     case "planner":
-      return (
-        <svg className={base} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          <rect x="3" y="3" width="14" height="14" rx="2" />
-          <line x1="3" y1="8" x2="17" y2="8" />
-          <line x1="8" y1="8" x2="8" y2="17" />
-        </svg>
-      );
+      return <Layers className={base} />;
     case "coder":
       return (
         <svg className={base} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -153,7 +182,7 @@ function AgentIcon({ role }: { role: string }) {
   }
 }
 
-/* ── Main component ───────────────────────────────────────────── */
+/* ── Main Landing Page Component ──────────────────────────────── */
 
 export function AIAssistantInterface() {
   const navigate = useNavigate();
@@ -186,94 +215,170 @@ export function AIAssistantInterface() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-surface">
-      <div className="max-w-[720px] mx-auto px-[var(--sp-4)] pt-[var(--sp-12)] pb-[var(--sp-8)]">
+      {/* 1. LAYOUT CONTAINER — Centered 1020px column */}
+      <div className="max-w-[1020px] mx-auto px-6 md:px-8 py-8 md:py-12 flex flex-col min-h-full">
 
-        {/* ── Network icon ─────────────────────────────────── */}
-        <div className="mb-[var(--sp-8)]">
-          <NetworkIcon />
-        </div>
+        {/* 2. HEADER / LOGO LOCKUP */}
+        <BrandHeader />
 
-        {/* ── Headline ─────────────────────────────────────── */}
-        <div className="mb-[var(--sp-8)]">
-          <h1 className="t-headline mb-[var(--sp-2)]">What should the agents do?</h1>
-          <p className="t-body">
-            Describe a task — the planner will decompose it and assign workers.
+        {/* 3. HIERARCHY — Prominent Headline & Subhead */}
+        <div className="mb-10 max-w-3xl">
+          <h1 className="text-[38px] font-bold text-slate-900 tracking-tight leading-[46px]">
+            What should the agents do?
+          </h1>
+          <p className="text-[15.5px] text-slate-500 font-normal leading-relaxed mt-3">
+            Submit a task instruction. The Planner agent breaks down subtasks, builds an execution DAG, and dispatches parallel worker agents in sandboxed runtimes.
           </p>
         </div>
 
-        {/* ── Agent cards (2×2) ─────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-[var(--sp-4)] mb-[var(--sp-8)]">
-          {agents.map((agent, i) => (
-            <motion.button
+        {/* Section Label Divider */}
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+            AGENT ROSTER
+          </span>
+          <div className="flex-1 h-px bg-slate-200/80" />
+        </div>
+
+        {/* 4. AGENT GRID STRUCTURE */}
+        {/* Top: Full-Width Horizontal Card for Planner (Dispatcher) */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={() => navigate(`/agent/${plannerAgent.id}`)}
+          className="rounded-xl border border-slate-200 bg-white p-6 card-depth hover:border-slate-300 transition-all duration-150 cursor-pointer group mb-5"
+        >
+          {/* Top Row: Icon + Name + Dispatcher Tag + Status */}
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center flex-shrink-0 group-hover:bg-sky-100/70 transition-colors">
+                <AgentIcon role={plannerAgent.id} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[17px] font-semibold text-slate-900">{plannerAgent.label}</span>
+                  <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 text-[10px] font-bold tracking-wide uppercase font-mono">
+                    DISPATCHER &amp; ORCHESTRATOR
+                  </span>
+                </div>
+              </div>
+            </div>
+            <StatusBadge status={plannerAgent.status} />
+          </div>
+
+          {/* Description */}
+          <p className="text-[13.5px] text-slate-600 leading-relaxed mb-4 max-w-4xl">
+            {plannerAgent.desc}
+          </p>
+
+          {/* Bottom Row Separated by Thin Divider */}
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[11px] font-mono text-slate-400">
+              {plannerAgent.model}
+            </span>
+            <span className="text-[12px] font-medium text-slate-400 group-hover:text-accent transition-colors">
+              Configure →
+            </span>
+          </div>
+        </motion.div>
+
+        {/* Workers Grid: 1x3 Grid for Coder, Auditor, Tester */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
+          {workerAgents.map((agent, i) => (
+            <motion.div
               key={agent.id}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05, duration: 0.2 }}
+              transition={{ delay: (i + 1) * 0.05, duration: 0.2 }}
               onClick={() => navigate(`/agent/${agent.id}`)}
-              className="flex flex-col text-left rounded-[var(--radius)] border border-border bg-raised p-[var(--sp-6)] hover:bg-hover transition-colors cursor-pointer group"
+              className="flex flex-col text-left rounded-xl border border-slate-200 bg-white p-6 card-depth hover:border-slate-300 transition-all duration-150 cursor-pointer group"
             >
-              {/* Row 1: icon + title + status */}
-              <div className="flex items-center gap-[var(--sp-3)] mb-[var(--sp-2)]">
-                <AgentIcon role={agent.id} />
-                <span className="t-label flex-1">{agent.label}</span>
+              {/* Top Row: Icon + Name + Status */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-slate-200/70 transition-colors">
+                  <AgentIcon role={agent.id} />
+                </div>
+                <span className="text-[15.5px] font-semibold text-slate-900 flex-1">{agent.label}</span>
                 <StatusBadge status={agent.status} />
               </div>
 
-              {/* Description (clamped to 2 lines) */}
-              <p className="t-body text-text-2 mb-[var(--sp-3)]" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+              {/* Description */}
+              <p className="text-[13px] text-slate-600 leading-relaxed mb-4 min-h-[54px] line-clamp-3">
                 {agent.desc}
               </p>
 
-              {/* Model name */}
-              {agent.model && (
-                <span className="t-mono mt-auto">{agent.model}</span>
-              )}
-            </motion.button>
+              {/* Bottom Row Separated by Thin Divider */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between mt-auto">
+                <span className="text-[11px] font-mono text-slate-400">
+                  {agent.model}
+                </span>
+                <span className="text-[12px] font-medium text-slate-400 group-hover:text-accent transition-colors">
+                  Configure →
+                </span>
+              </div>
+            </motion.div>
           ))}
         </div>
 
-        {/* ── Input bar (unified container) ─────────────────── */}
-        <div className="rounded-[var(--radius)] border border-border bg-raised overflow-hidden mb-[var(--sp-8)]">
-          {/* Text input row */}
-          <div className="flex items-center gap-[var(--sp-2)] px-[var(--sp-4)] py-[var(--sp-3)]">
+        {/* Section Label Divider for Console */}
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+            COMMAND CONSOLE
+          </span>
+          <div className="flex-1 h-px bg-slate-200/80" />
+        </div>
+
+        {/* 5. COMMAND CONSOLE — Single Bordered Container */}
+        <div className="rounded-xl border border-slate-200 bg-white input-depth overflow-hidden transition-all duration-150 focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/15 mb-8">
+          {/* Input Row with Accent Prompt Glyph '>' */}
+          <div className="flex items-center gap-3 px-5 py-4">
+            <span className="text-accent font-mono font-bold text-lg select-none leading-none -mt-0.5">
+              &gt;
+            </span>
             <input
               ref={inputRef}
               type="text"
-              placeholder="Describe a task…"
+              placeholder="Describe a task (e.g. 'Build a REST API with Express and add unit tests')"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
               onFocus={() => setShowSuggestions(true)}
-              className="flex-1 text-[14px] text-text-1 outline-none bg-transparent placeholder:text-text-3"
+              className="flex-1 text-[15px] text-slate-900 outline-none bg-transparent placeholder:text-slate-400"
             />
-            <button
-              onClick={handleSend}
-              disabled={!inputValue.trim()}
-              className={`w-7 h-7 flex items-center justify-center rounded-full transition-colors cursor-pointer ${
-                inputValue.trim()
-                  ? "bg-accent text-white hover:opacity-90"
-                  : "bg-hover text-text-3 cursor-not-allowed"
-              }`}
-            >
-              <ArrowUp className="w-3.5 h-3.5" />
-            </button>
+
+            {/* Mic + Send button vertically aligned */}
+            <div className="flex items-center gap-2">
+              <button className="p-2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-lg hover:bg-slate-100">
+                <Mic className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleSend}
+                disabled={!inputValue.trim()}
+                className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
+                  inputValue.trim()
+                    ? "bg-accent text-white hover:bg-accent-hover shadow-xs active:scale-95"
+                    : "bg-slate-100 text-slate-300 cursor-not-allowed"
+                }`}
+                title="Execute task"
+              >
+                <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
 
-          {/* Uploaded files */}
+          {/* Uploaded Files Sub-Row */}
           {uploadedFiles.length > 0 && (
-            <div className="px-[var(--sp-4)] pb-[var(--sp-3)]">
-              <div className="flex flex-wrap gap-[var(--sp-2)]">
+            <div className="px-5 pb-3">
+              <div className="flex flex-wrap gap-2">
                 {uploadedFiles.map((file, i) => (
-                  <div key={i} className="flex items-center gap-[var(--sp-1)] bg-hover py-1 px-2 rounded-[var(--radius-sm)] border border-border">
-                    <FileText className="w-3 h-3 text-text-2" />
-                    <span className="text-[12px] text-text-1">{file}</span>
+                  <div key={i} className="flex items-center gap-1.5 bg-slate-50 py-1 px-2.5 rounded-md border border-slate-200 text-xs">
+                    <FileText className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-medium text-slate-700">{file}</span>
                     <button
                       onClick={() => setUploadedFiles((p) => p.filter((_, j) => j !== i))}
-                      className="text-text-3 hover:text-text-1 cursor-pointer ml-1"
+                      className="text-slate-400 hover:text-slate-600 cursor-pointer ml-1"
                     >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
+                      ✕
                     </button>
                   </div>
                 ))}
@@ -281,36 +386,30 @@ export function AIAssistantInterface() {
             </div>
           )}
 
-          {/* Divider */}
-          <div className="border-t border-border" />
+          {/* Internal Divider */}
+          <div className="border-t border-slate-100" />
 
-          {/* Pills row */}
-          <div className="flex items-center gap-[var(--sp-2)] px-[var(--sp-4)] py-[var(--sp-3)]">
+          {/* Function Toggles Row */}
+          <div className="flex items-center gap-2 px-5 py-3 bg-slate-50/50">
             <TogglePill active={searchEnabled} onClick={() => setSearchEnabled(!searchEnabled)} icon={<Search className="w-3.5 h-3.5" />} label="Search" />
             <TogglePill active={deepResearchEnabled} onClick={() => setDeepResearchEnabled(!deepResearchEnabled)} icon={<Sparkles className="w-3.5 h-3.5" />} label="Deep Research" />
             <TogglePill active={reasonEnabled} onClick={() => setReasonEnabled(!reasonEnabled)} icon={<BrainCircuit className="w-3.5 h-3.5" />} label="Reason" />
-
-            <div className="flex-1" />
-
-            <button className="p-1.5 text-text-3 hover:text-text-2 transition-colors cursor-pointer">
-              <Mic className="w-4 h-4" />
-            </button>
           </div>
 
-          {/* Divider */}
-          <div className="border-t border-border" />
+          {/* Internal Divider */}
+          <div className="border-t border-slate-100" />
 
-          {/* Upload row */}
-          <div className="px-[var(--sp-4)] py-[var(--sp-3)]">
+          {/* Upload Manual Plan Row */}
+          <div className="px-5 py-3 bg-white">
             <button
               onClick={handleUpload}
-              className="flex items-center gap-[var(--sp-2)] text-text-2 text-[13px] hover:text-text-1 transition-colors cursor-pointer"
+              className="flex items-center gap-2 text-slate-500 text-[13px] font-medium hover:text-slate-800 transition-colors cursor-pointer"
             >
               {showUploadAnim ? (
                 <motion.div className="flex gap-1" initial="hidden" animate="visible"
                   variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}>
                   {[0, 1, 2].map((i) => (
-                    <motion.div key={i} className="w-1 h-1 bg-accent rounded-full"
+                    <motion.div key={i} className="w-1.5 h-1.5 bg-accent rounded-full"
                       variants={{
                         hidden: { opacity: 0, y: 4 },
                         visible: { opacity: 1, y: 0, transition: { duration: 0.35, repeat: Infinity, repeatType: "mirror", delay: i * 0.1 } },
@@ -319,14 +418,14 @@ export function AIAssistantInterface() {
                   ))}
                 </motion.div>
               ) : (
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 text-slate-400" />
               )}
-              <span>Upload manual plan</span>
+              <span>Upload manual plan (JSON / YAML)</span>
             </button>
           </div>
         </div>
 
-        {/* ── Suggestions ──────────────────────────────────── */}
+        {/* 6. SUGGESTIONS BLOCK */}
         <AnimatePresence>
           {showSuggestions && !inputValue.trim() && (
             <motion.div
@@ -334,29 +433,33 @@ export function AIAssistantInterface() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 6 }}
               transition={{ duration: 0.15 }}
+              className="mb-8"
             >
-              <p className="t-caption text-text-3 mb-[var(--sp-2)]">Suggestions</p>
-              <div className="divide-y divide-border">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 font-mono">
+                SUGGESTED TASKS
+              </p>
+              <div className="space-y-1">
                 {suggestions.map((s, i) => (
                   <button
                     key={i}
                     onClick={() => pickSuggestion(s)}
-                    className="flex items-center gap-[var(--sp-3)] w-full text-left py-[var(--sp-2)] px-[var(--sp-1)] hover:bg-hover rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                    className="flex items-center gap-3 w-full text-left py-2.5 px-3 hover:bg-white border border-transparent hover:border-slate-200/80 rounded-lg transition-all duration-150 cursor-pointer group"
                   >
-                    <ArrowRight className="w-3.5 h-3.5 text-text-3 flex-shrink-0" />
-                    <span className="text-[14px] text-text-1">{s}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-accent transition-colors flex-shrink-0" />
+                    <span className="text-[14px] text-slate-700 group-hover:text-slate-900 font-normal">{s}</span>
                   </button>
                 ))}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+
       </div>
     </div>
   );
 }
 
-/* ── Toggle pill ──────────────────────────────────────────────── */
+/* ── Toggle Pill Component ────────────────────────────────────── */
 
 function TogglePill({ active, onClick, icon, label }: {
   active: boolean; onClick: () => void; icon: React.ReactNode; label: string;
@@ -364,10 +467,10 @@ function TogglePill({ active, onClick, icon, label }: {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-[var(--sp-1)] px-[var(--sp-3)] py-[5px] rounded-[var(--radius-sm)] text-[12px] font-medium transition-colors cursor-pointer ${
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all cursor-pointer ${
         active
-          ? "bg-accent/10 text-accent"
-          : "bg-hover text-text-3 hover:text-text-2"
+          ? "bg-accent/10 border border-accent/20 text-accent"
+          : "bg-slate-100/80 border border-transparent text-slate-600 hover:bg-slate-200/70 hover:text-slate-800"
       }`}
     >
       {icon}

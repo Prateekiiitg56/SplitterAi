@@ -236,7 +236,7 @@ export default function AgentPage() {
           </div>
 
           {/* ── Prompt input ─────────────────────────────────────── */}
-          <div className="flex items-center gap-2 h-12 px-4 border-t border-border flex-shrink-0 bg-white">
+          <div className="flex items-center gap-2 h-12 px-4 border-t border-slate-200/80 flex-shrink-0 bg-white/70 backdrop-blur-md">
             <input
               type="text"
               value={prompt}
@@ -258,7 +258,7 @@ export default function AgentPage() {
         </div>
 
         {/* ── Right sidebar: File explorer + Quota ─────────────── */}
-        <div className="w-[220px] flex-shrink-0 flex flex-col min-h-0 border-l border-border bg-sidebar-bg">
+        <div className="w-[240px] flex-shrink-0 flex flex-col min-h-0 border-l border-slate-200/80 bg-white/70 backdrop-blur-md">
           {/* File tree */}
           <div className="flex-1 min-h-0">
             <FileExplorer files={mockFileTree} workspace="D:/projects/webapp" />

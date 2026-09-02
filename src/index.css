@@ -10,10 +10,10 @@
   --color-red: #EF4444;
   --color-amber: #F59E0B;
   --color-text-1: #0F172A;
-  --color-text-2: #64748B;
+  --color-text-2: #475569;
   --color-text-3: #94A3B8;
   --color-border: #E2E8F0;
-  --color-surface: #F8FAFC;
+  --color-surface: transparent;
   --color-raised: #FFFFFF;
   --color-hover: #F1F5F9;
 
@@ -23,8 +23,8 @@
   --color-urgent-red: #EF4444;
   --color-warning: #F59E0B;
   --color-text-primary: #0F172A;
-  --color-text-secondary: #64748B;
-  --color-sidebar-bg: #F8FAFC;
+  --color-text-secondary: #475569;
+  --color-sidebar-bg: rgba(255, 255, 255, 0.7);
   --color-hover-bg: #F1F5F9;
   --color-nav-pill: #DBEAFE;
   --color-compose-bg: #DBEAFE;
@@ -32,7 +32,7 @@
   --color-search-bg: #F1F5F9;
   --color-star-yellow: #F59E0B;
   --color-purple: #7C3AED;
-  --color-surface-alt: #F8FAFC;
+  --color-surface-alt: transparent;
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -58,7 +58,8 @@ body {
   font-size: 14px;
   line-height: 20px;
   color: var(--color-text-1);
-  background: var(--color-surface);
+  background: linear-gradient(180deg, #FAF0EB 0%, #E2E8F0 38%, #64748B 72%, #1E293B 100%) fixed;
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -66,7 +67,7 @@ body {
 /* ── Scrollbar ────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 9999px; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.5); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-3); }
 
 /* ── Type scale ───────────────────────────────────────────────── */
@@ -123,15 +124,15 @@ body {
 
 /* ── Custom Shadows & Card Depth ──────────────────────────────── */
 .card-depth {
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.03), 0 1px 2px -1px rgb(0 0 0 / 0.03);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
 }
 
 .card-depth:hover {
-  box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.08), 0 4px 10px -2px rgba(0, 0, 0, 0.04);
 }
 
 .input-depth {
-  box-shadow: 0 2px 6px 0 rgb(0 0 0 / 0.03);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
 }
 
 /* ── Animations ───────────────────────────────────────────────── */

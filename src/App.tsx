@@ -76,7 +76,7 @@ function Layout() {
   const location = useLocation()
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white">
+    <div className="flex h-screen w-screen overflow-hidden bg-transparent">
       <Sidebar
         collapsed={sidebarCollapsed}
         sessions={mockSessions}
