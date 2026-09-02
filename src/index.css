@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap");
 @import "tailwindcss";
 
 @theme {
@@ -19,9 +20,9 @@
   --color-purple: #7C3AED;
   --color-surface: #FAFBFD;
 
-  --font-ui: 'Google Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-ui: 'DM Sans', 'Google Sans', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
-  --font-body: 'Roboto', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'DM Sans', 'Roboto', 'Segoe UI', system-ui, sans-serif;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -37,6 +38,7 @@ body {
   color: var(--color-text-primary);
   background: #FFFFFF;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 ::-webkit-scrollbar { width: 5px; }
@@ -44,6 +46,7 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: #bbb; }
 
+/* ── Animations ──────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -52,6 +55,15 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
+@keyframes gradient-shift {
+  0%   { transform: rotate(0deg) scale(1); }
+  100% { transform: rotate(360deg) scale(1); }
+}
 
 .animate-fade-in { animation: fadeIn 180ms ease-out both; }
 .animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+.animate-gradient {
+  animation: gradient-shift 8s linear infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
