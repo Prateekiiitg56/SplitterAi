@@ -1,47 +1,36 @@
 import type React from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  FolderOpen,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  Plus,
-  ArrowRight,
-} from 'lucide-react'
-import type { Subtask, RunStatus } from '../data'
+import { Menu, User } from 'lucide-react'
 
 interface TopBarProps {
-  workspace: string
-  runStatus: RunStatus
-  multiMode: boolean
-  onToggleMulti: () => void
-  subtasks: Subtask[]
+  workspace?: string
+  runStatus?: string
+  multiMode?: boolean
+  onToggleMulti?: () => void
+  subtasks?: any[]
 }
 
-export default function TopBar({
-  workspace,
-  runStatus,
-  subtasks,
-}: TopBarProps) {
+export default function TopBar({}: TopBarProps) {
   let navigate = (path: string) => { window.location.href = path }
   try {
     const nav = useNavigate()
     if (typeof nav === 'function') navigate = nav
   } catch (e) {
-    // fallback if router context reloaded
+    // fallback
   }
-  const doneCount = subtasks.filter((s) => s.status === 'success').length
-  const totalCount = subtasks.length
 
   return (
-    <header className="flex items-center justify-between h-14 px-6 border-b border-slate-200/80 bg-white/90 backdrop-blur-md flex-shrink-0">
-      {/* Left: Brand Lockup + Divider + Breadcrumb */}
+    <header className="flex items-center justify-between h-14 px-4 bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 text-white flex-shrink-0 select-none">
+      {/* Left Lockup: Menu + Icon + agentcli + Version Badge */}
       <div className="flex items-center gap-3">
-        {/* Brand Icon */}
+        <button className="p-1.5 text-slate-400 hover:text-white transition-colors cursor-pointer">
+          <Menu size={18} />
+        </button>
+
+        {/* Node graph icon */}
         <div
           onClick={() => navigate('/')}
-          className="w-7 h-7 rounded-md bg-slate-900 flex items-center justify-center text-white shadow-xs flex-shrink-0 cursor-pointer hover:bg-slate-800 transition-colors"
-          title="Go to Home"
+          className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-700/80 flex items-center justify-center text-white cursor-pointer hover:border-slate-500 transition-colors"
         >
           <svg width="18" height="18" viewBox="0 0 40 40" fill="none">
             <line x1="20" y1="20" x2="20" y2="7" stroke="#94A3B8" strokeWidth="2.5" />
@@ -58,59 +47,42 @@ export default function TopBar({
 
         <span
           onClick={() => navigate('/')}
-          className="text-[15px] font-bold text-slate-900 tracking-tight font-sans cursor-pointer"
+          className="text-[16px] font-bold text-white tracking-tight cursor-pointer font-sans"
         >
           agentcli
         </span>
 
-        {/* Divider */}
-        <div className="h-4 w-px bg-slate-300" />
-
-        {/* Breadcrumb / Workspace Path */}
-        <div className="flex items-center gap-1.5 text-slate-500 font-mono text-[12px]">
-          <FolderOpen size={13} className="text-slate-400" />
-          <span>{workspace}</span>
-        </div>
+        <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-400">
+          v1.0-orchestrator
+        </span>
       </div>
 
-      {/* Right: Subtask Execution Progress & Primary Action */}
-      <div className="flex items-center gap-4">
-        {totalCount > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100/80 border border-slate-200/60 text-[12px] font-medium text-slate-700">
-            {runStatus === 'executing' && (
-              <>
-                <Loader2 size={13} className="text-blue-600 animate-spin" />
-                <span>Exec: {doneCount}/{totalCount} subtasks</span>
-              </>
-            )}
-            {runStatus === 'planning' && (
-              <>
-                <Loader2 size={13} className="text-purple-600 animate-spin" />
-                <span>Planning subtasks…</span>
-              </>
-            )}
-            {runStatus === 'done' && (
-              <>
-                <CheckCircle2 size={13} className="text-emerald-600" />
-                <span>All {totalCount} complete</span>
-              </>
-            )}
-            {runStatus === 'error' && (
-              <>
-                <XCircle size={13} className="text-red-600" />
-                <span>Execution failed</span>
-              </>
-            )}
-          </div>
-        )}
+      {/* Center Search / Breadcrumb Pill */}
+      <div className="hidden md:flex items-center justify-center px-6 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800/80 text-[13px] text-slate-300 font-mono max-w-md w-full">
+        <span>agentcli</span>
+        <span className="mx-2 text-slate-600">|</span>
+        <span className="text-slate-400">multi-agent-orchestrator</span>
+      </div>
 
+      {/* Right Lockup: Live Workspace Button + User Profile */}
+      <div className="flex items-center gap-4">
         <button
-          onClick={() => navigate('/')}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[13px] font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-xs cursor-pointer"
+          onClick={() => navigate('/run')}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-950/40 border border-teal-500/50 text-teal-300 text-[13px] font-medium hover:bg-teal-900/50 transition-all cursor-pointer shadow-[0_0_12px_rgba(20,184,166,0.15)]"
         >
-          <Plus size={14} className="text-slate-500" />
-          <span>New Task</span>
+          <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse-dot" />
+          <span>Live Workspace</span>
         </button>
+
+        <div className="hidden sm:flex items-center gap-2 text-right">
+          <div className="flex flex-col text-[11px] text-slate-400 leading-tight">
+            <span className="font-medium text-slate-300">Verify it's you</span>
+            <span className="text-slate-500">Ask Gemini</span>
+          </div>
+          <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+            <User size={14} />
+          </div>
+        </div>
       </div>
     </header>
   )

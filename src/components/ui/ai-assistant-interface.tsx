@@ -78,7 +78,13 @@ const suggestions = [
 /* ── Header / Logo Lockup Component ───────────────────────────── */
 
 function BrandHeader() {
-  const navigate = useNavigate();
+  let navigate = (path: string) => { window.location.href = path }
+  try {
+    const nav = useNavigate()
+    if (typeof nav === 'function') navigate = nav
+  } catch (e) {
+    // fallback
+  }
 
   return (
     <header className="flex items-center justify-between mb-10 pb-4 border-b border-slate-200/80">
@@ -129,7 +135,13 @@ function BrandHeader() {
 /* ── Main Landing Page Component ──────────────────────────────── */
 
 export function AIAssistantInterface() {
-  const navigate = useNavigate();
+  let navigate = (path: string) => { window.location.href = path }
+  try {
+    const nav = useNavigate()
+    if (typeof nav === 'function') navigate = nav
+  } catch (e) {
+    // fallback
+  }
   const [inputValue, setInputValue] = useState("");
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
