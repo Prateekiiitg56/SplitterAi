@@ -5,9 +5,8 @@ import {
   Loader2,
   Clock,
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
   Cpu,
-  Wrench,
   Layers,
 } from 'lucide-react'
 import type { Subtask, RunStatus } from '../data'
@@ -30,7 +29,8 @@ export default function PlanView({
 }: PlanViewProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
     setExpandedCards((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -44,242 +44,168 @@ export default function PlanView({
     ;(acc[st.group] ??= []).push(st)
     return acc
   }, {})
-  const groupNums = Object.keys(groups)
-    .map(Number)
-    .sort((a, b) => a - b)
+  const groupNums = Object.keys(groups).map(Number).sort((a, b) => a - b)
 
-  const statusIconFor = (status: string) => {
+  const statusIcon = (status: string) => {
     switch (status) {
-      case 'running': return <Loader2 size={15} className="text-primary animate-spin" />
-      case 'success': return <CheckCircle2 size={15} className="text-success" />
-      case 'error':   return <XCircle size={15} className="text-urgent-red" />
-      default:        return <Clock size={15} className="text-text-secondary" />
+      case 'running': return <Loader2 size={14} className="text-primary animate-spin flex-shrink-0" />
+      case 'success': return <CheckCircle2 size={14} className="text-success flex-shrink-0" />
+      case 'error':   return <XCircle size={14} className="text-urgent-red flex-shrink-0" />
+      default:        return <Clock size={14} className="text-text-secondary flex-shrink-0" />
     }
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-5">
-      {/* Current task heading */}
-      <div className="mb-5">
-        <p
-          className="text-[11px] text-text-secondary uppercase tracking-wider mb-1"
-          style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}
-        >
-          Current Task
+    <div className="flex-1 overflow-y-auto p-6">
+      {/* Task heading */}
+      <div className="mb-6">
+        <p className="text-[11px] text-text-secondary uppercase tracking-wide mb-1.5"
+          style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
+          Task
         </p>
-        <h1
-          className="text-[16px] text-text-primary leading-snug"
-          style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}
-        >
+        <p className="text-[15px] text-text-primary leading-relaxed"
+          style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
           {task || 'No task running'}
-        </h1>
-
-        {/* Plan summary pill */}
-        {subtasks.length > 0 && (
-          <div className="flex items-center gap-3 mt-3">
-            <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-hover-bg text-[11px] text-text-secondary"
-              style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-              <Layers size={12} />
-              {groupNums.length} group{groupNums.length !== 1 ? 's' : ''}
-            </span>
-            <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-hover-bg text-[11px] text-text-secondary"
-              style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-              <Cpu size={12} />
-              {subtasks.length} subtask{subtasks.length !== 1 ? 's' : ''}
-            </span>
-            {subtasks.some((s) => s.model) && (
-              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-hover-bg text-[11px] text-text-secondary"
-                style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-                {[...new Set(subtasks.map((s) => s.model).filter(Boolean))].length} models
-              </span>
-            )}
-          </div>
-        )}
+        </p>
       </div>
 
       {/* Planning state */}
       {runStatus === 'planning' && (
-        <div className="flex items-center gap-3 py-8 justify-center animate-fade-in">
-          <Loader2 size={20} className="text-purple animate-spin" />
-          <span className="text-[14px] text-text-secondary" style={{ fontFamily: 'var(--font-ui)' }}>
-            Planner is decomposing the task…
+        <div className="flex items-center gap-2.5 py-12 justify-center animate-fade-in">
+          <Loader2 size={18} className="text-purple animate-spin" />
+          <span className="text-[13px] text-text-secondary" style={{ fontFamily: 'var(--font-ui)' }}>
+            Planning…
           </span>
         </div>
       )}
 
       {/* Groups */}
-      <div className="space-y-4 stagger">
-        {groupNums.map((groupNum, gi) => {
-          const groupSubtasks = groups[groupNum]
-          const isParallel = groupSubtasks.length > 1
-          const allDone = groupSubtasks.every((s) => s.status === 'success')
-          const anyRunning = groupSubtasks.some((s) => s.status === 'running')
-          const anyError = groupSubtasks.some((s) => s.status === 'error')
+      {groupNums.map((groupNum, gi) => {
+        const groupSubtasks = groups[groupNum]
+        const isParallel = groupSubtasks.length > 1
 
-          return (
-            <div key={groupNum} className="animate-fade-in">
-              {/* Group header */}
-              <div className="flex items-center gap-2 mb-2">
-                <div
-                  className={`flex items-center justify-center w-5 h-5 rounded text-[10px] ${
-                    allDone ? 'bg-success/10 text-success'
-                    : anyRunning ? 'bg-primary/10 text-primary'
-                    : anyError ? 'bg-urgent-red/10 text-urgent-red'
-                    : 'bg-hover-bg text-text-secondary'
-                  }`}
-                  style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}
-                >
-                  {groupNum}
-                </div>
-                <span className="text-[12px] text-text-secondary" style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-                  Group {groupNum}
-                </span>
-                {isParallel && (
-                  <span className="text-[11px] text-primary bg-primary/8 px-2 py-0.5 rounded-full" style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-                    parallel
-                  </span>
-                )}
-                {!isParallel && (
-                  <span className="text-[11px] text-text-secondary bg-hover-bg px-2 py-0.5 rounded-full" style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-                    sequential
-                  </span>
-                )}
-                {/* Connector line */}
-                <div className="flex-1 h-px bg-border" />
-              </div>
+        return (
+          <div key={groupNum} className="mb-5 animate-fade-in">
+            {/* Group label */}
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[11px] text-text-secondary"
+                style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
+                Group {groupNum}
+              </span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                isParallel ? 'bg-primary/8 text-primary' : 'bg-hover-bg text-text-secondary'
+              }`} style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
+                {isParallel ? `${groupSubtasks.length} parallel` : 'sequential'}
+              </span>
+              <div className="flex-1 h-px bg-border ml-1" />
+            </div>
 
-              {/* Subtask cards in this group */}
-              <div className={`grid gap-2 ${isParallel ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 max-w-2xl'}`}>
-                {groupSubtasks.map((st) => {
-                  const isExpanded = expandedCards.has(st.id)
-                  const isSelected = selectedSubtask === st.id
-                  const roleMeta = ROLE_META[st.role]
-                  const statusMeta = STATUS_META[st.status]
+            {/* Cards */}
+            <div className="space-y-2">
+              {groupSubtasks.map((st) => {
+                const isExpanded = expandedCards.has(st.id)
+                const isSelected = selectedSubtask === st.id
+                const role = ROLE_META[st.role]
 
-                  return (
-                    <div
-                      key={st.id}
-                      className={`rounded-lg border transition-all duration-150 cursor-pointer ${
-                        isSelected
-                          ? 'border-primary bg-primary/3 ring-1 ring-primary/20'
-                          : 'border-border hover:border-text-secondary/30 bg-white'
-                      }`}
-                      onClick={() => onSelectSubtask(isSelected ? null : st.id)}
-                    >
-                      {/* Card header */}
-                      <div className="flex items-center gap-2 px-3 py-2.5">
-                        {statusIconFor(st.status)}
+                return (
+                  <div
+                    key={st.id}
+                    onClick={() => onSelectSubtask(isSelected ? null : st.id)}
+                    className={`rounded-lg border cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'border-primary/40 bg-primary/[0.02]'
+                        : 'border-border hover:border-border hover:bg-hover-bg/40'
+                    }`}
+                  >
+                    {/* Row 1: status, role, instruction, duration */}
+                    <div className="flex items-start gap-2.5 px-3.5 py-3">
+                      <div className="mt-0.5">{statusIcon(st.status)}</div>
 
-                        {/* Role badge */}
-                        <span
-                          className="inline-flex items-center h-5 px-2 rounded text-[11px] flex-shrink-0"
-                          style={{
-                            backgroundColor: roleMeta.bg,
-                            color: roleMeta.color,
-                            fontFamily: 'var(--font-ui)',
-                            fontWeight: 500,
-                          }}
-                        >
-                          {roleMeta.label}
-                        </span>
+                      <span className="text-[11px] px-1.5 py-0.5 rounded flex-shrink-0"
+                        style={{
+                          backgroundColor: role.bg,
+                          color: role.color,
+                          fontFamily: 'var(--font-ui)',
+                          fontWeight: 500,
+                        }}>
+                        {role.label}
+                      </span>
 
-                        <span
-                          className="text-[11px] text-text-secondary truncate"
-                          style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}
-                        >
-                          {st.id}
-                        </span>
+                      <p className="flex-1 text-[13px] text-text-primary leading-snug min-w-0"
+                        style={{ fontWeight: 400 }}>
+                        {st.instruction}
+                      </p>
 
-                        <div className="flex-1" />
-
-                        {/* Duration or running indicator */}
-                        {st.durationMs != null ? (
-                          <span className="text-[11px] text-text-secondary tabular-nums" style={{ fontFamily: 'var(--font-mono)' }}>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        {st.durationMs != null && (
+                          <span className="text-[11px] text-text-secondary tabular-nums"
+                            style={{ fontFamily: 'var(--font-mono)' }}>
                             {(st.durationMs / 1000).toFixed(1)}s
                           </span>
-                        ) : st.status === 'running' ? (
+                        )}
+                        {st.status === 'running' && !st.durationMs && (
                           <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-dot" />
-                        ) : null}
-
+                        )}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            toggleExpand(st.id)
-                          }}
-                          className="flex items-center justify-center w-6 h-6 rounded hover:bg-hover-bg text-text-secondary cursor-pointer"
+                          onClick={(e) => toggleExpand(st.id, e)}
+                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-hover-bg text-text-secondary"
                         >
-                          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                         </button>
                       </div>
-
-                      {/* Instruction */}
-                      <div className="px-3 pb-2.5">
-                        <p className="text-[13px] text-text-primary leading-snug" style={{ fontWeight: 400 }}>
-                          {st.instruction}
-                        </p>
-                      </div>
-
-                      {/* Expanded details */}
-                      {isExpanded && (
-                        <div className="px-3 pb-3 border-t border-border animate-expand">
-                          <div className="pt-2.5 space-y-1.5">
-                            {st.model && (
-                              <div className="flex items-center gap-2">
-                                <Cpu size={12} className="text-text-secondary flex-shrink-0" />
-                                <span className="text-[11px] text-text-secondary" style={{ fontFamily: 'var(--font-mono)' }}>
-                                  {st.model}
-                                </span>
-                              </div>
-                            )}
-                            {st.steps != null && (
-                              <div className="flex items-center gap-2">
-                                <Wrench size={12} className="text-text-secondary flex-shrink-0" />
-                                <span className="text-[11px] text-text-secondary">
-                                  {st.steps} step{st.steps !== 1 ? 's' : ''} executed
-                                </span>
-                              </div>
-                            )}
-                            {st.output && (
-                              <div className="mt-2 p-2 rounded bg-surface text-[12px] text-text-primary leading-relaxed" style={{ fontFamily: 'var(--font-mono)' }}>
-                                {st.output}
-                              </div>
-                            )}
-                            {st.error && (
-                              <div className="mt-2 p-2 rounded bg-urgent-red/5 text-[12px] text-urgent-red leading-relaxed" style={{ fontFamily: 'var(--font-mono)' }}>
-                                {st.error}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  )
-                })}
-              </div>
 
-              {/* Group connector arrow to next group */}
-              {gi < groupNums.length - 1 && (
-                <div className="flex justify-center py-2">
-                  <div className="flex flex-col items-center">
-                    <div className="w-px h-3 bg-border" />
-                    <ChevronDown size={14} className="text-text-secondary -mt-1" />
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="px-3.5 pb-3 border-t border-border/60 pt-2.5 space-y-1">
+                        {st.model && (
+                          <div className="flex items-center gap-1.5">
+                            <Cpu size={11} className="text-text-secondary" />
+                            <span className="text-[11px] text-text-secondary" style={{ fontFamily: 'var(--font-mono)' }}>
+                              {st.model}
+                            </span>
+                          </div>
+                        )}
+                        {st.steps != null && (
+                          <p className="text-[11px] text-text-secondary">
+                            {st.steps} tool step{st.steps !== 1 ? 's' : ''}
+                          </p>
+                        )}
+                        {st.output && (
+                          <p className="text-[12px] text-text-primary mt-1.5 p-2 rounded bg-surface leading-relaxed"
+                            style={{ fontFamily: 'var(--font-mono)' }}>
+                            {st.output}
+                          </p>
+                        )}
+                        {st.error && (
+                          <p className="text-[12px] text-urgent-red mt-1.5 p-2 rounded bg-urgent-red/5 leading-relaxed"
+                            style={{ fontFamily: 'var(--font-mono)' }}>
+                            {st.error}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                )
+              })}
             </div>
-          )
-        })}
-      </div>
 
-      {/* Idle state */}
+            {/* Arrow to next group */}
+            {gi < groupNums.length - 1 && (
+              <div className="flex justify-center py-1.5">
+                <ChevronDown size={14} className="text-border" />
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Empty state */}
       {subtasks.length === 0 && runStatus === 'idle' && (
-        <div className="flex flex-col items-center justify-center py-20 text-text-secondary gap-3 animate-fade-in">
-          <Cpu size={40} strokeWidth={1} className="opacity-30" />
-          <p className="text-[14px]" style={{ fontFamily: 'var(--font-ui)' }}>
-            Enter a task below to get started
-          </p>
-          <p className="text-[12px] opacity-60">
-            The planner will decompose it into subtasks for parallel execution
+        <div className="flex flex-col items-center justify-center py-24 text-text-secondary gap-2 animate-fade-in">
+          <Layers size={32} strokeWidth={1} className="opacity-25" />
+          <p className="text-[13px]" style={{ fontFamily: 'var(--font-ui)' }}>
+            Enter a task below to start
           </p>
         </div>
       )}
