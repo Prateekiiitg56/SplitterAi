@@ -1,52 +1,45 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 /* ── Design Tokens ────────────────────────────────────────────── */
 @theme {
   /* Color system — 5 named + neutral scale */
   --color-accent: #2563EB;
+  --color-accent-hover: #1D4ED8;
   --color-green: #10B981;
   --color-red: #EF4444;
   --color-amber: #F59E0B;
-  --color-text-1: #18181B;
-  --color-text-2: #71717A;
-  --color-text-3: #A1A1AA;
-  --color-border: #E4E4E7;
-  --color-surface: #FAFAFA;
+  --color-text-1: #0F172A;
+  --color-text-2: #64748B;
+  --color-text-3: #94A3B8;
+  --color-border: #E2E8F0;
+  --color-surface: #F8FAFC;
   --color-raised: #FFFFFF;
-  --color-hover: #F4F4F5;
+  --color-hover: #F1F5F9;
 
   /* Legacy aliases (keep other pages working) */
   --color-primary: #2563EB;
   --color-success: #10B981;
   --color-urgent-red: #EF4444;
   --color-warning: #F59E0B;
-  --color-text-primary: #18181B;
-  --color-text-secondary: #71717A;
-  --color-sidebar-bg: #FAFAFA;
-  --color-hover-bg: #F4F4F5;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #64748B;
+  --color-sidebar-bg: #F8FAFC;
+  --color-hover-bg: #F1F5F9;
   --color-nav-pill: #DBEAFE;
   --color-compose-bg: #DBEAFE;
   --color-compose-text: #1E3A5F;
-  --color-search-bg: #F4F4F5;
+  --color-search-bg: #F1F5F9;
   --color-star-yellow: #F59E0B;
   --color-purple: #7C3AED;
-  --color-surface-alt: #FAFAFA;
+  --color-surface-alt: #F8FAFC;
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
 
-  /* Spacing (4px base) */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-6: 24px;
-  --sp-8: 32px;
-  --sp-12: 48px;
-
   /* Radii */
+  --radius-lg: 12px;
   --radius: 10px;
   --radius-sm: 6px;
 }
@@ -77,16 +70,31 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-3); }
 
 /* ── Type scale ───────────────────────────────────────────────── */
-.t-headline {
-  font-size: 20px;
+.t-hero {
+  font-size: 32px;
   font-weight: 600;
-  line-height: 28px;
-  letter-spacing: -0.02em;
+  line-height: 40px;
+  letter-spacing: -0.025em;
+  color: var(--color-text-1);
+}
+
+.t-subhead {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 24px;
+  color: var(--color-text-2);
+}
+
+.t-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: -0.01em;
   color: var(--color-text-1);
 }
 
 .t-body {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 400;
   line-height: 20px;
   color: var(--color-text-2);
@@ -111,6 +119,19 @@ body {
   font-weight: 400;
   line-height: 16px;
   color: var(--color-text-3);
+}
+
+/* ── Custom Shadows & Card Depth ──────────────────────────────── */
+.card-depth {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.03), 0 1px 2px -1px rgb(0 0 0 / 0.03);
+}
+
+.card-depth:hover {
+  box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+}
+
+.input-depth {
+  box-shadow: 0 2px 6px 0 rgb(0 0 0 / 0.03);
 }
 
 /* ── Animations ───────────────────────────────────────────────── */
