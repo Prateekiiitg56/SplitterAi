@@ -16,6 +16,7 @@ import {
   Layers,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { StatusBadge, AgentIcon } from "../Badges";
 
 /* ── Agent Data Model ─────────────────────────────────────────── */
 
@@ -123,64 +124,7 @@ function BrandHeader() {
   );
 }
 
-/* ── Status Indicator Pill ────────────────────────────────────── */
 
-function StatusBadge({ status }: { status: AgentStatus }) {
-  if (status === "active") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-[11px] font-medium text-emerald-700">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
-        Active
-      </span>
-    );
-  }
-  if (status === "error") {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-50 border border-red-200/80 text-[11px] font-medium text-red-700">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-        Error
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-medium text-slate-500">
-      Idle
-    </span>
-  );
-}
-
-/* ── Agent Icon Renderer ──────────────────────────────────────── */
-
-function AgentIcon({ role }: { role: string }) {
-  const base = "w-5 h-5 text-slate-700";
-  switch (role) {
-    case "planner":
-      return <Layers className={base} />;
-    case "coder":
-      return (
-        <svg className={base} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="7,5 3,10 7,15" />
-          <polyline points="13,5 17,10 13,15" />
-        </svg>
-      );
-    case "auditor":
-      return (
-        <svg className={base} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          <path d="M10 2L3 6v5c0 4.4 3 7.5 7 9 4-1.5 7-4.6 7-9V6l-7-4z" />
-          <polyline points="7,10 9,12 13,8" />
-        </svg>
-      );
-    case "tester":
-      return (
-        <svg className={base} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          <path d="M8 2v5L5 14c-.5 1.5.5 4 5 4s5.5-2.5 5-4L12 7V2" />
-          <line x1="6" y1="2" x2="14" y2="2" />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
 
 /* ── Main Landing Page Component ──────────────────────────────── */
 

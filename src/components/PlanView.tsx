@@ -1,16 +1,14 @@
 import { useState } from 'react'
 import {
-  CheckCircle2,
-  XCircle,
   Loader2,
-  Clock,
   ChevronDown,
-  ChevronUp,
+  ChevronRight,
   Cpu,
+  Wrench,
   Layers,
 } from 'lucide-react'
 import type { Subtask, RunStatus } from '../data'
-import { ROLE_META, STATUS_META } from '../data'
+import { AgentBadge, StatusIcon } from './Badges'
 
 interface PlanViewProps {
   subtasks: Subtask[]
@@ -27,9 +25,19 @@ export default function PlanView({
   selectedSubtask,
   onSelectSubtask,
 }: PlanViewProps) {
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set([1, 2]))
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
-  const toggleExpand = (id: string, e: React.MouseEvent) => {
+  const toggleGroup = (groupNum: number) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(groupNum)) next.delete(groupNum)
+      else next.add(groupNum)
+      return next
+    })
+  }
+
+  const toggleCardExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     setExpandedCards((prev) => {
       const next = new Set(prev)
@@ -46,166 +54,171 @@ export default function PlanView({
   }, {})
   const groupNums = Object.keys(groups).map(Number).sort((a, b) => a - b)
 
-  const statusIcon = (status: string) => {
-    switch (status) {
-      case 'running': return <Loader2 size={14} className="text-primary animate-spin flex-shrink-0" />
-      case 'success': return <CheckCircle2 size={14} className="text-success flex-shrink-0" />
-      case 'error':   return <XCircle size={14} className="text-urgent-red flex-shrink-0" />
-      default:        return <Clock size={14} className="text-text-secondary flex-shrink-0" />
-    }
-  }
-
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      {/* Task heading */}
-      <div className="mb-6">
-        <p className="text-[11px] text-text-secondary uppercase tracking-wide mb-1.5"
-          style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-          Task
-        </p>
-        <p className="text-[15px] text-text-primary leading-relaxed"
-          style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
+    <div className="flex-1 overflow-y-auto p-6 md:p-8">
+      {/* Primary Page Heading (Task Title as Main Anchor) */}
+      <div className="mb-8">
+        <h1 className="text-[22px] font-bold text-slate-900 tracking-tight leading-snug">
           {task || 'No task running'}
+        </h1>
+        <p className="text-[13px] text-slate-500 font-medium mt-1 flex items-center gap-2">
+          <span>Multi-agent task decomposition &amp; sandbox execution</span>
+          {subtasks.length > 0 && (
+            <>
+              <span>·</span>
+              <span className="font-mono text-[11px] text-slate-400">{subtasks.length} subtasks</span>
+            </>
+          )}
         </p>
       </div>
 
       {/* Planning state */}
       {runStatus === 'planning' && (
-        <div className="flex items-center gap-2.5 py-12 justify-center animate-fade-in">
-          <Loader2 size={18} className="text-purple animate-spin" />
-          <span className="text-[13px] text-text-secondary" style={{ fontFamily: 'var(--font-ui)' }}>
-            Planning…
+        <div className="flex items-center gap-3 py-16 justify-center animate-fade-in bg-white/60 rounded-xl border border-slate-200/80">
+          <Loader2 size={20} className="text-purple-600 animate-spin" />
+          <span className="text-[14px] font-medium text-slate-600 font-sans">
+            Planner is analyzing requirements and generating execution DAG…
           </span>
         </div>
       )}
 
-      {/* Groups */}
-      {groupNums.map((groupNum, gi) => {
-        const groupSubtasks = groups[groupNum]
-        const isParallel = groupSubtasks.length > 1
+      {/* Subtask Groups with Group Headers and Left Structural Rails */}
+      <div className="space-y-6">
+        {groupNums.map((groupNum) => {
+          const groupSubtasks = groups[groupNum]
+          const isParallel = groupSubtasks.length > 1
+          const isGroupExpanded = expandedGroups.has(groupNum)
 
-        return (
-          <div key={groupNum} className="mb-5 animate-fade-in">
-            {/* Group label */}
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[11px] text-text-secondary"
-                style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-                Group {groupNum}
-              </span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                isParallel ? 'bg-primary/8 text-primary' : 'bg-hover-bg text-text-secondary'
-              }`} style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-                {isParallel ? `${groupSubtasks.length} parallel` : 'sequential'}
-              </span>
-              <div className="flex-1 h-px bg-border ml-1" />
-            </div>
+          return (
+            <div key={groupNum} className="animate-fade-in">
+              {/* Group Header with Anchored Chevron */}
+              <div
+                onClick={() => toggleGroup(groupNum)}
+                className="flex items-center gap-2.5 px-3 py-2 bg-slate-100/80 border border-slate-200/90 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors mb-3 select-none"
+              >
+                <button className="text-slate-500 hover:text-slate-800 transition-colors">
+                  {isGroupExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                </button>
 
-            {/* Cards */}
-            <div className="space-y-2">
-              {groupSubtasks.map((st) => {
-                const isExpanded = expandedCards.has(st.id)
-                const isSelected = selectedSubtask === st.id
-                const role = ROLE_META[st.role]
+                <span className="text-[12px] font-bold font-mono uppercase tracking-wider text-slate-700">
+                  Group {groupNum}
+                </span>
 
-                return (
-                  <div
-                    key={st.id}
-                    onClick={() => onSelectSubtask(isSelected ? null : st.id)}
-                    className={`rounded-lg border cursor-pointer transition-colors ${
-                      isSelected
-                        ? 'border-primary/40 bg-primary/[0.02]'
-                        : 'border-border hover:border-border hover:bg-hover-bg/40'
-                    }`}
-                  >
-                    {/* Row 1: status, role, instruction, duration */}
-                    <div className="flex items-start gap-2.5 px-3.5 py-3">
-                      <div className="mt-0.5">{statusIcon(st.status)}</div>
+                <span
+                  className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full ${
+                    isParallel ? 'bg-blue-100/90 text-blue-700' : 'bg-slate-200/70 text-slate-600'
+                  }`}
+                >
+                  {isParallel ? `${groupSubtasks.length} parallel subtasks` : 'sequential subtask'}
+                </span>
 
-                      <span className="text-[11px] px-1.5 py-0.5 rounded flex-shrink-0"
-                        style={{
-                          backgroundColor: role.bg,
-                          color: role.color,
-                          fontFamily: 'var(--font-ui)',
-                          fontWeight: 500,
-                        }}>
-                        {role.label}
-                      </span>
+                <div className="flex-1 h-px bg-slate-200/80 ml-2" />
+              </div>
 
-                      <p className="flex-1 text-[13px] text-text-primary leading-snug min-w-0"
-                        style={{ fontWeight: 400 }}>
-                        {st.instruction}
-                      </p>
+              {/* Group Content with Left Rail Line connecting parallel tasks */}
+              {isGroupExpanded && (
+                <div className="pl-4 border-l-2 border-slate-200/80 space-y-2.5 ml-3">
+                  {groupSubtasks.map((st) => {
+                    const isSelected = selectedSubtask === st.id
+                    const isCardExpanded = expandedCards.has(st.id)
+                    const isError = st.status === 'error'
+                    const isRunning = st.status === 'running'
 
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                        {st.durationMs != null && (
-                          <span className="text-[11px] text-text-secondary tabular-nums"
-                            style={{ fontFamily: 'var(--font-mono)' }}>
-                            {(st.durationMs / 1000).toFixed(1)}s
-                          </span>
-                        )}
-                        {st.status === 'running' && !st.durationMs && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-dot" />
-                        )}
-                        <button
-                          onClick={(e) => toggleExpand(st.id, e)}
-                          className="w-6 h-6 flex items-center justify-center rounded hover:bg-hover-bg text-text-secondary"
-                        >
-                          {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                        </button>
-                      </div>
-                    </div>
+                    return (
+                      <div
+                        key={st.id}
+                        onClick={() => onSelectSubtask(isSelected ? null : st.id)}
+                        className={`rounded-lg border transition-all cursor-pointer ${
+                          isError
+                            ? 'bg-red-50/60 border-red-200/90 hover:border-red-300'
+                            : isSelected
+                            ? 'bg-blue-50/50 border-blue-400 ring-1 ring-blue-500/20'
+                            : 'bg-white border-slate-200/90 hover:border-slate-300 card-depth'
+                        }`}
+                      >
+                        {/* Task Row — Strict 4-Column Grid Alignment */}
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          {/* Col 1: Fixed Status Icon Gutter (16px) */}
+                          <div className="w-4 flex-shrink-0 flex items-center justify-center">
+                            <StatusIcon status={st.status} />
+                          </div>
 
-                    {/* Expanded detail */}
-                    {isExpanded && (
-                      <div className="px-3.5 pb-3 border-t border-border/60 pt-2.5 space-y-1">
-                        {st.model && (
-                          <div className="flex items-center gap-1.5">
-                            <Cpu size={11} className="text-text-secondary" />
-                            <span className="text-[11px] text-text-secondary" style={{ fontFamily: 'var(--font-mono)' }}>
-                              {st.model}
-                            </span>
+                          {/* Col 2: Unified Agent Badge (112px fixed) */}
+                          <div className="w-28 flex-shrink-0">
+                            <AgentBadge role={st.role} />
+                          </div>
+
+                          {/* Col 3: Task Instruction Text (flex-1) */}
+                          <p className={`flex-1 text-[13.5px] leading-snug truncate ${
+                            isError ? 'text-red-950 font-medium' : 'text-slate-800'
+                          }`}>
+                            {st.instruction}
+                          </p>
+
+                          {/* Col 4: Tabular Right-Aligned Duration / Timing Column (60px fixed) */}
+                          <div className="w-16 flex-shrink-0 text-right flex items-center justify-end gap-1.5">
+                            {st.durationMs != null ? (
+                              <span className="text-[11.5px] font-mono text-slate-500 tabular-nums">
+                                {(st.durationMs / 1000).toFixed(1)}s
+                              </span>
+                            ) : isRunning ? (
+                              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse-dot" />
+                            ) : (
+                              <span className="text-[11.5px] font-mono text-slate-400">—</span>
+                            )}
+
+                            <button
+                              onClick={(e) => toggleCardExpand(st.id, e)}
+                              className="w-5 h-5 flex items-center justify-center rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700 ml-1"
+                            >
+                              {isCardExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Expandable Execution Details */}
+                        {isCardExpanded && (
+                          <div className="px-4 pb-3.5 border-t border-slate-200/60 pt-3 space-y-2 text-[12px] bg-slate-50/40">
+                            {st.model && (
+                              <div className="flex items-center gap-1.5 text-slate-500 font-mono text-[11px]">
+                                <Cpu size={12} className="text-slate-400" />
+                                <span>{st.model}</span>
+                              </div>
+                            )}
+                            {st.steps != null && (
+                              <div className="flex items-center gap-1.5 text-slate-500 font-mono text-[11px]">
+                                <Wrench size={12} className="text-slate-400" />
+                                <span>{st.steps} tool step{st.steps !== 1 ? 's' : ''} executed</span>
+                              </div>
+                            )}
+                            {st.output && (
+                              <div className="p-3 rounded-md bg-slate-900 text-slate-100 font-mono text-[11.5px] leading-relaxed">
+                                {st.output}
+                              </div>
+                            )}
+                            {st.error && (
+                              <div className="p-3 rounded-md bg-red-100/80 border border-red-200 text-red-900 font-mono text-[11.5px] leading-relaxed">
+                                {st.error}
+                              </div>
+                            )}
                           </div>
                         )}
-                        {st.steps != null && (
-                          <p className="text-[11px] text-text-secondary">
-                            {st.steps} tool step{st.steps !== 1 ? 's' : ''}
-                          </p>
-                        )}
-                        {st.output && (
-                          <p className="text-[12px] text-text-primary mt-1.5 p-2 rounded bg-surface leading-relaxed"
-                            style={{ fontFamily: 'var(--font-mono)' }}>
-                            {st.output}
-                          </p>
-                        )}
-                        {st.error && (
-                          <p className="text-[12px] text-urgent-red mt-1.5 p-2 rounded bg-urgent-red/5 leading-relaxed"
-                            style={{ fontFamily: 'var(--font-mono)' }}>
-                            {st.error}
-                          </p>
-                        )}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
+                    )
+                  })}
+                </div>
+              )}
             </div>
+          )
+        })}
+      </div>
 
-            {/* Arrow to next group */}
-            {gi < groupNums.length - 1 && (
-              <div className="flex justify-center py-1.5">
-                <ChevronDown size={14} className="text-border" />
-              </div>
-            )}
-          </div>
-        )
-      })}
-
-      {/* Empty state */}
+      {/* Idle state */}
       {subtasks.length === 0 && runStatus === 'idle' && (
-        <div className="flex flex-col items-center justify-center py-24 text-text-secondary gap-2 animate-fade-in">
-          <Layers size={32} strokeWidth={1} className="opacity-25" />
-          <p className="text-[13px]" style={{ fontFamily: 'var(--font-ui)' }}>
-            Enter a task below to start
+        <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-3 animate-fade-in bg-white/40 rounded-xl border border-slate-200/80">
+          <Layers size={36} strokeWidth={1.25} className="opacity-40" />
+          <p className="text-[14px] font-medium text-slate-600 font-sans">
+            Enter a task below to decompose and run multi-agent subtasks
           </p>
         </div>
       )}
