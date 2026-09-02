@@ -1,30 +1,57 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
+/* ── Design Tokens ────────────────────────────────────────────── */
 @theme {
-  --color-sidebar-bg: #F6F8FC;
-  --color-primary: #1A73E8;
-  --color-text-primary: #202124;
-  --color-text-secondary: #5F6368;
-  --color-border: #E8EAED;
-  --color-hover-bg: #F1F3F4;
-  --color-selected-bg: #C2DBFF;
-  --color-nav-pill: #D3E3FD;
-  --color-compose-bg: #C2E7FF;
-  --color-compose-text: #001D35;
-  --color-star-yellow: #F9AB00;
-  --color-urgent-red: #D93025;
-  --color-search-bg: #EAF1FB;
-  --color-success: #0E9F6E;
-  --color-warning: #E8710A;
-  --color-purple: #7C3AED;
-  --color-surface: #FAFBFD;
+  /* Color system — 5 named + neutral scale */
+  --color-accent: #2563EB;
+  --color-green: #10B981;
+  --color-red: #EF4444;
+  --color-amber: #F59E0B;
+  --color-text-1: #18181B;
+  --color-text-2: #71717A;
+  --color-text-3: #A1A1AA;
+  --color-border: #E4E4E7;
+  --color-surface: #FAFAFA;
+  --color-raised: #FFFFFF;
+  --color-hover: #F4F4F5;
 
-  --font-ui: 'DM Sans', 'Google Sans', 'Segoe UI', system-ui, sans-serif;
+  /* Legacy aliases (keep other pages working) */
+  --color-primary: #2563EB;
+  --color-success: #10B981;
+  --color-urgent-red: #EF4444;
+  --color-warning: #F59E0B;
+  --color-text-primary: #18181B;
+  --color-text-secondary: #71717A;
+  --color-sidebar-bg: #FAFAFA;
+  --color-hover-bg: #F4F4F5;
+  --color-nav-pill: #DBEAFE;
+  --color-compose-bg: #DBEAFE;
+  --color-compose-text: #1E3A5F;
+  --color-search-bg: #F4F4F5;
+  --color-star-yellow: #F59E0B;
+  --color-purple: #7C3AED;
+  --color-surface-alt: #FAFAFA;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
-  --font-body: 'DM Sans', 'Roboto', 'Segoe UI', system-ui, sans-serif;
+
+  /* Spacing (4px base) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-12: 48px;
+
+  /* Radii */
+  --radius: 10px;
+  --radius-sm: 6px;
 }
 
+/* ── Base ─────────────────────────────────────────────────────── */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body, #root {
@@ -34,36 +61,67 @@ html, body, #root {
 }
 
 body {
-  font-family: var(--font-body);
-  color: var(--color-text-primary);
-  background: #FFFFFF;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-1);
+  background: var(--color-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Scrollbar ────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: #bbb; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-3); }
 
-/* ── Animations ──────────────────────────────────────────── */
+/* ── Type scale ───────────────────────────────────────────────── */
+.t-headline {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: -0.02em;
+  color: var(--color-text-1);
+}
+
+.t-body {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color: var(--color-text-2);
+}
+
+.t-label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--color-text-1);
+}
+
+.t-caption {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 16px;
+  color: var(--color-text-3);
+}
+
+/* ── Animations ───────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-@keyframes gradient-shift {
-  0%   { transform: rotate(0deg) scale(1); }
-  100% { transform: rotate(360deg) scale(1); }
+  50% { opacity: 0.35; }
 }
 
 .animate-fade-in { animation: fadeIn 180ms ease-out both; }
-.animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
-.animate-gradient {
-  animation: gradient-shift 8s linear infinite;
-  transform-origin: center;
-  transform-box: fill-box;
-}
+.animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
