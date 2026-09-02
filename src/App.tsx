@@ -1,22 +1,28 @@
 import { useState, useCallback } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import PlanView from './components/PlanView'
 import LogStream from './components/LogStream'
 import TaskInput from './components/TaskInput'
-import { mockSubtasks, mockLogs, mockSessions, type Subtask, type LogEntry, type RunStatus } from './data'
+import HomePage from './pages/HomePage'
+import AgentPage from './pages/AgentPage'
+import { mockAgents, mockSessions, type Subtask, type LogEntry, type RunStatus } from './data'
 
-export default function App() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [selectedSession, setSelectedSession] = useState('s1')
-  const [subtasks, setSubtasks] = useState<Subtask[]>(mockSubtasks)
-  const [logs, setLogs] = useState<LogEntry[]>(mockLogs)
+// Aggregate subtasks and logs from all agents for the run view
+const allSubtasks: Subtask[] = mockAgents.flatMap((a) => a.subtasks)
+const allLogs: LogEntry[] = mockAgents
+  .flatMap((a) => a.logs)
+  .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+
+function RunView() {
+  const [subtasks, setSubtasks] = useState<Subtask[]>(allSubtasks)
+  const [logs, setLogs] = useState<LogEntry[]>(allLogs)
   const [runStatus, setRunStatus] = useState<RunStatus>('executing')
   const [multiMode, setMultiMode] = useState(true)
-  const [workspace] = useState('D:/projects/webapp')
   const [logFilter, setLogFilter] = useState<string | null>(null)
 
-  const currentTask = mockSessions.find((s) => s.id === selectedSession)?.task ?? ''
+  const currentTask = mockSessions[0]?.task ?? ''
 
   const handleSubmitTask = useCallback((task: string) => {
     setRunStatus('planning')
@@ -43,6 +49,33 @@ export default function App() {
     : logs
 
   return (
+    <div className="flex flex-1 flex-col min-w-0 min-h-0">
+      <TopBar
+        workspace="D:/projects/webapp"
+        runStatus={runStatus}
+        multiMode={multiMode}
+        onToggleMulti={() => setMultiMode((p) => !p)}
+        subtasks={subtasks}
+      />
+      <div className="flex flex-1 min-h-0">
+        <div className="flex-1 flex flex-col min-w-0 border-r border-border">
+          <PlanView subtasks={subtasks} runStatus={runStatus} task={currentTask} selectedSubtask={logFilter} onSelectSubtask={setLogFilter} />
+        </div>
+        <div className="w-[380px] flex-shrink-0 flex flex-col min-h-0 bg-surface">
+          <LogStream logs={filteredLogs} filter={logFilter} onClearFilter={() => setLogFilter(null)} />
+        </div>
+      </div>
+      <TaskInput onSubmit={handleSubmitTask} disabled={runStatus === 'planning' || runStatus === 'executing'} multiMode={multiMode} />
+    </div>
+  )
+}
+
+function Layout() {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [selectedSession, setSelectedSession] = useState('s1')
+  const location = useLocation()
+
+  return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
       <Sidebar
         collapsed={sidebarCollapsed}
@@ -50,38 +83,22 @@ export default function App() {
         selectedSession={selectedSession}
         onSelectSession={setSelectedSession}
         onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
-        workspace={workspace}
+        workspace="D:/projects/webapp"
+        currentPath={location.pathname}
       />
-
-      <div className="flex flex-1 flex-col min-w-0">
-        <TopBar
-          workspace={workspace}
-          runStatus={runStatus}
-          multiMode={multiMode}
-          onToggleMulti={() => setMultiMode((p) => !p)}
-          subtasks={subtasks}
-        />
-
-        <div className="flex flex-1 min-h-0">
-          {/* Plan — takes remaining space */}
-          <div className="flex-1 flex flex-col min-w-0 border-r border-border">
-            <PlanView
-              subtasks={subtasks}
-              runStatus={runStatus}
-              task={currentTask}
-              selectedSubtask={logFilter}
-              onSelectSubtask={setLogFilter}
-            />
-          </div>
-
-          {/* Logs — fixed 380px */}
-          <div className="w-[380px] flex-shrink-0 flex flex-col min-h-0 bg-surface">
-            <LogStream logs={filteredLogs} filter={logFilter} onClearFilter={() => setLogFilter(null)} />
-          </div>
-        </div>
-
-        <TaskInput onSubmit={handleSubmitTask} disabled={runStatus === 'planning' || runStatus === 'executing'} multiMode={multiMode} />
-      </div>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/agent/:role" element={<AgentPage />} />
+        <Route path="/run" element={<RunView />} />
+      </Routes>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Layout />
+    </BrowserRouter>
   )
 }
