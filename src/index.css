@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
-/* ── Design Tokens (inspired by reference: flat, dense, high-contrast) ─── */
 @theme {
   --color-sidebar-bg: #F6F8FC;
   --color-primary: #1A73E8;
@@ -21,16 +20,11 @@
   --color-surface: #FAFBFD;
 
   --font-ui: 'Google Sans', 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
   --font-body: 'Roboto', 'Segoe UI', system-ui, sans-serif;
 }
 
-/* ── Base Reset ───────────────────────────────────────────────── */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body, #root {
   height: 100%;
@@ -43,59 +37,21 @@ body {
   color: var(--color-text-primary);
   background: #FFFFFF;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Scrollbar (thin, subtle) ─────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-text-secondary); }
+::-webkit-scrollbar-thumb:hover { background: #bbb; }
 
-/* ── Animations ───────────────────────────────────────────────── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-@keyframes expand {
-  from { max-height: 0; opacity: 0; }
-  to   { max-height: 500px; opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
-.animate-fade-in { animation: fadeIn 200ms ease-out both; }
-.animate-slide-up { animation: slideUp 250ms ease-out both; }
-.animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
-.animate-expand { animation: expand 300ms ease-out both; overflow: hidden; }
-
-/* Staggered children */
-.stagger > *:nth-child(1) { animation-delay: 0ms; }
-.stagger > *:nth-child(2) { animation-delay: 40ms; }
-.stagger > *:nth-child(3) { animation-delay: 80ms; }
-.stagger > *:nth-child(4) { animation-delay: 120ms; }
-.stagger > *:nth-child(5) { animation-delay: 160ms; }
-
-/* ── Log type colors ──────────────────────────────────────────── */
-.log-model_request  { border-left-color: var(--color-primary); }
-.log-model_response { border-left-color: var(--color-primary); }
-.log-model_fallback { border-left-color: var(--color-warning); }
-.log-tool_call      { border-left-color: var(--color-purple); }
-.log-tool_result    { border-left-color: var(--color-success); }
-.log-plan_generated { border-left-color: var(--color-primary); }
-.log-group_start    { border-left-color: var(--color-text-secondary); }
-.log-group_end      { border-left-color: var(--color-text-secondary); }
-.log-subtask_start  { border-left-color: var(--color-success); }
-.log-subtask_end    { border-left-color: var(--color-success); }
-.log-sandbox_block  { border-left-color: var(--color-urgent-red); }
-.log-info           { border-left-color: var(--color-text-secondary); }
-.log-error          { border-left-color: var(--color-urgent-red); }
-
-/* ── Compose shadow (only elevation in UI) ────────────────────── */
-.panel-shadow { box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1); }
+.animate-fade-in { animation: fadeIn 180ms ease-out both; }
+.animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
