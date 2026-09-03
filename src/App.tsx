@@ -7,6 +7,7 @@ import LogStream from './components/LogStream'
 import TaskInput from './components/TaskInput'
 import HomePage from './pages/HomePage'
 import AgentPage from './pages/AgentPage'
+import IntegrationsPage from './pages/IntegrationsPage'
 import { mockAgents, mockSessions, type Subtask, type LogEntry, type RunStatus } from './data'
 import { AgentWebSocket, runTask, getSessions, type LogEvent, type SubtaskResult } from './lib/api'
 
@@ -14,6 +15,7 @@ const initialSubtasks: Subtask[] = mockAgents.flatMap((a) => a.subtasks)
 const initialLogs: LogEntry[] = mockAgents.flatMap((a) => a.logs).sort((a, b) => a.timestamp.localeCompare(b.timestamp))
 
 function RunView() {
+  const location = useLocation()
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks)
   const [logs, setLogs] = useState<LogEntry[]>(initialLogs)
   const [runStatus, setRunStatus] = useState<RunStatus>('executing')
@@ -59,7 +61,7 @@ function RunView() {
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     setLogs((prev) => [...prev, { id: `l-${Date.now()}`, timestamp: ts, type: 'info', message: `Task: "${newTask}"` }])
     try {
-      const result = await runTask({ task: newTask, workspace: 'D:/projects/webapp' })
+      const result = await runTask({ task: newTask, workspace: 'd:/CodeForces/SplitterAi' })
       setRunStatus(result.status === 'error' ? 'error' : 'done')
       if (result.subtasks) {
         setSubtasks(result.subtasks.map((st) => ({
@@ -71,13 +73,19 @@ function RunView() {
       setTimeout(() => {
         setRunStatus('executing')
         setSubtasks([
-          { id: 'sub-101', role: 'coder', group: 1, instruction: `Implement: ${newTask}`, status: 'running', model: 'groq/llama-3.3-70b-versatile', startedAt: ts, steps: 2 },
-          { id: 'sub-102', role: 'auditor', group: 2, instruction: 'Audit for security and quality', status: 'pending', model: 'gemini/gemini-2.5-flash', steps: 0 },
-          { id: 'sub-103', role: 'tester', group: 2, instruction: 'Write tests and verify', status: 'pending', model: 'groq/llama-3.3-70b-versatile', steps: 0 },
+          { id: 'sub-101', role: 'coder', group: 1, instruction: `Implement: ${newTask}`, status: 'running', model: 'openrouter/nvidia/nemotron-3-super-120b-a12b:free', startedAt: ts, steps: 2 },
+          { id: 'sub-102', role: 'auditor', group: 2, instruction: 'Audit for security and quality', status: 'pending', model: 'gemini/gemini-3.5-flash', steps: 0 },
+          { id: 'sub-103', role: 'tester', group: 2, instruction: 'Write tests and verify', status: 'pending', model: 'xai/grok-2-beta', steps: 0 },
         ])
       }, 1200)
     }
   }, [])
+
+  useEffect(() => {
+    if (location.state?.task) {
+      handleSubmitTask(location.state.task)
+    }
+  }, [location.state?.task, handleSubmitTask])
 
   const filteredLogs = logFilter ? logs.filter((l) => l.subtaskId === logFilter || !l.subtaskId) : logs
 
@@ -122,6 +130,15 @@ function AgentWithFrame() {
   )
 }
 
+function IntegrationsWithFrame() {
+  return (
+    <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-[#121723]">
+      <TopBar />
+      <IntegrationsPage />
+    </div>
+  )
+}
+
 function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedSession, setSelectedSession] = useState('s1')
@@ -148,13 +165,14 @@ function Layout() {
           selectedSession={selectedSession}
           onSelectSession={setSelectedSession}
           onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
-          workspace="D:/projects/webapp"
+          workspace="d:/CodeForces/SplitterAi"
           currentPath={location.pathname}
         />
         <Routes>
           <Route path="/" element={<HomeWithTopBar />} />
           <Route path="/agent/:role" element={<AgentWithFrame />} />
           <Route path="/run" element={<RunWithFrame />} />
+          <Route path="/integrations" element={<IntegrationsWithFrame />} />
         </Routes>
       </div>
     </div>

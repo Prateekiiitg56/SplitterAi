@@ -27,18 +27,18 @@ export default function TaskInput({ onSubmit, disabled }: TaskInputProps) {
   }
 
   return (
-    <div className="p-4 border-t flex-shrink-0" style={{ background: 'var(--color-bg)', borderColor: 'var(--color-border)' }}>
-      <div className="card">
+    <div className="p-4 border-t border-white/[0.08] flex-shrink-0 bg-[#0B0C10]">
+      <div className="rounded-2xl border border-white/[0.08] bg-[#141824] p-4 shadow-md space-y-3">
         {/* Card header */}
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-[13px] font-semibold" style={{ color: 'var(--color-text-1)' }}>New Task</span>
-          <button className="cursor-pointer" style={{ color: 'var(--color-text-3)' }}>
+        <div className="flex items-center justify-between">
+          <span className="text-[13px] font-bold text-white tracking-tight">New Agent Task Instruction</span>
+          <button className="cursor-pointer text-neutral-500 hover:text-white transition-colors">
             <ChevronDown size={15} />
           </button>
         </div>
 
         {/* Input prompt */}
-        <div className="mb-3">
+        <div>
           <input
             ref={inputRef}
             type="text"
@@ -47,18 +47,18 @@ export default function TaskInput({ onSubmit, disabled }: TaskInputProps) {
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit() } }}
             placeholder={disabled ? 'Execution in progress…' : 'Instruct the agents (e.g. "Add validation to factorial.py")'}
             disabled={disabled}
-            className="input-field w-full"
+            className="w-full p-3 rounded-xl bg-[#101218] border border-white/10 text-[13.5px] text-white placeholder:text-neutral-500 outline-none focus:border-[#6E56CF] transition-colors"
           />
         </div>
 
         {/* Attachment chips */}
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-2">
             {attachments.map((file) => (
-              <span key={file} className="chip text-[12px]">
-                <FileText size={13} style={{ color: 'var(--color-text-3)' }} />
+              <span key={file} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#101218] border border-white/10 text-[12px] font-mono text-neutral-300">
+                <FileText size={13} className="text-neutral-400" />
                 <span>{file}</span>
-                <button onClick={() => removeAttachment(file)} className="cursor-pointer" style={{ color: 'var(--color-text-3)' }}>
+                <button onClick={() => removeAttachment(file)} className="cursor-pointer text-neutral-500 hover:text-white ml-1">
                   <X size={11} />
                 </button>
               </span>
@@ -67,25 +67,37 @@ export default function TaskInput({ onSubmit, disabled }: TaskInputProps) {
         )}
 
         {/* Toggles & Action bar */}
-        <div className="flex items-center justify-between pt-3 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
+        <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSearchEnabled(!searchEnabled)}
-              className={`chip text-[12px] cursor-pointer transition-colors ${searchEnabled ? 'border-accent text-accent font-medium' : ''}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-medium transition-colors cursor-pointer ${
+                searchEnabled
+                  ? 'border-[#6E56CF] bg-[#6E56CF]/20 text-[#9D8CFC]'
+                  : 'border-white/10 bg-[#101218] text-neutral-400 hover:text-white'
+              }`}
             >
               <Search size={12} />
               <span>Search</span>
             </button>
             <button
               onClick={() => setDeepResearchEnabled(!deepResearchEnabled)}
-              className={`chip text-[12px] cursor-pointer transition-colors ${deepResearchEnabled ? 'border-accent text-accent font-medium' : ''}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-medium transition-colors cursor-pointer ${
+                deepResearchEnabled
+                  ? 'border-[#6E56CF] bg-[#6E56CF]/20 text-[#9D8CFC]'
+                  : 'border-white/10 bg-[#101218] text-neutral-400 hover:text-white'
+              }`}
             >
               <Sparkles size={12} />
               <span>Deep Research</span>
             </button>
             <button
               onClick={() => setReasonEnabled(!reasonEnabled)}
-              className={`chip text-[12px] cursor-pointer transition-colors ${reasonEnabled ? 'border-accent text-accent font-medium' : ''}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-medium transition-colors cursor-pointer ${
+                reasonEnabled
+                  ? 'border-[#6E56CF] bg-[#6E56CF]/20 text-[#9D8CFC]'
+                  : 'border-white/10 bg-[#101218] text-neutral-400 hover:text-white'
+              }`}
             >
               <BrainCircuit size={12} />
               <span>Reason</span>
@@ -93,15 +105,14 @@ export default function TaskInput({ onSubmit, disabled }: TaskInputProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="btn-ghost text-[12px]">
-              <Upload size={12} />
+            <button className="px-3.5 py-1.5 rounded-xl border border-white/10 text-[12.5px] font-medium text-neutral-300 hover:text-white transition-colors cursor-pointer">
+              <Upload size={13} className="inline mr-1.5" />
               <span>Plan file</span>
             </button>
             <button
               onClick={handleSubmit}
               disabled={disabled || !value.trim()}
-              className="btn-primary text-[13px]"
-              style={{ opacity: value.trim() && !disabled ? 1 : 0.5 }}
+              className="flex items-center gap-2 px-5 py-2 rounded-full bg-[#6E56CF] hover:bg-[#5E46BF] text-white text-[13px] font-semibold transition-all cursor-pointer shadow-sm active:scale-[0.98] disabled:opacity-40"
             >
               <Play size={13} />
               <span>Run Task</span>

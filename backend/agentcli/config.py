@@ -12,31 +12,30 @@ from dataclasses import dataclass, field
 from .schemas import AgentRole
 
 
-# ── Per-Role Model Chains ─────────────────────────────────────────
+# ── Real Per-Role Model Chains for User's Active Models ─────────────
 
 DEFAULT_MODEL_CHAINS: dict[AgentRole, list[str]] = {
     AgentRole.planner: [
-        "gemini/gemini-2.5-flash",
-        "openrouter/google/gemini-2.0-flash-exp:free",
+        "gemini/gemini-3.5-flash",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     ],
     AgentRole.coder: [
-        "groq/llama-3.3-70b-versatile",
-        "openrouter/meta-llama/llama-3.1-70b-instruct:free",
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+        "xai/grok-2-beta",
+        "gemini/gemini-3.5-flash",
     ],
     AgentRole.auditor: [
-        "gemini/gemini-2.5-flash",
-        "groq/llama-3.3-70b-versatile",
+        "xai/grok-2-beta",
+        "gemini/gemini-3.5-flash",
     ],
     AgentRole.tester: [
-        "groq/llama-3.3-70b-versatile",
-        "gemini/gemini-2.5-flash",
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+        "xai/grok-2-beta",
     ],
 }
 
 
 # ── Per-Role API Key Resolution ───────────────────────────────────
-
-# FR-25: CODER_API_KEY → fallback to provider default key
 
 ROLE_API_KEY_ENVVARS: dict[AgentRole, str] = {
     AgentRole.planner: "PLANNER_API_KEY",
@@ -47,8 +46,9 @@ ROLE_API_KEY_ENVVARS: dict[AgentRole, str] = {
 
 PROVIDER_KEY_ENVVARS: dict[str, str] = {
     "gemini": "GEMINI_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-    "groq": "GROQ_API_KEY",
+    "xai": "XAI_GROK_API_KEY",
+    "grok": "XAI_GROK_API_KEY",
+    "openrouter": "OPENROUTER_SUPER_KEY",
 }
 
 
@@ -57,7 +57,7 @@ def resolve_api_key(role: AgentRole, model: str) -> str | None:
 
     Priority:
       1. Role-specific env var (e.g. CODER_API_KEY)
-      2. Provider-specific env var (e.g. GROQ_API_KEY)
+      2. Provider-specific env var (e.g. GEMINI_API_KEY, XAI_GROK_API_KEY, OPENROUTER_SUPER_KEY)
       3. None (let litellm figure it out from its own env defaults)
     """
     # 1. Role-specific key

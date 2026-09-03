@@ -30,21 +30,21 @@ function LogRow({ log }: { log: LogEntry }) {
 
   return (
     <div
-      className={`flex gap-2.5 px-3 py-1.5 text-[11px] leading-relaxed border-b font-mono transition-colors ${
+      className={`flex gap-2.5 px-3.5 py-1.5 text-[11.5px] leading-relaxed border-b font-mono transition-colors ${
         isAlert
-          ? 'bg-red-50 text-red-800 border-red-100'
+          ? 'bg-red-500/10 text-red-300 border-red-500/20'
           : isWarn
-          ? 'bg-amber-50 text-amber-900 border-amber-100'
-          : 'hover:bg-[#EFECE6]/60 text-[#1C1E17] border-[#F0EDE6]'
+          ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+          : 'hover:bg-white/[0.04] text-neutral-200 border-white/[0.05]'
       }`}
     >
-      <span className="w-[54px] flex-shrink-0 text-[#8E9084] tabular-nums select-none">{log.timestamp}</span>
-      <span className="w-[56px] flex-shrink-0 text-[10px] uppercase font-bold text-[#6B6E62] select-none">
+      <span className="w-[58px] flex-shrink-0 text-neutral-500 tabular-nums select-none">{log.timestamp}</span>
+      <span className="w-[60px] flex-shrink-0 text-[10px] uppercase font-bold text-neutral-400 select-none">
         {typeLabel[log.type] ?? log.type}
       </span>
       <span className="flex-1 min-w-0 break-words">
-        {isAlert && <ShieldAlert size={11} className="inline mr-1 -mt-0.5 text-red-600" />}
-        {isWarn && <AlertTriangle size={11} className="inline mr-1 -mt-0.5 text-amber-600" />}
+        {isAlert && <ShieldAlert size={12} className="inline mr-1 -mt-0.5 text-red-400" />}
+        {isWarn && <AlertTriangle size={12} className="inline mr-1 -mt-0.5 text-amber-400" />}
         {log.message}
       </span>
     </div>
@@ -67,21 +67,21 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 p-4 font-mono select-text bg-[#FAF9F6]">
-      <div className="bg-white rounded-xl border border-[#E5E2DC] shadow-2xs flex-1 flex flex-col min-h-0 overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 p-4 font-mono select-text bg-[#0B0C10]">
+      <div className="bg-[#141824] rounded-2xl border border-white/[0.08] shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Terminal Header Bar */}
-        <div className="flex items-center justify-between h-10 px-4 border-b border-[#E5E2DC] bg-white flex-shrink-0 select-none">
+        <div className="flex items-center justify-between h-11 px-4 border-b border-white/[0.08] bg-[#192031] flex-shrink-0 select-none">
           <div className="flex items-center gap-2">
-            <Terminal size={14} className="text-[#8E9084]" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#1C1E17]">
-              Terminal Execution Stream
+            <Terminal size={14} className="text-[#9D8CFC]" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white">
+              Terminal Stream
             </span>
-            <span className="text-[10px] text-[#8E9084]">({logs.length})</span>
+            <span className="text-[10.5px] font-mono text-neutral-400">({logs.length})</span>
           </div>
 
           <div className="flex items-center gap-2">
             {filter && (
-              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-[#275838]/30 bg-[#275838]/10 text-[#275838] text-[10px] font-semibold">
+              <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-[#6E56CF]/40 bg-[#6E56CF]/20 text-[#9D8CFC] text-[10.5px] font-semibold">
                 <Filter size={10} />
                 <span>{filter}</span>
                 <button onClick={onClearFilter} className="cursor-pointer hover:opacity-70">
@@ -92,19 +92,19 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
 
             <button
               onClick={copyAllLogs}
-              className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[#EFECE6] text-[#6B6E62] text-[11px] cursor-pointer transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#101218] border border-white/10 text-[#9FA8C4] hover:text-white text-[11px] cursor-pointer transition-colors"
               title="Copy all logs"
             >
-              {copied ? <Check size={12} className="text-[#41863E]" /> : <Copy size={12} />}
+              {copied ? <Check size={12} className="text-[#30A46C]" /> : <Copy size={12} />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
         </div>
 
         {/* Terminal Stream Body */}
-        <div className="flex-1 overflow-y-auto min-h-0 bg-[#F7F5F0]">
+        <div className="flex-1 overflow-y-auto min-h-0 bg-[#0C1019]">
           {logs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-[#8E9084] text-[11px]">
+            <div className="flex flex-col items-center justify-center h-full text-neutral-500 text-[11.5px]">
               <span>No execution logs recorded</span>
             </div>
           ) : (
