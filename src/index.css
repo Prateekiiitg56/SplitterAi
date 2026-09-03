@@ -1,46 +1,67 @@
 @import "tailwindcss";
 
-/* ── Design Tokens ────────────────────────────────────────────── */
+/* ── Design Tokens — Warm Cinematic: Dark + Light Split ──────── */
+/* Palette: #244855 · #E64833 · #874F41 · #90AEAD · #FBE9D0     */
 @theme {
-  /* Color system — 5 named + neutral scale */
-  --color-accent: #2563EB;
-  --color-accent-hover: #1D4ED8;
-  --color-green: #10B981;
-  --color-red: #EF4444;
-  --color-amber: #F59E0B;
-  --color-text-1: #0F172A;
-  --color-text-2: #475569;
-  --color-text-3: #94A3B8;
-  --color-border: #E2E8F0;
-  --color-surface: transparent;
-  --color-raised: #FFFFFF;
-  --color-hover: #F1F5F9;
+  /* Sidebar — dark teal */
+  --color-sidebar: #1A343E;
 
-  /* Legacy aliases (keep other pages working) */
-  --color-primary: #2563EB;
-  --color-success: #10B981;
-  --color-urgent-red: #EF4444;
-  --color-warning: #F59E0B;
-  --color-text-primary: #0F172A;
-  --color-text-secondary: #475569;
-  --color-sidebar-bg: rgba(255, 255, 255, 0.85);
-  --color-hover-bg: #F1F5F9;
-  --color-nav-pill: #DBEAFE;
-  --color-compose-bg: #DBEAFE;
-  --color-compose-text: #1E3A5F;
-  --color-search-bg: #F1F5F9;
-  --color-star-yellow: #F59E0B;
-  --color-purple: #7C3AED;
-  --color-surface-alt: transparent;
+  /* Content surfaces — warm light */
+  --color-bg: #FBE9D0;
+  --color-surface: #FFFFFF;
+  --color-elevated: #FFF8F0;
+
+  /* Text — dark on light */
+  --color-text-1: #244855;
+  --color-text-2: #874F41;
+  --color-text-3: #90AEAD;
+
+  /* Border — warm brown based */
+  --color-border: rgba(135, 79, 65, 0.1);
+
+  /* Accent — coral */
+  --color-accent: #E64833;
+  --color-accent-hover: #D13D2B;
+
+  /* Semantic */
+  --color-green: #2E9E6E;
+  --color-red: #E64833;
+  --color-amber: #D4940A;
+
+  /* Brand palette */
+  --color-brand: #244855;
+  --color-warm: #874F41;
+  --color-sage: #90AEAD;
+  --color-cream: #FBE9D0;
+
+  /* Legacy aliases */
+  --color-primary: #E64833;
+  --color-success: #2E9E6E;
+  --color-urgent-red: #E64833;
+  --color-warning: #D4940A;
+  --color-text-primary: #244855;
+  --color-text-secondary: #874F41;
+  --color-sidebar-bg: #1A343E;
+  --color-hover-bg: rgba(36, 72, 85, 0.05);
+  --color-nav-pill: rgba(230, 72, 51, 0.08);
+  --color-compose-bg: #FFFFFF;
+  --color-compose-text: #244855;
+  --color-search-bg: #F5E6D0;
+  --color-star-yellow: #D4940A;
+  --color-purple: #874F41;
+  --color-surface-alt: #FFF8F0;
+  --color-raised: #FFFFFF;
+  --color-hover: rgba(36, 72, 85, 0.04);
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
 
   /* Radii */
-  --radius-lg: 12px;
-  --radius: 10px;
-  --radius-sm: 6px;
+  --radius-lg: 14px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
 }
 
 /* ── Base ─────────────────────────────────────────────────────── */
@@ -57,24 +78,31 @@ body {
   font-size: 14px;
   line-height: 20px;
   color: var(--color-text-1);
-  background: linear-gradient(180deg, #FAF0EB 0%, #E2E8F0 38%, #64748B 72%, #1E293B 100%) fixed;
-  background-attachment: fixed;
+  background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Scrollbar ────────────────────────────────────────────────── */
+/* ── Scrollbar ───────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.5); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: var(--color-text-3); }
+::-webkit-scrollbar-thumb { background: rgba(135, 79, 65, 0.2); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(135, 79, 65, 0.35); }
 
-/* ── Type scale ───────────────────────────────────────────────── */
+/* ── Typography Scale ────────────────────────────────────────── */
 .t-hero {
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 600;
-  line-height: 40px;
+  line-height: 1.15;
   letter-spacing: -0.025em;
+  color: var(--color-text-1);
+}
+
+.t-section {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.01em;
   color: var(--color-text-1);
 }
 
@@ -86,7 +114,7 @@ body {
 }
 
 .t-card-title {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 600;
   line-height: 22px;
   letter-spacing: -0.01em;
@@ -94,23 +122,26 @@ body {
 }
 
 .t-body {
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 20px;
   color: var(--color-text-2);
 }
 
 .t-label {
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 18px;
-  color: var(--color-text-1);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-3);
 }
 
 .t-caption {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 16px;
+  color: var(--color-text-2);
 }
 
 .t-mono {
@@ -121,28 +152,57 @@ body {
   color: var(--color-text-3);
 }
 
-/* ── Custom Shadows & Card Depth ──────────────────────────────── */
+/* ── Card Utilities ──────────────────────────────────────────── */
+.card-surface {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.card-elevated {
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
 .card-depth {
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  box-shadow:
+    0 1px 3px rgba(36, 72, 85, 0.06),
+    0 4px 16px rgba(36, 72, 85, 0.04);
 }
 
 .card-depth:hover {
-  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.08), 0 4px 10px -2px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 2px 6px rgba(36, 72, 85, 0.08),
+    0 8px 24px rgba(36, 72, 85, 0.06);
 }
 
 .input-depth {
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(36, 72, 85, 0.06);
 }
 
-/* ── Animations ───────────────────────────────────────────────── */
+/* ── Animations ──────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
 
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 .animate-fade-in { animation: fadeIn 180ms ease-out both; }
 .animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+.animate-subtle-pulse { animation: subtle-pulse 2s ease-in-out infinite; }

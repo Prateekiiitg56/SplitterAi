@@ -1,436 +1,519 @@
 "use client";
 
-import type React from "react";
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Search,
+  Paperclip,
   Mic,
-  ArrowUp,
   Plus,
-  FileText,
-  BrainCircuit,
-  Sparkles,
   ArrowRight,
-  Terminal,
+  Settings,
   Layers,
+  Code,
+  ShieldCheck,
+  TestTube,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { StatusBadge, AgentIcon } from "../Badges";
+import {
+  mockAgents,
+  mockSessions,
+  ROLE_META,
+  type AgentRole,
+  type AgentStatus,
+} from "../../data";
+import Background3D from "../Background3D";
 
-/* ── Agent Data Model ─────────────────────────────────────────── */
+/* ── Palette constants — Light content ────────────────────────── */
+const C = {
+  // Surfaces
+  bg: "#FBE9D0",
+  card: "#FFFFFF",
+  cardHover: "#FFF8F0",
+  elevated: "#FFF5EB",
 
-type AgentStatus = "active" | "idle" | "error";
+  // Brand
+  brand: "#244855",
+  accent: "#E64833",
+  accentHover: "#D13D2B",
+  warm: "#874F41",
+  sage: "#90AEAD",
+  cream: "#FBE9D0",
 
-interface Agent {
-  id: string;
-  label: string;
-  desc: string;
-  status: AgentStatus;
-  model?: string;
-  roleType: "dispatcher" | "worker";
-}
+  // Text
+  text: "#244855",
+  textSec: "#874F41",
+  textMuted: "#90AEAD",
 
-const plannerAgent: Agent = {
-  id: "planner",
-  label: "Planner",
-  desc: "Decomposes complex requests into executable subtasks, analyzes dependencies, and routes work to specialized worker agents in parallel or sequence.",
-  status: "idle",
-  model: "gemini/gemini-2.5-flash",
-  roleType: "dispatcher",
+  // Borders
+  border: "rgba(135, 79, 65, 0.1)",
+  borderStrong: "rgba(135, 79, 65, 0.18)",
+  borderAccent: "rgba(230, 72, 51, 0.2)",
+
+  // Status
+  green: "#2E9E6E",
+
+  // Shadows
+  shadow: "0 1px 3px rgba(36,72,85,0.06), 0 4px 16px rgba(36,72,85,0.04)",
+  shadowHover: "0 2px 8px rgba(36,72,85,0.08), 0 8px 28px rgba(36,72,85,0.06)",
+} as const;
+
+/* ── Agent Icon Map ───────────────────────────────────────────── */
+const agentIconMap: Record<AgentRole, React.ReactNode> = {
+  planner: <Layers size={18} />,
+  coder: <Code size={18} />,
+  auditor: <ShieldCheck size={18} />,
+  tester: <TestTube size={18} />,
 };
 
-const workerAgents: Agent[] = [
-  {
-    id: "coder",
-    label: "Coder",
-    desc: "Writes, refactors, and executes code within secure isolated sandboxes using tool access.",
-    status: "active",
-    model: "groq/llama-3.3-70b-versatile",
-    roleType: "worker",
-  },
-  {
-    id: "auditor",
-    label: "Auditor",
-    desc: "Reviews generated code for security flaws, edge cases, vulnerability patterns, and PEP 8 standards.",
-    status: "active",
-    model: "gemini/gemini-2.5-flash",
-    roleType: "worker",
-  },
-  {
-    id: "tester",
-    label: "Tester",
-    desc: "Generates test suites, executes test scripts in shell sandboxes, and verifies runtime output.",
-    status: "active",
-    model: "groq/llama-3.3-70b-versatile",
-    roleType: "worker",
-  },
-];
-
-const suggestions = [
-  "Create a REST API with Express, TypeScript, and automated unit tests",
-  "Audit the login handler for XSS, SQL injection, and authorization flaws",
-  "Build a Python CLI tool with argument parsing and subcommands",
-  "Decompose and run three independent utility scripts in parallel",
-  "Fix expired JWT handling in auth middleware and verify test coverage",
-];
-
-/* ── Header / Logo Lockup Component ───────────────────────────── */
-
-function BrandHeader() {
-  let navigate = (path: string) => { window.location.href = path }
-  try {
-    const nav = useNavigate()
-    if (typeof nav === 'function') navigate = nav
-  } catch (e) {
-    // fallback
-  }
-
+/* ── Status Badge ─────────────────────────────────────────────── */
+function StatusPill({ status }: { status: AgentStatus }) {
+  const isActive = status === "active";
   return (
-    <header className="flex items-center justify-between mb-10 pb-4 border-b border-slate-200/80">
-      {/* Inline Lockup: Icon + Name + Divider + Breadcrumb */}
-      <div className="flex items-center gap-3">
-        {/* Node graph icon */}
-        <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white shadow-xs flex-shrink-0">
-          <svg width="20" height="20" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <line x1="20" y1="20" x2="20" y2="7" stroke="#94A3B8" strokeWidth="2.5" />
-            <line x1="20" y1="20" x2="33" y2="20" stroke="#94A3B8" strokeWidth="2.5" />
-            <line x1="20" y1="20" x2="20" y2="33" stroke="#94A3B8" strokeWidth="2.5" />
-            <line x1="20" y1="20" x2="7" y2="20" stroke="#94A3B8" strokeWidth="2.5" />
-            <circle cx="20" cy="20" r="4.5" fill="#38BDF8" />
-            <circle cx="20" cy="7" r="3.5" fill="#E2E8F0" />
-            <circle cx="33" cy="20" r="3.5" fill="#E2E8F0" />
-            <circle cx="20" cy="33" r="3.5" fill="#E2E8F0" />
-            <circle cx="7" cy="20" r="3.5" fill="#E2E8F0" />
-          </svg>
-        </div>
-
-        <span className="text-[17px] font-bold text-slate-900 tracking-tight" style={{ fontFamily: 'var(--font-sans)' }}>
-          agentcli
-        </span>
-
-        {/* Thin vertical divider */}
-        <div className="h-4 w-px bg-slate-300" />
-
-        {/* Breadcrumb / Tag */}
-        <span className="text-[12px] font-medium text-slate-500 font-mono">
-          multi-agent-orchestrator
-        </span>
-      </div>
-
-      {/* Right-aligned Live Workspace Pill */}
-      <button
-        onClick={() => navigate('/run')}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-[13px] font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-xs cursor-pointer"
-      >
-        <span>Live Workspace</span>
-        <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-      </button>
-    </header>
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
+      style={{
+        background: isActive ? "rgba(230,72,51,0.08)" : "rgba(144,174,173,0.12)",
+        border: `1px solid ${isActive ? "rgba(230,72,51,0.2)" : "rgba(144,174,173,0.2)"}`,
+        color: isActive ? C.accent : C.textMuted,
+      }}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? "animate-pulse-dot" : ""}`}
+        style={{ background: isActive ? C.accent : C.textMuted }}
+      />
+      {isActive ? "Running" : "Idle"}
+    </span>
   );
 }
 
-
-
-/* ── Main Landing Page Component ──────────────────────────────── */
-
-export function AIAssistantInterface() {
-  let navigate = (path: string) => { window.location.href = path }
-  try {
-    const nav = useNavigate()
-    if (typeof nav === 'function') navigate = nav
-  } catch (e) {
-    // fallback
+/* ── Session Status Icon ──────────────────────────────────────── */
+function RunStatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "done":
+      return <CheckCircle2 size={14} style={{ color: C.green }} className="flex-shrink-0" />;
+    case "error":
+      return <XCircle size={14} style={{ color: C.accent }} className="flex-shrink-0" />;
+    case "executing":
+    case "planning":
+      return <span className="w-2.5 h-2.5 rounded-full animate-pulse-dot flex-shrink-0" style={{ background: C.accent }} />;
+    default:
+      return <AlertCircle size={14} style={{ color: C.textMuted }} className="flex-shrink-0" />;
   }
+}
+
+/* ── Role Labels ──────────────────────────────────────────────── */
+const roleLabels: Record<AgentRole, string> = {
+  planner: "DISPATCHER & ORCHESTRATOR",
+  coder: "CODING AGENT",
+  auditor: "SECURITY & REVIEW AGENT",
+  tester: "TESTING AGENT",
+};
+
+/* ================================================================
+   MAIN COMPONENT
+   ================================================================ */
+export function AIAssistantInterface() {
+  let navigate = (path: string) => { window.location.href = path; };
+  try {
+    const nav = useNavigate();
+    if (typeof nav === "function") navigate = nav;
+  } catch (e) { /* fallback */ }
+
   const [inputValue, setInputValue] = useState("");
-  const [searchEnabled, setSearchEnabled] = useState(false);
-  const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
-  const [reasonEnabled, setReasonEnabled] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
-  const [showUploadAnim, setShowUploadAnim] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleUpload = () => {
-    setShowUploadAnim(true);
-    setTimeout(() => {
-      setUploadedFiles((p) => [...p, `plan-${p.length + 1}.json`]);
-      setShowUploadAnim(false);
-    }, 1200);
-  };
+  const plannerAgent = mockAgents.find((a) => a.role === "planner")!;
+  const workerAgents = mockAgents.filter((a) => a.role !== "planner");
 
-  const handleSend = () => {
-    if (inputValue.trim()) navigate("/run");
-  };
-
-  const pickSuggestion = (s: string) => {
-    setInputValue(s);
-    setShowSuggestions(false);
-    inputRef.current?.focus();
+  const handleSend = () => { if (inputValue.trim()) navigate("/run"); };
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSend(); }
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-surface">
-      {/* 1. LAYOUT CONTAINER — Centered 1020px column */}
-      <div className="max-w-[1020px] mx-auto px-6 md:px-8 py-8 md:py-12 flex flex-col min-h-full">
+    <div
+      className="flex-1 overflow-y-auto relative"
+      style={{
+        background: `
+          radial-gradient(ellipse at 15% 10%, rgba(230,72,51,0.05) 0%, transparent 50%),
+          radial-gradient(ellipse at 85% 30%, rgba(36,72,85,0.05) 0%, transparent 50%),
+          radial-gradient(ellipse at 50% 80%, rgba(144,174,173,0.06) 0%, transparent 50%),
+          linear-gradient(180deg, #FBE9D0 0%, #F3E0C8 50%, #EDD8C4 100%)
+        `,
+      }}
+    >
+      <Background3D />
+      <div className="relative z-10" style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 32px 48px" }}>
 
-        {/* 2. HEADER / LOGO LOCKUP */}
-        <BrandHeader />
-
-        {/* 3. HIERARCHY — Prominent Headline & Subhead */}
-        <div className="mb-10 max-w-3xl">
-          <h1 className="text-[38px] font-bold text-slate-900 tracking-tight leading-[46px]">
+        {/* ── Page Introduction ──────────────────────────────── */}
+        <div style={{ maxWidth: 900, marginBottom: 32 }} className="relative">
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              top: -60,
+              left: -80,
+              width: 500,
+              height: 250,
+              background: "radial-gradient(ellipse at center, rgba(230,72,51,0.06) 0%, transparent 65%)",
+            }}
+          />
+          <h1 className="t-hero relative" style={{ marginBottom: 8 }}>
             What should the agents do?
           </h1>
-          <p className="text-[15.5px] text-slate-500 font-normal leading-relaxed mt-3">
-            Submit a task instruction. The Planner agent breaks down subtasks, builds an execution DAG, and dispatches parallel worker agents in sandboxed runtimes.
+          <p className="t-subhead relative">
+            Describe the task and let the Planner coordinate the right agents automatically.
           </p>
         </div>
 
-        {/* Section Label Divider */}
-        <div className="flex items-center gap-3 mb-6">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-            AGENT ROSTER
-          </span>
-          <div className="flex-1 h-px bg-slate-200/80" />
-        </div>
-
-        {/* 4. AGENT GRID STRUCTURE */}
-        {/* Top: Full-Width Horizontal Card for Planner (Dispatcher) */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          onClick={() => navigate(`/agent/${plannerAgent.id}`)}
-          className="rounded-xl border border-slate-200 bg-white p-6 card-depth hover:border-slate-300 transition-all duration-150 cursor-pointer group mb-5"
+        {/* ── Planner Orchestration Card ─────────────────────── */}
+        <div
+          onClick={() => navigate("/agent/planner")}
+          className="cursor-pointer transition-all duration-150 group"
+          style={{
+            background: C.card,
+            border: `1px solid ${C.borderAccent}`,
+            borderRadius: 12,
+            padding: "20px 24px",
+            minHeight: 104,
+            marginBottom: 0,
+            borderTop: "2px solid rgba(230,72,51,0.4)",
+            boxShadow: C.shadow,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.boxShadow = C.shadowHover;
+            e.currentTarget.style.borderColor = "rgba(230,72,51,0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.boxShadow = C.shadow;
+            e.currentTarget.style.borderColor = C.borderAccent;
+            e.currentTarget.style.borderTop = "2px solid rgba(230,72,51,0.4)";
+          }}
         >
-          {/* Top Row: Icon + Name + Dispatcher Tag + Status */}
           <div className="flex items-center justify-between gap-4 mb-3">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center flex-shrink-0 group-hover:bg-sky-100/70 transition-colors">
-                <AgentIcon role={plannerAgent.id} />
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: "rgba(230,72,51,0.08)",
+                  border: "1px solid rgba(230,72,51,0.15)",
+                  color: C.accent,
+                }}
+              >
+                {agentIconMap.planner}
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[17px] font-semibold text-slate-900">{plannerAgent.label}</span>
-                  <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 text-[10px] font-bold tracking-wide uppercase font-mono">
-                    DISPATCHER &amp; ORCHESTRATOR
+              <span className="t-card-title">{ROLE_META.planner.label}</span>
+              <span
+                className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase"
+                style={{
+                  background: "rgba(36,72,85,0.06)",
+                  border: `1px solid ${C.border}`,
+                  color: C.textMuted,
+                  letterSpacing: "0.06em",
+                }}
+              >
+                {roleLabels.planner}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <StatusPill status={plannerAgent.status} />
+              <div className="flex items-center gap-1.5 text-[12px] transition-colors" style={{ color: C.textMuted }}>
+                <Settings size={13} />
+                <span>Configure</span>
+                <ArrowRight size={12} />
+              </div>
+            </div>
+          </div>
+
+          <p className="t-body mb-3" style={{ maxWidth: 700 }}>
+            {ROLE_META.planner.desc}
+          </p>
+
+          {plannerAgent.model && (
+            <span
+              className="inline-block px-2.5 py-1 rounded-md font-mono text-[11px]"
+              style={{
+                background: "rgba(36,72,85,0.05)",
+                border: `1px solid ${C.border}`,
+                color: C.brand,
+              }}
+            >
+              {plannerAgent.model}
+            </span>
+          )}
+        </div>
+
+        {/* ── Connector ─────────────────────────────────────── */}
+        <div className="flex flex-col items-center" style={{ padding: "4px 0" }}>
+          <div style={{ width: 1, height: 16, background: "rgba(135,79,65,0.15)" }} />
+          <div
+            className="rounded-full"
+            style={{
+              width: 8,
+              height: 8,
+              background: C.accent,
+              boxShadow: "0 0 8px rgba(230,72,51,0.25)",
+            }}
+          />
+          <div style={{ width: 1, height: 16, background: "rgba(135,79,65,0.15)" }} />
+        </div>
+
+        {/* ── Worker Agent Cards Grid ────────────────────────── */}
+        <div
+          className="grid gap-4 mb-8"
+          style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}
+        >
+          {workerAgents.map((agent) => (
+            <div
+              key={agent.role}
+              onClick={() => navigate(`/agent/${agent.role}`)}
+              className="flex flex-col cursor-pointer transition-all duration-150 group"
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 12,
+                padding: "20px",
+                minHeight: 200,
+                boxShadow: C.shadow,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = C.borderStrong;
+                e.currentTarget.style.boxShadow = C.shadowHover;
+                e.currentTarget.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = C.border;
+                e.currentTarget.style.boxShadow = C.shadow;
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: "rgba(36,72,85,0.08)",
+                      border: "1px solid rgba(36,72,85,0.12)",
+                      color: C.brand,
+                    }}
+                  >
+                    {agentIconMap[agent.role]}
+                  </div>
+                  <span className="t-card-title">{ROLE_META[agent.role].label}</span>
+                </div>
+                <StatusPill status={agent.status} />
+              </div>
+
+              <span className="mb-2" style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: C.textMuted }}>
+                {roleLabels[agent.role]}
+              </span>
+
+              <p className="t-body mb-4" style={{ fontSize: 13, lineHeight: "19px" }}>
+                {ROLE_META[agent.role].desc}
+              </p>
+
+              <div className="mt-auto space-y-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                {agent.model && (
+                  <span
+                    className="inline-block px-2.5 py-1 rounded-md font-mono text-[11px]"
+                    style={{
+                      background: "rgba(36,72,85,0.05)",
+                      border: `1px solid ${C.border}`,
+                      color: C.brand,
+                    }}
+                  >
+                    {agent.model}
                   </span>
+                )}
+                <div className="flex items-center gap-1.5 text-[12px] transition-colors" style={{ color: C.textMuted }}>
+                  <Settings size={13} />
+                  <span>Configure</span>
+                  <ArrowRight size={12} className="ml-auto" />
                 </div>
               </div>
             </div>
-            <StatusBadge status={plannerAgent.status} />
-          </div>
-
-          {/* Description */}
-          <p className="text-[13.5px] text-slate-600 leading-relaxed mb-4 max-w-4xl">
-            {plannerAgent.desc}
-          </p>
-
-          {/* Bottom Row Separated by Thin Divider */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-[11px] font-mono text-slate-400">
-              {plannerAgent.model}
-            </span>
-            <span className="text-[12px] font-medium text-slate-400 group-hover:text-accent transition-colors">
-              Configure →
-            </span>
-          </div>
-        </motion.div>
-
-        {/* Workers Grid: 1x3 Grid for Coder, Auditor, Tester */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-          {workerAgents.map((agent, i) => (
-            <motion.div
-              key={agent.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (i + 1) * 0.05, duration: 0.2 }}
-              onClick={() => navigate(`/agent/${agent.id}`)}
-              className="flex flex-col text-left rounded-xl border border-slate-200 bg-white p-6 card-depth hover:border-slate-300 transition-all duration-150 cursor-pointer group"
-            >
-              {/* Top Row: Icon + Name + Status */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-slate-200/70 transition-colors">
-                  <AgentIcon role={agent.id} />
-                </div>
-                <span className="text-[15.5px] font-semibold text-slate-900 flex-1">{agent.label}</span>
-                <StatusBadge status={agent.status} />
-              </div>
-
-              {/* Description */}
-              <p className="text-[13px] text-slate-600 leading-relaxed mb-4 min-h-[54px] line-clamp-3">
-                {agent.desc}
-              </p>
-
-              {/* Bottom Row Separated by Thin Divider */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between mt-auto">
-                <span className="text-[11px] font-mono text-slate-400">
-                  {agent.model}
-                </span>
-                <span className="text-[12px] font-medium text-slate-400 group-hover:text-accent transition-colors">
-                  Configure →
-                </span>
-              </div>
-            </motion.div>
           ))}
         </div>
 
-        {/* Section Label Divider for Console */}
-        <div className="flex items-center gap-3 mb-6">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-            COMMAND CONSOLE
-          </span>
-          <div className="flex-1 h-px bg-slate-200/80" />
-        </div>
+        {/* ── Task Composer ──────────────────────────────────── */}
+        <div
+          className="mb-8"
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            overflow: "hidden",
+            boxShadow: C.shadow,
+          }}
+        >
+          <div className="px-5 pt-4 pb-2" style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: C.textMuted }}>
+            TASK INSTRUCTION
+          </div>
 
-        {/* 5. COMMAND CONSOLE — Single Bordered Container */}
-        <div className="rounded-xl border border-slate-200 bg-white input-depth overflow-hidden transition-all duration-150 focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/15 mb-8">
-          {/* Input Row with Accent Prompt Glyph '>' */}
-          <div className="flex items-center gap-3 px-5 py-4">
-            <span className="text-accent font-mono font-bold text-lg select-none leading-none -mt-0.5">
-              &gt;
-            </span>
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Describe a task (e.g. 'Build a REST API with Express and add unit tests')"
+          <div className="px-5 pb-3">
+            <textarea
+              ref={textareaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-              onFocus={() => setShowSuggestions(true)}
-              className="flex-1 text-[15px] text-slate-900 outline-none bg-transparent placeholder:text-slate-400"
+              onKeyDown={handleKeyDown}
+              placeholder='Describe a task (e.g. "Build a REST API with Express and add unit tests")'
+              rows={4}
+              className="w-full bg-transparent text-[14px] outline-none resize-none"
+              style={{ minHeight: 100, lineHeight: "22px", color: C.text }}
             />
+          </div>
 
-            {/* Mic + Send button vertically aligned */}
-            <div className="flex items-center gap-2">
-              <button className="p-2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer rounded-lg hover:bg-slate-100">
-                <Mic className="w-4 h-4" />
-              </button>
+          <div
+            className="flex items-center gap-2 px-5 py-3"
+            style={{
+              borderTop: `1px solid ${C.border}`,
+              background: "rgba(36,72,85,0.02)",
+            }}
+          >
+            {[
+              { icon: <Paperclip size={15} />, title: "Attach file" },
+              { icon: <Mic size={15} />, title: "Voice input" },
+              { icon: <Plus size={15} />, title: "Add context" },
+            ].map((btn) => (
               <button
-                onClick={handleSend}
-                disabled={!inputValue.trim()}
-                className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
-                  inputValue.trim()
-                    ? "bg-accent text-white hover:bg-accent-hover shadow-xs active:scale-95"
-                    : "bg-slate-100 text-slate-300 cursor-not-allowed"
-                }`}
-                title="Execute task"
+                key={btn.title}
+                className="p-2 rounded-lg transition-all cursor-pointer"
+                style={{ color: C.textMuted }}
+                title={btn.title}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = C.warm;
+                  e.currentTarget.style.background = "rgba(36,72,85,0.05)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = C.textMuted;
+                  e.currentTarget.style.background = "transparent";
+                }}
               >
-                <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                {btn.icon}
               </button>
-            </div>
-          </div>
+            ))}
 
-          {/* Uploaded Files Sub-Row */}
-          {uploadedFiles.length > 0 && (
-            <div className="px-5 pb-3">
-              <div className="flex flex-wrap gap-2">
-                {uploadedFiles.map((file, i) => (
-                  <div key={i} className="flex items-center gap-1.5 bg-slate-50 py-1 px-2.5 rounded-md border border-slate-200 text-xs">
-                    <FileText className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="font-medium text-slate-700">{file}</span>
-                    <button
-                      onClick={() => setUploadedFiles((p) => p.filter((_, j) => j !== i))}
-                      className="text-slate-400 hover:text-slate-600 cursor-pointer ml-1"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            <span className="flex-1 text-[12px] text-center hidden md:block" style={{ color: C.textMuted }}>
+              Planner will determine the execution plan
+            </span>
 
-          {/* Internal Divider */}
-          <div className="border-t border-slate-100" />
-
-          {/* Function Toggles Row */}
-          <div className="flex items-center gap-2 px-5 py-3 bg-slate-50/50">
-            <TogglePill active={searchEnabled} onClick={() => setSearchEnabled(!searchEnabled)} icon={<Search className="w-3.5 h-3.5" />} label="Search" />
-            <TogglePill active={deepResearchEnabled} onClick={() => setDeepResearchEnabled(!deepResearchEnabled)} icon={<Sparkles className="w-3.5 h-3.5" />} label="Deep Research" />
-            <TogglePill active={reasonEnabled} onClick={() => setReasonEnabled(!reasonEnabled)} icon={<BrainCircuit className="w-3.5 h-3.5" />} label="Reason" />
-          </div>
-
-          {/* Internal Divider */}
-          <div className="border-t border-slate-100" />
-
-          {/* Upload Manual Plan Row */}
-          <div className="px-5 py-3 bg-white">
             <button
-              onClick={handleUpload}
-              className="flex items-center gap-2 text-slate-500 text-[13px] font-medium hover:text-slate-800 transition-colors cursor-pointer"
+              onClick={handleSend}
+              disabled={!inputValue.trim()}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-semibold transition-all"
+              style={{
+                background: inputValue.trim() ? C.accent : "rgba(144,174,173,0.12)",
+                color: inputValue.trim() ? "#FFFFFF" : C.textMuted,
+                border: `1px solid ${inputValue.trim() ? C.accent : "rgba(144,174,173,0.2)"}`,
+                cursor: inputValue.trim() ? "pointer" : "not-allowed",
+                boxShadow: inputValue.trim() ? "0 2px 8px rgba(230,72,51,0.25)" : "none",
+              }}
             >
-              {showUploadAnim ? (
-                <motion.div className="flex gap-1" initial="hidden" animate="visible"
-                  variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}>
-                  {[0, 1, 2].map((i) => (
-                    <motion.div key={i} className="w-1.5 h-1.5 bg-accent rounded-full"
-                      variants={{
-                        hidden: { opacity: 0, y: 4 },
-                        visible: { opacity: 1, y: 0, transition: { duration: 0.35, repeat: Infinity, repeatType: "mirror", delay: i * 0.1 } },
-                      }}
-                    />
-                  ))}
-                </motion.div>
-              ) : (
-                <Plus className="w-3.5 h-3.5 text-slate-400" />
-              )}
-              <span>Upload manual plan (JSON / YAML)</span>
+              <span>Run Agents</span>
+              <span className="text-[10px] font-mono" style={{ opacity: 0.7 }}>Ctrl ↵</span>
             </button>
           </div>
         </div>
 
-        {/* 6. SUGGESTIONS BLOCK */}
-        <AnimatePresence>
-          {showSuggestions && !inputValue.trim() && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ duration: 0.15 }}
-              className="mb-8"
+        {/* ── Execution Status ───────────────────────────────── */}
+        <div
+          className="mb-8"
+          style={{
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 12,
+            padding: "24px",
+            boxShadow: C.shadow,
+          }}
+        >
+          <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: C.textMuted, marginBottom: 12 }}>
+            EXECUTION STATUS
+          </p>
+          <div className="flex flex-col items-center py-6 gap-2">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center mb-2"
+              style={{ background: "rgba(36,72,85,0.05)", border: `1px solid ${C.border}` }}
             >
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 font-mono">
-                SUGGESTED TASKS
-              </p>
-              <div className="space-y-1">
-                {suggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => pickSuggestion(s)}
-                    className="flex items-center gap-3 w-full text-left py-2.5 px-3 hover:bg-white border border-transparent hover:border-slate-200/80 rounded-lg transition-all duration-150 cursor-pointer group"
-                  >
-                    <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-accent transition-colors flex-shrink-0" />
-                    <span className="text-[14px] text-slate-700 group-hover:text-slate-900 font-normal">{s}</span>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <Clock size={18} style={{ color: C.textMuted }} />
+            </div>
+            <p className="text-[15px] font-medium" style={{ color: C.text }}>Ready to execute</p>
+            <p className="text-[13px] text-center" style={{ maxWidth: 400, color: C.textMuted }}>
+              Submit a task above and the Planner will generate an execution plan.
+            </p>
+          </div>
+        </div>
 
+        {/* ── Recent Runs ────────────────────────────────────── */}
+        {mockSessions.length > 0 && (
+          <div
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 12,
+              overflow: "hidden",
+              boxShadow: C.shadow,
+            }}
+          >
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <div>
+                <h2 className="t-section mb-0.5">Recent Runs</h2>
+                <p className="text-[13px]" style={{ color: C.textMuted }}>Your latest agent executions</p>
+              </div>
+              <button
+                onClick={() => navigate("/run")}
+                className="text-[12px] font-medium transition-colors cursor-pointer"
+                style={{ color: C.accent }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = C.accentHover }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = C.accent }}
+              >
+                View all →
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr style={{ borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
+                    {["STATUS", "TASK", "AGENTS", "DURATION", "CREATED"].map((col) => (
+                      <th
+                        key={col}
+                        className="px-5 py-2.5"
+                        style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: C.textMuted }}
+                      >
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {mockSessions.map((session) => (
+                    <tr
+                      key={session.id}
+                      onClick={() => navigate("/run")}
+                      className="cursor-pointer transition-colors duration-150"
+                      style={{ borderBottom: `1px solid ${C.border}` }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(36,72,85,0.03)" }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
+                    >
+                      <td className="px-5 py-3"><RunStatusIcon status={session.status} /></td>
+                      <td className="px-5 py-3 text-[13px]" style={{ maxWidth: 400, color: C.text }}>
+                        <span className="truncate block">{session.task}</span>
+                      </td>
+                      <td className="px-5 py-3 text-[12px] font-mono" style={{ color: C.textSec }}>
+                        {session.subtaskCount} agents
+                      </td>
+                      <td className="px-5 py-3 text-[12px] font-mono tabular-nums" style={{ color: C.textMuted }}>—</td>
+                      <td className="px-5 py-3 text-[12px] font-mono" style={{ color: C.textMuted }}>{session.createdAt}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
-  );
-}
-
-/* ── Toggle Pill Component ────────────────────────────────────── */
-
-function TogglePill({ active, onClick, icon, label }: {
-  active: boolean; onClick: () => void; icon: React.ReactNode; label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all cursor-pointer ${
-        active
-          ? "bg-accent/10 border border-accent/20 text-accent"
-          : "bg-slate-100/80 border border-transparent text-slate-600 hover:bg-slate-200/70 hover:text-slate-800"
-      }`}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }

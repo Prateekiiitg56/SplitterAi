@@ -70,13 +70,22 @@ function RunView() {
   )
 }
 
+function HomeWithTopBar() {
+  return (
+    <div className="flex flex-1 flex-col min-w-0 min-h-0">
+      <TopBar />
+      <HomePage />
+    </div>
+  )
+}
+
 function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedSession, setSelectedSession] = useState('s1')
   const location = useLocation()
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-transparent">
+    <div className="flex h-screen w-screen overflow-hidden" style={{ background: '#FBE9D0' }}>
       <Sidebar
         collapsed={sidebarCollapsed}
         sessions={mockSessions}
@@ -87,7 +96,7 @@ function Layout() {
         currentPath={location.pathname}
       />
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<HomeWithTopBar />} />
         <Route path="/agent/:role" element={<AgentPage />} />
         <Route path="/run" element={<RunView />} />
       </Routes>

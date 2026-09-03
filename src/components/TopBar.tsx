@@ -1,6 +1,5 @@
-import type React from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Menu, User } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { Bell, Settings, User, Activity } from 'lucide-react'
 
 interface TopBarProps {
   workspace?: string
@@ -19,69 +18,80 @@ export default function TopBar({}: TopBarProps) {
     // fallback
   }
 
-  return (
-    <header className="flex items-center justify-between h-14 px-4 bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 text-white flex-shrink-0 select-none">
-      {/* Left Lockup: Menu + Icon + agentcli + Version Badge */}
-      <div className="flex items-center gap-3">
-        <button className="p-1.5 text-slate-400 hover:text-white transition-colors cursor-pointer">
-          <Menu size={18} />
-        </button>
+  const location = useLocation()
 
-        {/* Node graph icon */}
-        <div
+  const getBreadcrumb = () => {
+    const path = location.pathname
+    if (path === '/') return { parent: 'Home', current: 'Console' }
+    if (path === '/run') return { parent: 'Home', current: 'Run Execution' }
+    if (path.startsWith('/agent/')) {
+      const role = path.split('/').pop() ?? ''
+      return { parent: 'Agents', current: role.charAt(0).toUpperCase() + role.slice(1) }
+    }
+    return { parent: 'Home', current: 'Console' }
+  }
+
+  const breadcrumb = getBreadcrumb()
+
+  return (
+    <header
+      className="flex items-center justify-between flex-shrink-0 select-none"
+      style={{
+        height: 60,
+        paddingLeft: 32,
+        paddingRight: 32,
+        borderBottom: '1px solid rgba(135,79,65,0.08)',
+        background: 'rgba(251,233,208,0.6)',
+        backdropFilter: 'blur(12px)',
+      }}
+    >
+      {/* Left: Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-[13px]">
+        <button
           onClick={() => navigate('/')}
-          className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-700/80 flex items-center justify-center text-white cursor-pointer hover:border-slate-500 transition-colors"
+          className="transition-colors cursor-pointer"
+          style={{ color: '#90AEAD' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#874F41' }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#90AEAD' }}
         >
-          <svg width="18" height="18" viewBox="0 0 40 40" fill="none">
-            <line x1="20" y1="20" x2="20" y2="7" stroke="#94A3B8" strokeWidth="2.5" />
-            <line x1="20" y1="20" x2="33" y2="20" stroke="#94A3B8" strokeWidth="2.5" />
-            <line x1="20" y1="20" x2="20" y2="33" stroke="#94A3B8" strokeWidth="2.5" />
-            <line x1="20" y1="20" x2="7" y2="20" stroke="#94A3B8" strokeWidth="2.5" />
-            <circle cx="20" cy="20" r="4.5" fill="#38BDF8" />
-            <circle cx="20" cy="7" r="3.5" fill="#E2E8F0" />
-            <circle cx="33" cy="20" r="3.5" fill="#E2E8F0" />
-            <circle cx="20" cy="33" r="3.5" fill="#E2E8F0" />
-            <circle cx="7" cy="20" r="3.5" fill="#E2E8F0" />
-          </svg>
+          {breadcrumb.parent}
+        </button>
+        <span style={{ color: '#90AEAD', opacity: 0.5 }}>/</span>
+        <span className="font-medium" style={{ color: '#244855' }}>{breadcrumb.current}</span>
+      </nav>
+
+      {/* Right */}
+      <div className="flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-2 text-[12px]" style={{ color: '#90AEAD' }}>
+          <Activity size={13} style={{ color: '#2E9E6E' }} />
+          <span>All systems operational</span>
         </div>
 
-        <span
-          onClick={() => navigate('/')}
-          className="text-[16px] font-bold text-white tracking-tight cursor-pointer font-sans"
-        >
-          agentcli
-        </span>
-
-        <span className="px-2 py-0.5 rounded-md bg-slate-900 border border-slate-800 text-[11px] font-mono text-slate-400">
-          v1.0-orchestrator
-        </span>
-      </div>
-
-      {/* Center Search / Breadcrumb Pill */}
-      <div className="hidden md:flex items-center justify-center px-6 py-1.5 rounded-lg bg-slate-900/90 border border-slate-800/80 text-[13px] text-slate-300 font-mono max-w-md w-full">
-        <span>agentcli</span>
-        <span className="mx-2 text-slate-600">|</span>
-        <span className="text-slate-400">multi-agent-orchestrator</span>
-      </div>
-
-      {/* Right Lockup: Live Workspace Button + User Profile */}
-      <div className="flex items-center gap-4">
         <button
-          onClick={() => navigate('/run')}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-950/40 border border-teal-500/50 text-teal-300 text-[13px] font-medium hover:bg-teal-900/50 transition-all cursor-pointer shadow-[0_0_12px_rgba(20,184,166,0.15)]"
+          className="p-2 rounded-lg transition-all cursor-pointer"
+          style={{ color: '#90AEAD' }}
+          title="Notifications"
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#874F41'; e.currentTarget.style.background = 'rgba(36,72,85,0.05)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#90AEAD'; e.currentTarget.style.background = 'transparent' }}
         >
-          <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse-dot" />
-          <span>Live Workspace</span>
+          <Bell size={16} />
         </button>
 
-        <div className="hidden sm:flex items-center gap-2 text-right">
-          <div className="flex flex-col text-[11px] text-slate-400 leading-tight">
-            <span className="font-medium text-slate-300">Verify it's you</span>
-            <span className="text-slate-500">Ask Gemini</span>
-          </div>
-          <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
-            <User size={14} />
-          </div>
+        <button
+          className="p-2 rounded-lg transition-all cursor-pointer"
+          style={{ color: '#90AEAD' }}
+          title="Settings"
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#874F41'; e.currentTarget.style.background = 'rgba(36,72,85,0.05)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#90AEAD'; e.currentTarget.style.background = 'transparent' }}
+        >
+          <Settings size={16} />
+        </button>
+
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+          style={{ background: 'rgba(36,72,85,0.08)', border: '1px solid rgba(135,79,65,0.1)' }}
+        >
+          <User size={14} style={{ color: '#90AEAD' }} />
         </div>
       </div>
     </header>
