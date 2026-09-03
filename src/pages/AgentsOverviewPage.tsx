@@ -24,7 +24,7 @@ import {
 
 export default function AgentsOverviewPage() {
   const navigate = useNavigate()
-  const { subtasks, runStatus, taskTitle, executeTask } = useApp()
+  const { subtasks, runStatus, taskTitle, executeTask, addEvent } = useApp()
 
   // Status Filter state
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -123,19 +123,39 @@ export default function AgentsOverviewPage() {
   // Action Handlers
   const handlePause = (role: AgentRole) => {
     setAgentOverrides((prev) => ({ ...prev, [role]: 'paused' }))
+    addEvent({
+      type: 'agent_paused',
+      role,
+      message: `${ROLE_META[role]?.label || role} Agent paused by user`,
+    })
   }
 
   const handleResume = (role: AgentRole) => {
     setAgentOverrides((prev) => ({ ...prev, [role]: 'working' }))
+    addEvent({
+      type: 'agent_resumed',
+      role,
+      message: `${ROLE_META[role]?.label || role} Agent resumed execution`,
+    })
   }
 
   const handleStop = (role: AgentRole) => {
     setAgentOverrides((prev) => ({ ...prev, [role]: 'stopped' }))
+    addEvent({
+      type: 'agent_stopped',
+      role,
+      message: `${ROLE_META[role]?.label || role} Agent stopped execution`,
+    })
   }
 
   const handleLaunchNewAgent = async () => {
     if (!modalTask.trim()) return
     setShowLaunchModal(false)
+    addEvent({
+      type: 'agent_started',
+      role: modalRole,
+      message: `Launched new ${ROLE_META[modalRole]?.label || modalRole} Agent task: "${modalTask.trim()}"`,
+    })
     await executeTask(modalTask.trim())
     setModalTask('')
     navigate(`/projects/default`)

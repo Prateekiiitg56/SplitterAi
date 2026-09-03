@@ -45,6 +45,20 @@ export interface LogEntry {
     | 'sandbox_block'
     | 'info'
     | 'error'
+    | 'shell'
+    | 'agent_started'
+    | 'agent_completed'
+    | 'agent_failed'
+    | 'agent_paused'
+    | 'agent_resumed'
+    | 'agent_stopped'
+    | 'task_assigned'
+    | 'file_created'
+    | 'file_modified'
+    | 'file_deleted'
+    | 'command_executed'
+    | 'test_started'
+    | 'test_completed'
   role?: AgentRole
   subtaskId?: string
   model?: string
@@ -134,4 +148,29 @@ export interface ModelOption {
   id: string
   label: string
   provider: string
+}
+
+/* ── Integration Entity ─────────────────────────────────────────── */
+
+export type IntegrationType = 'mcp' | 'github' | 'oauth_generic'
+export type IntegrationStatus = 'not_connected' | 'connecting' | 'connected' | 'error'
+
+export interface IntegrationConfig {
+  repo?: string
+  org?: string
+  url?: string
+  description?: string
+  transport?: 'sse' | 'stdio' | 'http'
+}
+
+export interface Integration {
+  id: string
+  type: IntegrationType
+  name: string
+  status: IntegrationStatus
+  connectedAt?: string | null
+  config?: IntegrationConfig
+  scopes?: string[]
+  allowedRoles?: AgentRole[]
+  lastError?: string | null
 }

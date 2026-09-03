@@ -165,14 +165,20 @@ export function AgentPage() {
           {agentStatus === 'working' && (
             <>
               <button
-                onClick={() => setLocalStatusOverride('paused')}
+                onClick={() => {
+                  setLocalStatusOverride('paused')
+                  addEvent({ type: 'agent_paused', role: selectedRole, message: `${meta.label} Agent paused by user` })
+                }}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[12.5px] font-semibold transition-colors cursor-pointer"
               >
                 <Pause size={13} />
                 <span>Pause</span>
               </button>
               <button
-                onClick={() => setLocalStatusOverride('stopped')}
+                onClick={() => {
+                  setLocalStatusOverride('stopped')
+                  addEvent({ type: 'agent_stopped', role: selectedRole, message: `${meta.label} Agent execution stopped by user` })
+                }}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[12.5px] font-semibold transition-colors cursor-pointer"
               >
                 <Square size={13} />
@@ -184,14 +190,20 @@ export function AgentPage() {
           {agentStatus === 'paused' && (
             <>
               <button
-                onClick={() => setLocalStatusOverride('working')}
+                onClick={() => {
+                  setLocalStatusOverride('working')
+                  addEvent({ type: 'agent_resumed', role: selectedRole, message: `${meta.label} Agent resumed execution` })
+                }}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[12.5px] font-semibold transition-colors cursor-pointer"
               >
                 <Play size={13} />
                 <span>Resume</span>
               </button>
               <button
-                onClick={() => setLocalStatusOverride('stopped')}
+                onClick={() => {
+                  setLocalStatusOverride('stopped')
+                  addEvent({ type: 'agent_stopped', role: selectedRole, message: `${meta.label} Agent execution stopped by user` })
+                }}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[12.5px] font-semibold transition-colors cursor-pointer"
               >
                 <Square size={13} />
@@ -202,7 +214,11 @@ export function AgentPage() {
 
           {(agentStatus === 'idle' || agentStatus === 'completed' || agentStatus === 'failed' || agentStatus === 'stopped') && (
             <button
-              onClick={() => executeTask(`Run verification suite for ${meta.label}`)}
+              onClick={() => {
+                const task = `Run verification suite for ${meta.label}`
+                addEvent({ type: 'agent_started', role: selectedRole, message: `Launched task for ${meta.label}: "${task}"` })
+                executeTask(task)
+              }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6E56CF] hover:bg-[#5E46BF] text-white text-[12.5px] font-semibold transition-colors cursor-pointer shadow-sm"
             >
               <Play size={13} />

@@ -30,6 +30,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
+  sessions = [],
   selectedSession,
   onSelectSession,
   currentPath,

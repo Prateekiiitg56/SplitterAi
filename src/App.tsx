@@ -16,6 +16,8 @@ import { AppProvider, useApp } from './context/AppContext'
 import { UIProvider, useUI } from './context/UIContext'
 import { DEFAULT_WORKSPACE } from './config'
 
+import ErrorBoundary from './components/ErrorBoundary'
+
 function Layout() {
   const location = useLocation()
   const { sessions } = useApp()
@@ -35,27 +37,29 @@ function Layout() {
           currentPath={location.pathname}
         />
 
-        <Routes>
-          {/* Home Route */}
-          <Route path="/" element={<AIAssistantInterface />} />
+        <ErrorBoundary key={location.pathname}>
+          <Routes>
+            {/* Home Route */}
+            <Route path="/" element={<AIAssistantInterface />} />
 
-          {/* Projects & Runs Routes */}
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/projects/:projectId" element={<ProjectOverviewPage />} />
-          <Route path="/projects/:projectId/tasks" element={<ProjectTasksPage />} />
-          <Route path="/projects/:projectId/agents" element={<ProjectAgentsPage />} />
-          <Route path="/projects/:projectId/files" element={<ProjectFilesPage />} />
-          <Route path="/projects/:projectId/activity" element={<ProjectActivityPage />} />
+            {/* Projects & Runs Routes */}
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/projects/:projectId" element={<ProjectOverviewPage />} />
+            <Route path="/projects/:projectId/tasks" element={<ProjectTasksPage />} />
+            <Route path="/projects/:projectId/agents" element={<ProjectAgentsPage />} />
+            <Route path="/projects/:projectId/files" element={<ProjectFilesPage />} />
+            <Route path="/projects/:projectId/activity" element={<ProjectActivityPage />} />
 
-          {/* Agents Management Routes */}
-          <Route path="/agents" element={<AgentsOverviewPage />} />
-          <Route path="/agents/:agentId" element={<AgentPage />} />
-          <Route path="/agent/:role" element={<AgentPage />} /> {/* Backwards compatibility */}
+            {/* Agents Management Routes */}
+            <Route path="/agents" element={<AgentsOverviewPage />} />
+            <Route path="/agents/:agentId" element={<AgentPage />} />
+            <Route path="/agent/:role" element={<AgentPage />} /> {/* Backwards compatibility */}
 
-          {/* Integrations & Run Compatibility */}
-          <Route path="/integrations" element={<IntegrationsPage />} />
-          <Route path="/run" element={<ProjectOverviewPage />} /> {/* Backwards compatibility */}
-        </Routes>
+            {/* Integrations & Run Compatibility */}
+            <Route path="/integrations" element={<IntegrationsPage />} />
+            <Route path="/run" element={<ProjectOverviewPage />} /> {/* Backwards compatibility */}
+          </Routes>
+        </ErrorBoundary>
       </div>
     </div>
   )

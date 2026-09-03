@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import TopBar from '../components/TopBar'
 import LogStream from '../components/LogStream'
+import TerminalPanel from '../components/TerminalPanel'
 import FileExplorer from '../components/FileExplorer'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
 import { useUI } from '../context/UIContext'
 import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
+import { DEFAULT_WORKSPACE } from '../config'
 import { ROLE_META, STATUS_META } from '../data'
 import type { AgentRole, Subtask } from '../types'
 import { AgentIcon } from '../components/Badges'
@@ -24,10 +27,16 @@ import {
   FileText,
   Play,
   Zap,
+  Loader2,
+  Home,
 } from 'lucide-react'
 
 export default function ProjectOverviewPage() {
-  const { subtasks, logs, runStatus, taskTitle, errorMessage, clearError } = useApp()
+  const { projectId } = useParams<{ projectId?: string }>()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const { subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask } = useApp()
   const { multiMode, setMultiMode, logFilter, setLogFilter } = useUI()
   const { fileTree: workspaceFiles } = useWorkspaceFiles()
 
@@ -37,6 +46,14 @@ export default function ProjectOverviewPage() {
   // Collapsible panel states for Files (Right) and Terminal (Bottom)
   const [filePanelOpen, setFilePanelOpen] = useState(true)
   const [terminalPanelOpen, setTerminalPanelOpen] = useState(true)
+
+  // Auto-trigger execution if task was passed via navigation state
+  useEffect(() => {
+    const passedTask = location.state?.task
+    if (passedTask && passedTask !== taskTitle && runStatus === 'idle') {
+      executeTask(passedTask)
+    }
+  }, [location.state, taskTitle, runStatus, executeTask])
 
   // Group subtasks by execution group number for parallel DAG visualization
   const groupedSubtasks = subtasks.reduce((acc, st) => {
@@ -109,13 +126,27 @@ export default function ProjectOverviewPage() {
                 </span>
               </div>
 
-              {groupNumbers.length === 0 ? (
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-10 text-center text-neutral-400 space-y-2">
+              {runStatus === 'planning' ? (
+                <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-10 text-center text-neutral-300 space-y-3">
+                  <Loader2 size={32} className="animate-spin text-[#9D8CFC] mx-auto" />
+                  <h3 className="text-[16px] font-bold text-white">Decomposing Master Task</h3>
+                  <p className="text-[12.5px] text-neutral-400 font-mono">
+                    SplitterAI LLM planner is constructing your parallel multi-agent DAG execution graph...
+                  </p>
+                </div>
+              ) : groupNumbers.length === 0 ? (
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-10 text-center text-neutral-400 space-y-3">
                   <Layers size={32} className="mx-auto opacity-30 text-neutral-400" />
                   <p className="text-[14px] font-semibold text-neutral-300">No Active Agent Visualizer Nodes</p>
                   <p className="text-[12.5px] text-neutral-500">
                     When a task is launched, parallel worker nodes will render side-by-side below.
                   </p>
+                  <button
+                    onClick={() => navigate('/')}
+                    className="mt-2 px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white text-[12.5px] font-semibold transition-colors cursor-pointer"
+                  >
+                    Start Task from Home
+                  </button>
                 </div>
               ) : (
                 groupNumbers.map((gNum) => {
@@ -292,43 +323,8 @@ export default function ProjectOverviewPage() {
           )}
         </div>
 
-        {/* ── BOTTOM DOCK: Collapsible Terminal LogStream (Phase 11) ── */}
-        {terminalPanelOpen ? (
-          <div className="h-[220px] flex-shrink-0 border-t border-[#242C42] bg-[#0C1019] flex flex-col">
-            <div className="flex items-center justify-between px-4 h-8 border-b border-white/[0.08] bg-[#101420] text-[11px] font-mono text-neutral-400">
-              <div className="flex items-center gap-2">
-                <Terminal size={13} className="text-[#9D8CFC]" />
-                <span className="font-bold text-white">SYSTEM TERMINAL LOG STREAM</span>
-                <span>({logs.length} total events)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {!filePanelOpen && (
-                  <button onClick={() => setFilePanelOpen(true)} className="text-neutral-400 hover:text-white text-[10.5px]">
-                    Show Files Panel
-                  </button>
-                )}
-                <button onClick={() => setTerminalPanelOpen(false)} className="text-neutral-400 hover:text-white">
-                  <ChevronDown size={14} />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-hidden">
-              <LogStream logs={logs} filter={logFilter} onClearFilter={() => setLogFilter(null)} />
-            </div>
-          </div>
-        ) : (
-          <div className="h-8 flex-shrink-0 border-t border-[#242C42] bg-[#101420] px-4 flex items-center justify-between text-[11px] font-mono text-neutral-400 select-none">
-            <div className="flex items-center gap-2">
-              <Terminal size={13} className="text-[#9D8CFC]" />
-              <span>Terminal Output Collapsed ({logs.length} events)</span>
-            </div>
-            <button onClick={() => setTerminalPanelOpen(true)} className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer">
-              <span>Expand Terminal</span>
-              <ChevronUp size={13} />
-            </button>
-          </div>
-        )}
+        {/* ── BOTTOM DOCK: IDE Terminal Panel (Phase 11) ─────────────── */}
+        <TerminalPanel logs={logs} filter={logFilter} />
 
       </div>
     </ProjectTabShell>

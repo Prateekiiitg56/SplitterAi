@@ -10,10 +10,13 @@ interface AppContextType {
   refetchSessions: () => Promise<void>
   subtasks: Subtask[]
   logs: LogEntry[]
+  events: LogEntry[]
   runStatus: RunStatus
   taskTitle: string
   errorMessage: string | null
   executeTask: (newTask: string, workspace?: string) => Promise<void>
+  executeTaskWithPlan: (newTask: string, initialSubtasks: Subtask[], workspace?: string) => Promise<void>
+  addEvent: (event: Partial<LogEntry>) => void
   clearError: () => void
 }
 
@@ -21,7 +24,18 @@ const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { sessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions } = useSessions()
-  const { subtasks, logs, runStatus, taskTitle, errorMessage, executeTask, clearError } = useAgentRunner()
+  const {
+    subtasks,
+    logs,
+    events,
+    runStatus,
+    taskTitle,
+    errorMessage,
+    executeTask,
+    executeTaskWithPlan,
+    addEvent,
+    clearError,
+  } = useAgentRunner()
 
   return (
     <AppContext.Provider
@@ -32,10 +46,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         refetchSessions,
         subtasks,
         logs,
+        events,
         runStatus,
         taskTitle,
         errorMessage,
         executeTask,
+        executeTaskWithPlan,
+        addEvent,
         clearError,
       }}
     >

@@ -112,6 +112,55 @@ export async function fetchFiles(workspace: string): Promise<any[]> {
   return res.json()
 }
 
+export async function sendChatMessage(role: string, message: string): Promise<{ reply: string; role: string; timestamp: string }> {
+  const res = await fetch(`${API_BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role, message }),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to send chat message`)
+  return res.json()
+}
+
+export async function fetchIntegrations(): Promise<any[]> {
+  const res = await fetch(`${API_BASE}/integrations`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch integrations`)
+  return res.json()
+}
+
+export async function connectIntegration(payload: any): Promise<any> {
+  const res = await fetch(`${API_BASE}/integrations/connect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to connect integration' }))
+    throw new Error(err.detail || 'Connection failed')
+  }
+  return res.json()
+}
+
+export async function disconnectIntegration(id: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/integrations/disconnect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  })
+  if (!res.ok) throw new Error('Failed to disconnect integration')
+  return res.json()
+}
+
+export async function reconfigureIntegration(id: string, allowedRoles: string[]): Promise<any> {
+  const res = await fetch(`${API_BASE}/integrations/reconfigure`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, allowedRoles }),
+  })
+  if (!res.ok) throw new Error('Failed to reconfigure integration')
+  return res.json()
+}
+
 export async function healthCheck(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/health`)
@@ -150,7 +199,6 @@ export class AgentWebSocket {
       this.ws = new WebSocket(WS_URL)
 
       this.ws.onopen = () => {
-        console.log('[agentcli] WebSocket connected')
         this.handlers.onConnect?.()
       }
 
@@ -167,12 +215,11 @@ export class AgentWebSocket {
             this.handlers.onEvent?.(data as LogEvent)
           }
         } catch (err) {
-          console.warn('[agentcli] Failed to parse WebSocket message:', err)
+          /* ignore parse error */
         }
       }
 
       this.ws.onclose = () => {
-        console.log('[agentcli] WebSocket disconnected')
         this.handlers.onDisconnect?.()
         if (this.shouldReconnect) {
           this.reconnectTimer = setTimeout(() => this.connect(), 3000)

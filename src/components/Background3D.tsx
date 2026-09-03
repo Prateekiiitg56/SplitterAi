@@ -19,7 +19,6 @@ export default function Background3D({ active = false }: { active?: boolean }) {
     const container = containerRef.current
     if (!container) return
 
-    // Setup Three.js Scene, Camera, Renderer
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(
       60,
@@ -29,10 +28,15 @@ export default function Background3D({ active = false }: { active?: boolean }) {
     )
     camera.position.z = 400
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.setSize(window.innerWidth, window.innerHeight)
-    container.appendChild(renderer.domElement)
+    let renderer: THREE.WebGLRenderer | null = null
+    try {
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      renderer.setSize(window.innerWidth, window.innerHeight)
+      container.appendChild(renderer.domElement)
+    } catch (e) {
+      return
+    }
 
     // Particle Constellation Geometry
     const particleCount = 75
@@ -199,7 +203,9 @@ export default function Background3D({ active = false }: { active?: boolean }) {
       lineGeometry.attributes.position.needsUpdate = true
       lineGeometry.attributes.color.needsUpdate = true
 
-      renderer.render(scene, camera)
+      if (renderer) {
+        renderer.render(scene, camera)
+      }
     }
 
     animate()
@@ -209,10 +215,10 @@ export default function Background3D({ active = false }: { active?: boolean }) {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('resize', handleResize)
       cancelAnimationFrame(animationFrameId)
-      if (container.contains(renderer.domElement)) {
+      if (renderer && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement)
       }
-      renderer.dispose()
+      renderer?.dispose()
     }
   }, [active])
 

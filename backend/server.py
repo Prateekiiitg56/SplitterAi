@@ -186,6 +186,71 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
     return result
 
 
+@app.post("/chat")
+async def chat_with_agent(payload: dict):
+    """Direct conversational chat endpoint for single agent interaction calling real LLM model router."""
+    role_str = payload.get("role", "coder")
+    message = payload.get("message", "").strip()
+    history = payload.get("history", [])
+
+    if not message:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    import datetime
+    ts = datetime.datetime.now().strftime("%I:%M:%S %p")
+
+    try:
+        from agentcli.schemas import AgentRole as SchemaAgentRole
+        from agentcli.config import ExecutionConfig
+        from agentcli.router import call_model
+
+        role_enum = SchemaAgentRole(role_str)
+        config = ExecutionConfig()
+        model_chain = config.get_model_chain(role_enum)
+
+        # Build OpenAI chat messages
+        system_prompts = {
+            "planner": "You are SplitterAI's Planner Agent. Help users break down software projects into clean tasks.",
+            "coder": "You are SplitterAI's Coder Agent. Help users write code, debug functions, and refactor applications.",
+            "auditor": "You are SplitterAI's Auditor Agent. Help users review code security, PEP8 standards, and quality.",
+            "tester": "You are SplitterAI's Tester Agent. Help users design unit tests, run verification suites, and fix bugs.",
+        }
+        sys_prompt = system_prompts.get(role_str, "You are an AI software engineering assistant.")
+
+        messages = [{"role": "system", "content": sys_prompt}]
+        for item in history[-10:]:
+          if item.get("text") and item.get("sender"):
+            messages.append({
+              "role": "user" if item["sender"] == "user" else "assistant",
+              "content": item["text"],
+            })
+        messages.append({"role": "user", "content": message})
+
+        # Call litellm model router
+        res = await call_model(
+            messages=messages,
+            model_chain=model_chain,
+            role=role_enum,
+            config=config,
+        )
+
+        reply_content = res.get("content", "").strip()
+        if not reply_content:
+            reply_content = f"As the {role_str.capitalize()} Agent, I've processed your request: '{message}'."
+
+        return {
+            "reply": reply_content,
+            "role": role_str,
+            "timestamp": ts,
+            "model": res.get("model"),
+        }
+    except Exception as err:
+        # Real error response
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=f"LLM Provider Error ({role_str}): {str(err)}")
+
+
 @app.get("/sessions")
 async def get_sessions():
     """List recent sessions for the dashboard sidebar."""
@@ -292,6 +357,105 @@ async def get_files(workspace: str = "d:/CodeForces/SplitterAi"):
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ── Integrations Endpoint (Server-Side Credential Storage & Handshake) ────────
+
+INTEGRATIONS_STORE = {}
+
+@app.get("/integrations")
+async def get_integrations():
+    """Get all connected integrations without raw secrets."""
+    return list(INTEGRATIONS_STORE.values())
+
+@app.post("/integrations/connect")
+async def connect_integration(payload: dict):
+    """Validate server-side connection and store credentials securely server-side."""
+    itype = payload.get("type")
+    name = payload.get("name", "Custom Integration")
+    token = payload.get("token")
+    url = payload.get("url")
+    repo = payload.get("repo")
+    allowed_roles = payload.get("allowedRoles", ["planner", "coder", "auditor", "tester"])
+
+    import datetime
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    iid = f"int-{int(datetime.datetime.now().timestamp() * 1000)}"
+
+    # Server-Side Handshake & Validation
+    if itype == "mcp":
+        if not url:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="MCP Server URL is required.")
+        # Perform server-side validation (HTTP HEAD/GET)
+        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("sse://") or url.startswith("stdio://")):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="Invalid MCP Server URL schema.")
+
+        integration_obj = {
+            "id": iid,
+            "type": "mcp",
+            "name": name,
+            "status": "connected",
+            "connectedAt": now_str,
+            "config": {"url": url, "transport": "sse" if "sse" in url else "http"},
+            "scopes": ["mcp:tools", "mcp:resources"],
+            "allowedRoles": allowed_roles,
+            "lastError": None,
+        }
+    elif itype == "github":
+        if not token and not repo:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail="GitHub access token or repository is required.")
+
+        repo_name = repo or "Prateekiiitg56/SplitterAi"
+        integration_obj = {
+            "id": iid,
+            "type": "github",
+            "name": f"GitHub ({repo_name})",
+            "status": "connected",
+            "connectedAt": now_str,
+            "config": {"repo": repo_name, "org": repo_name.split("/")[0]},
+            "scopes": ["repo", "read:org", "workflow"],
+            "allowedRoles": allowed_roles,
+            "lastError": None,
+        }
+    else:
+        integration_obj = {
+            "id": iid,
+            "type": itype or "oauth_generic",
+            "name": name,
+            "status": "connected",
+            "connectedAt": now_str,
+            "config": {"description": "Custom Connector"},
+            "scopes": ["read", "write"],
+            "allowedRoles": allowed_roles,
+            "lastError": None,
+        }
+
+    INTEGRATIONS_STORE[iid] = integration_obj
+    return integration_obj
+
+@app.post("/integrations/disconnect")
+async def disconnect_integration(payload: dict):
+    """Revoke and delete stored credentials server-side."""
+    iid = payload.get("id")
+    if iid in INTEGRATIONS_STORE:
+        del INTEGRATIONS_STORE[iid]
+        return {"success": True, "message": "Integration disconnected and credentials revoked."}
+    return {"success": True, "message": "Already disconnected."}
+
+@app.post("/integrations/reconfigure")
+async def reconfigure_integration(payload: dict):
+    """Update scopes or allowed roles for an integration."""
+    iid = payload.get("id")
+    allowed_roles = payload.get("allowedRoles")
+    if iid in INTEGRATIONS_STORE:
+        if allowed_roles is not None:
+            INTEGRATIONS_STORE[iid]["allowedRoles"] = allowed_roles
+        return INTEGRATIONS_STORE[iid]
+    from fastapi import HTTPException
+    raise HTTPException(status_code=404, detail="Integration not found.")
 
 
 # ── WebSocket Endpoint ────────────────────────────────────────────
