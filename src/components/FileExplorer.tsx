@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import {
-  ChevronRight, ChevronDown, File, Folder, FolderOpen,
-} from 'lucide-react'
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen } from 'lucide-react'
 
 export interface FileNode {
   name: string
@@ -11,7 +9,6 @@ export interface FileNode {
   modified?: string
 }
 
-// Mock workspace file tree
 export const mockFileTree: FileNode[] = [
   {
     name: 'src', type: 'folder', children: [
@@ -33,23 +30,6 @@ export const mockFileTree: FileNode[] = [
   { name: '.gitignore', type: 'file', size: '120 B', modified: 'Aug 31' },
 ]
 
-const EXT_COLORS: Record<string, string> = {
-  py: '#3572A5',
-  js: '#F7DF1E',
-  ts: '#3178C6',
-  md: '#083FA1',
-  txt: '#5F6368',
-  json: '#292929',
-  yaml: '#CB171E',
-  yml: '#CB171E',
-  gitignore: '#F05032',
-}
-
-function getFileColor(name: string): string {
-  const ext = name.split('.').pop() ?? ''
-  return EXT_COLORS[ext] ?? '#5F6368'
-}
-
 function TreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
   const [open, setOpen] = useState(depth === 0)
 
@@ -58,12 +38,12 @@ function TreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
       <div>
         <button
           onClick={() => setOpen((p) => !p)}
-          className="flex items-center gap-1 w-full h-7 hover:bg-hover-bg rounded transition-colors cursor-pointer group"
+          className="flex items-center gap-1.5 w-full h-7 hover:bg-zinc-100/70 rounded text-zinc-700 transition-colors cursor-pointer group"
           style={{ paddingLeft: `${depth * 14 + 6}px` }}
         >
-          {open ? <ChevronDown size={12} className="text-text-secondary flex-shrink-0" /> : <ChevronRight size={12} className="text-text-secondary flex-shrink-0" />}
-          {open ? <FolderOpen size={14} className="text-star-yellow flex-shrink-0" /> : <Folder size={14} className="text-star-yellow flex-shrink-0" />}
-          <span className="text-[12px] text-text-primary truncate ml-0.5" style={{ fontWeight: 500 }}>
+          {open ? <ChevronDown size={12} className="text-zinc-400 flex-shrink-0" /> : <ChevronRight size={12} className="text-zinc-400 flex-shrink-0" />}
+          {open ? <FolderOpen size={14} className="text-amber-600 flex-shrink-0" /> : <Folder size={14} className="text-amber-600 flex-shrink-0" />}
+          <span className="text-[12.5px] font-medium truncate" style={{ color: 'var(--color-text-1)' }}>
             {node.name}
           </span>
         </button>
@@ -76,16 +56,15 @@ function TreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
 
   return (
     <button
-      className="flex items-center gap-1.5 w-full h-7 hover:bg-hover-bg rounded transition-colors cursor-pointer group"
-      style={{ paddingLeft: `${depth * 14 + 22}px` }}
+      className="flex items-center gap-1.5 w-full h-7 hover:bg-zinc-100/70 rounded transition-colors cursor-pointer group"
+      style={{ paddingLeft: `${depth * 14 + 20}px` }}
     >
-      <File size={13} style={{ color: getFileColor(node.name) }} className="flex-shrink-0" />
-      <span className="text-[12px] text-text-primary truncate flex-1 text-left">
+      <File size={13} className="text-zinc-400 flex-shrink-0" />
+      <span className="text-[12.5px] font-mono truncate flex-1 text-left" style={{ color: 'var(--color-text-2)' }}>
         {node.name}
       </span>
       {node.size && (
-        <span className="text-[10px] text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0"
-          style={{ fontFamily: 'var(--font-mono)' }}>
+        <span className="text-[10px] font-mono text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0">
           {node.size}
         </span>
       )}
@@ -100,23 +79,14 @@ interface FileExplorerProps {
 
 export default function FileExplorer({ files, workspace }: FileExplorerProps) {
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center h-9 px-3 border-b border-border flex-shrink-0">
-        <span className="text-[11px] text-text-secondary uppercase tracking-wide"
-          style={{ fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-          Files
-        </span>
-        <div className="flex-1" />
-        <span className="text-[10px] text-text-secondary truncate max-w-[120px]"
-          style={{ fontFamily: 'var(--font-mono)' }}
-          title={workspace}>
+    <div className="flex flex-col h-full select-none" style={{ background: 'var(--color-surface)' }}>
+      <div className="flex items-center justify-between h-9 px-3 border-b flex-shrink-0" style={{ borderColor: 'var(--color-border)' }}>
+        <span className="t-micro">Workspace Files</span>
+        <span className="text-[10px] font-mono text-zinc-400 truncate max-w-[90px]" title={workspace}>
           {workspace.split('/').pop()}
         </span>
       </div>
-
-      {/* Tree */}
-      <div className="flex-1 overflow-y-auto py-1 px-1">
+      <div className="flex-1 overflow-y-auto p-1">
         {files.map((node) => (
           <TreeNode key={node.name} node={node} />
         ))}

@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { Terminal, X, Filter, Shield, AlertTriangle } from 'lucide-react'
+import { useRef, useEffect } from 'react'
+import { Terminal, Filter, X, ShieldAlert, AlertTriangle } from 'lucide-react'
 import type { LogEntry } from '../data'
 
 interface LogStreamProps {
@@ -9,36 +9,46 @@ interface LogStreamProps {
 }
 
 const typeLabel: Record<string, string> = {
-  model_request:  'MODEL',
+  model_request: 'MODEL',
   model_response: 'RESP',
   model_fallback: 'FALLBACK',
-  tool_call:      'TOOL',
-  tool_result:    'RESULT',
+  tool_call: 'TOOL',
+  tool_result: 'RESULT',
   plan_generated: 'PLAN',
-  group_start:    'GROUP',
-  group_end:      'GROUP',
-  subtask_start:  'START',
-  subtask_end:    'END',
-  sandbox_block:  'BLOCK',
-  info:           'INFO',
-  error:          'ERROR',
+  group_start: 'GROUP',
+  group_end: 'GROUP',
+  subtask_start: 'START',
+  subtask_end: 'END',
+  sandbox_block: 'BLOCK',
+  info: 'INFO',
+  error: 'ERROR',
 }
 
-// Restrained log tag coloring — strong colors reserved for warnings & errors
-const tagStyle: Record<string, string> = {
-  model_request:  'text-slate-400 font-mono',
-  model_response: 'text-slate-400 font-mono',
-  model_fallback: 'text-amber-400 font-bold bg-amber-950/40 px-1 rounded border border-amber-800/50',
-  tool_call:      'text-slate-400 font-mono',
-  tool_result:    'text-slate-400 font-mono',
-  plan_generated: 'text-slate-300 font-mono',
-  group_start:    'text-slate-500 font-mono',
-  group_end:      'text-slate-500 font-mono',
-  subtask_start:  'text-slate-400 font-mono',
-  subtask_end:    'text-slate-400 font-mono',
-  sandbox_block:  'text-red-400 font-bold bg-red-950/40 px-1 rounded border border-red-800/50',
-  info:           'text-slate-500 font-mono',
-  error:          'text-red-400 font-bold bg-red-950/40 px-1 rounded border border-red-800/50',
+function LogRow({ log }: { log: LogEntry }) {
+  const isAlert = log.type === 'sandbox_block' || log.type === 'error'
+  const isWarn = log.type === 'model_fallback'
+
+  return (
+    <div
+      className={`flex gap-2 px-3 py-1 text-[11px] leading-relaxed border-b font-mono transition-colors ${
+        isAlert
+          ? 'bg-red-50 text-red-700 border-red-100'
+          : isWarn
+          ? 'bg-amber-50 text-amber-800 border-amber-100'
+          : 'hover:bg-zinc-100/70 text-zinc-700 border-zinc-200/60'
+      }`}
+    >
+      <span className="w-[52px] flex-shrink-0 text-zinc-400 tabular-nums">{log.timestamp}</span>
+      <span className="w-[52px] flex-shrink-0 text-[10px] uppercase font-semibold text-zinc-500">
+        {typeLabel[log.type] ?? log.type}
+      </span>
+      <span className="flex-1 min-w-0 break-words">
+        {isAlert && <ShieldAlert size={10} className="inline mr-1 -mt-0.5 text-red-500" />}
+        {isWarn && <AlertTriangle size={10} className="inline mr-1 -mt-0.5 text-amber-500" />}
+        {log.message}
+      </span>
+    </div>
+  )
 }
 
 export default function LogStream({ logs, filter, onClearFilter }: LogStreamProps) {
@@ -49,79 +59,40 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
   }, [logs.length])
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 font-mono border-l border-slate-200/80">
-      {/* Terminal Header Bar */}
-      <div className="flex items-center h-10 px-4 border-b border-slate-800 bg-slate-900/90 flex-shrink-0">
-        <Terminal size={13} className="text-slate-400 mr-2" />
-        <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex-1 font-mono">
-          EXECUTION LOGS
-        </span>
-        {filter && (
-          <button
-            onClick={onClearFilter}
-            className="flex items-center gap-1 h-5 px-2 rounded bg-blue-950 border border-blue-800 text-blue-300 text-[10px] cursor-pointer hover:bg-blue-900"
-          >
-            <Filter size={9} />
-            <span>{filter}</span>
-            <X size={9} />
-          </button>
-        )}
-        <span className="text-[10px] text-slate-500 tabular-nums ml-2 font-mono">
-          {logs.length} entries
-        </span>
-      </div>
+    <div className="flex-1 flex flex-col min-h-0 p-4 font-mono select-text" style={{ background: 'var(--color-bg)' }}>
+      <div className="card flex-1 flex flex-col min-h-0" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* Terminal Header Bar */}
+        <div className="flex items-center justify-between h-10 px-4 border-b flex-shrink-0" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+          <div className="flex items-center gap-2">
+            <Terminal size={14} style={{ color: 'var(--color-text-3)' }} />
+            <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-1)' }}>
+              Execution Logs
+            </span>
+            <span className="text-[10px] text-zinc-400">({logs.length})</span>
+          </div>
 
-      {/* Terminal Stream Rows */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-0.5 select-text">
-        {logs.map((log) => {
-          const isBlock = log.type === 'sandbox_block' || log.type === 'error'
-          const isFallback = log.type === 'model_fallback'
-
-          return (
-            <div
-              key={log.id}
-              className={`flex items-start gap-2 px-2 py-1 text-[11px] leading-relaxed rounded border-l-2 ${
-                isBlock
-                  ? 'bg-red-950/30 border-red-500 text-red-200'
-                  : isFallback
-                  ? 'bg-amber-950/20 border-amber-500 text-amber-200'
-                  : 'border-transparent hover:bg-slate-900/70 text-slate-300'
-              }`}
-            >
-              {/* Timestamp */}
-              <span className="w-[56px] flex-shrink-0 text-slate-500 tabular-nums">
-                {log.timestamp}
-              </span>
-
-              {/* Tag */}
-              <span className={`w-[54px] flex-shrink-0 text-[10px] uppercase ${tagStyle[log.type] ?? 'text-slate-400'}`}>
-                {typeLabel[log.type] ?? log.type}
-              </span>
-
-              {/* Role badge if available */}
-              {log.role && (
-                <span className="text-[9px] uppercase px-1 rounded bg-slate-800 text-slate-300 font-semibold flex-shrink-0">
-                  {log.role}
-                </span>
-              )}
-
-              {/* Log Message */}
-              <div className="flex-1 min-w-0 break-words">
-                <span className={isBlock ? 'text-red-300 font-medium' : isFallback ? 'text-amber-300' : 'text-slate-200'}>
-                  {isBlock && <Shield size={10} className="inline mr-1 -mt-0.5 text-red-400" />}
-                  {isFallback && <AlertTriangle size={10} className="inline mr-1 -mt-0.5 text-amber-400" />}
-                  {log.message}
-                </span>
-                {log.detail && (
-                  <pre className="mt-1 text-[10.5px] text-slate-400 bg-slate-900/90 p-2 rounded border border-slate-800 whitespace-pre-wrap">
-                    {log.detail}
-                  </pre>
-                )}
-              </div>
+          {filter && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px]" style={{ background: 'rgba(61,139,95,0.08)', borderColor: 'rgba(61,139,95,0.2)', color: 'var(--color-accent)' }}>
+              <Filter size={10} />
+              <span>{filter}</span>
+              <button onClick={onClearFilter} className="cursor-pointer hover:opacity-70">
+                <X size={10} />
+              </button>
             </div>
-          )
-        })}
-        <div ref={bottomRef} />
+          )}
+        </div>
+
+        {/* Terminal Stream Body */}
+        <div className="flex-1 overflow-y-auto min-h-0" style={{ background: 'var(--color-elevated)' }}>
+          {logs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-zinc-400 text-[11px]">
+              <span>No execution logs recorded</span>
+            </div>
+          ) : (
+            logs.map((log) => <LogRow key={log.id} log={log} />)
+          )}
+          <div ref={bottomRef} />
+        </div>
       </div>
     </div>
   )

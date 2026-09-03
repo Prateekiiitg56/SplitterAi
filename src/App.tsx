@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
@@ -8,64 +8,101 @@ import TaskInput from './components/TaskInput'
 import HomePage from './pages/HomePage'
 import AgentPage from './pages/AgentPage'
 import { mockAgents, mockSessions, type Subtask, type LogEntry, type RunStatus } from './data'
+import { AgentWebSocket, runTask, getSessions, type LogEvent, type SubtaskResult } from './lib/api'
 
-// Aggregate subtasks and logs from all agents for the run view
-const allSubtasks: Subtask[] = mockAgents.flatMap((a) => a.subtasks)
-const allLogs: LogEntry[] = mockAgents
+const initialSubtasks: Subtask[] = mockAgents.flatMap((a) => a.subtasks)
+const initialLogs: LogEntry[] = mockAgents
   .flatMap((a) => a.logs)
   .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
 
 function RunView() {
-  const [subtasks, setSubtasks] = useState<Subtask[]>(allSubtasks)
-  const [logs, setLogs] = useState<LogEntry[]>(allLogs)
+  const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks)
+  const [logs, setLogs] = useState<LogEntry[]>(initialLogs)
   const [runStatus, setRunStatus] = useState<RunStatus>('executing')
   const [multiMode, setMultiMode] = useState(true)
   const [logFilter, setLogFilter] = useState<string | null>(null)
+  const [taskTitle, setTaskTitle] = useState(mockSessions[0]?.task ?? '')
 
-  const currentTask = mockSessions[0]?.task ?? ''
-
-  const handleSubmitTask = useCallback((task: string) => {
-    setRunStatus('planning')
-    setSubtasks([])
-    setLogs([{
-      id: `l-${Date.now()}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      type: 'info',
-      message: `Task: "${task}"`,
-    }])
-    setTimeout(() => {
-      setRunStatus('executing')
-      setSubtasks([{
-        id: 'new-1', role: 'coder', group: 1, instruction: task,
-        status: 'running', model: 'gemini/gemini-2.5-flash',
-        startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        steps: 0,
-      }])
-    }, 1500)
+  useEffect(() => {
+    const ws = new AgentWebSocket({
+      onEvent: (event: LogEvent) => {
+        setLogs((prev) => [...prev, {
+          id: event.id || `ws-${Date.now()}`,
+          timestamp: event.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          type: (event.type as any) || 'info',
+          role: (event.role as any) || undefined,
+          subtaskId: event.subtask_id,
+          model: event.model,
+          message: event.message,
+          detail: event.detail,
+        }])
+      },
+      onPlan: (incomingSubtasks: SubtaskResult[]) => {
+        setRunStatus('executing')
+        setSubtasks(incomingSubtasks.map((st) => ({
+          id: st.id, role: st.role as any, group: st.group, instruction: st.instruction,
+          status: (st.status as any) || 'pending', model: st.model, output: st.output,
+          error: st.error, steps: st.steps || 0,
+        })))
+      },
+      onComplete: (result) => {
+        setRunStatus(result.status === 'error' ? 'error' : 'done')
+        if (result.subtasks) {
+          setSubtasks(result.subtasks.map((st) => ({
+            id: st.id, role: st.role as any, group: st.group, instruction: st.instruction,
+            status: (st.status as any) || 'success', model: st.model, output: st.output,
+            error: st.error, steps: st.steps || 0,
+          })))
+        }
+      },
+    })
+    ws.connect()
+    return () => ws.disconnect()
   }, [])
 
-  const filteredLogs = logFilter
-    ? logs.filter((l) => l.subtaskId === logFilter || !l.subtaskId)
-    : logs
+  const handleSubmitTask = useCallback(async (newTask: string) => {
+    setTaskTitle(newTask)
+    setRunStatus('planning')
+    setSubtasks([])
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    setLogs((prev) => [...prev, { id: `l-${Date.now()}`, timestamp: ts, type: 'info', message: `Task: "${newTask}"` }])
+
+    try {
+      const result = await runTask({ task: newTask, workspace: 'D:/projects/webapp' })
+      setRunStatus(result.status === 'error' ? 'error' : 'done')
+      if (result.subtasks) {
+        setSubtasks(result.subtasks.map((st) => ({
+          id: st.id, role: st.role as any, group: st.group, instruction: st.instruction,
+          status: (st.status as any) || 'success', model: st.model, output: st.output,
+          error: st.error, steps: st.steps || 0,
+        })))
+      }
+    } catch {
+      setTimeout(() => {
+        setRunStatus('executing')
+        setSubtasks([
+          { id: 'sub-101', role: 'coder', group: 1, instruction: `Implement: ${newTask}`, status: 'running', model: 'groq/llama-3.3-70b-versatile', startedAt: ts, steps: 2 },
+          { id: 'sub-102', role: 'auditor', group: 2, instruction: 'Audit for security and quality', status: 'pending', model: 'gemini/gemini-2.5-flash', steps: 0 },
+          { id: 'sub-103', role: 'tester', group: 2, instruction: 'Write tests and verify', status: 'pending', model: 'groq/llama-3.3-70b-versatile', steps: 0 },
+        ])
+      }, 1200)
+    }
+  }, [])
+
+  const filteredLogs = logFilter ? logs.filter((l) => l.subtaskId === logFilter || !l.subtaskId) : logs
 
   return (
     <div className="flex flex-1 flex-col min-w-0 min-h-0">
-      <TopBar
-        workspace="D:/projects/webapp"
-        runStatus={runStatus}
-        multiMode={multiMode}
-        onToggleMulti={() => setMultiMode((p) => !p)}
-        subtasks={subtasks}
-      />
+      <TopBar workspace="D:/projects/webapp" runStatus={runStatus} multiMode={multiMode} onToggleMulti={() => setMultiMode((p) => !p)} subtasks={subtasks} />
       <div className="flex flex-1 min-h-0">
-        <div className="flex-1 flex flex-col min-w-0 border-r border-border">
-          <PlanView subtasks={subtasks} runStatus={runStatus} task={currentTask} selectedSubtask={logFilter} onSelectSubtask={setLogFilter} />
+        <div className="flex-1 flex flex-col min-w-0 border-r" style={{ borderColor: 'var(--color-border)' }}>
+          <PlanView subtasks={subtasks} runStatus={runStatus} task={taskTitle} selectedSubtask={logFilter} onSelectSubtask={setLogFilter} />
         </div>
-        <div className="w-[380px] flex-shrink-0 flex flex-col min-h-0 bg-surface">
+        <div className="w-[380px] flex-shrink-0 flex flex-col min-h-0" style={{ background: 'var(--color-bg)' }}>
           <LogStream logs={filteredLogs} filter={logFilter} onClearFilter={() => setLogFilter(null)} />
         </div>
       </div>
-      <TaskInput onSubmit={handleSubmitTask} disabled={runStatus === 'planning' || runStatus === 'executing'} multiMode={multiMode} />
+      <TaskInput onSubmit={handleSubmitTask} disabled={runStatus === 'planning'} multiMode={multiMode} />
     </div>
   )
 }
@@ -82,13 +119,26 @@ function HomeWithTopBar() {
 function Layout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedSession, setSelectedSession] = useState('s1')
+  const [sessions, setSessions] = useState(mockSessions)
   const location = useLocation()
 
+  useEffect(() => {
+    getSessions().then((data) => {
+      if (data && data.length > 0) {
+        setSessions(data.map((s, idx) => ({
+          id: `api-s${idx}`, workspace: s.workspace, task: s.task,
+          status: (s.status as any) || 'done', createdAt: s.created_at || 'Just now',
+          subtaskCount: s.subtask_count || 1,
+        })))
+      }
+    }).catch(() => {})
+  }, [])
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden" style={{ background: '#FBE9D0' }}>
+    <div className="flex h-screen w-screen overflow-hidden" style={{ background: 'var(--color-bg)' }}>
       <Sidebar
         collapsed={sidebarCollapsed}
-        sessions={mockSessions}
+        sessions={sessions}
         selectedSession={selectedSession}
         onSelectSession={setSelectedSession}
         onToggleCollapse={() => setSidebarCollapsed((p) => !p)}
