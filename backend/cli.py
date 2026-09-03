@@ -18,6 +18,12 @@ from dotenv import load_dotenv
 # Add parent to path for module resolution
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from agentcli.config import ExecutionConfig
 from agentcli.orchestrator import Orchestrator
 from agentcli.planner import generate_plan, load_manual_plan
