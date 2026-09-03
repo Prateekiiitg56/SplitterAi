@@ -1,73 +1,14 @@
 import { useParams, useNavigate } from 'react'
 import { useState, useRef, useEffect } from 'react'
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronRight,
-  Terminal,
-  Folder,
-  FileText,
-  Shield,
-  AlertTriangle,
-  Play,
-  Pause,
-  Square,
-  Activity,
-  Loader2,
-  Cpu,
-  CheckCircle2,
-  ExternalLink,
-} from 'lucide-react'
+import { ArrowLeft, FileText, ChevronRight, RefreshCw, X } from 'lucide-react'
 import { ROLE_META } from '../data'
 import type { AgentRole, LogEntry, AgentStatus } from '../types'
-import { AgentIcon } from '../components/Badges'
+import { AgentIcon, StatusBadge } from '../components/Badges'
 import { useAgentDetail } from '../hooks/useAgentDetail'
 import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
 import { useUI } from '../context/UIContext'
 import { useApp } from '../context/AppContext'
 import { DEFAULT_WORKSPACE } from '../config'
-
-const typeLabel: Record<string, string> = {
-  model_request: 'MODEL',
-  model_response: 'RESP',
-  model_fallback: 'FALLBACK',
-  tool_call: 'TOOL',
-  tool_result: 'RESULT',
-  plan_generated: 'PLAN',
-  group_start: 'GROUP',
-  group_end: 'GROUP',
-  subtask_start: 'START',
-  subtask_end: 'END',
-  sandbox_block: 'BLOCK',
-  info: 'INFO',
-  error: 'ERROR',
-}
-
-function LogLine({ log }: { log: LogEntry }) {
-  const isAlert = log.type === 'sandbox_block' || log.type === 'error'
-  const isWarn = log.type === 'model_fallback'
-  return (
-    <div
-      className={`flex gap-2.5 px-3.5 py-2 text-[11.5px] leading-relaxed border-b font-mono ${
-        isAlert
-          ? 'bg-red-500/10 text-red-300 border-red-500/20'
-          : isWarn
-          ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
-          : 'hover:bg-white/[0.04] text-neutral-200 border-white/[0.05]'
-      }`}
-    >
-      <span className="w-[58px] flex-shrink-0 text-neutral-500 tabular-nums select-none">{log.timestamp}</span>
-      <span className="w-[60px] flex-shrink-0 text-[10px] uppercase font-bold text-neutral-400 select-none">
-        {typeLabel[log.type] ?? log.type}
-      </span>
-      <span className="flex-1 min-w-0 break-words">
-        {isAlert && <Shield size={12} className="inline mr-1 -mt-0.5 text-red-400" />}
-        {isWarn && <AlertTriangle size={12} className="inline mr-1 -mt-0.5 text-amber-400" />}
-        {log.message}
-      </span>
-    </div>
-  )
-}
 
 export function AgentPage() {
   const { agentId, role: routeRole } = useParams<{ agentId?: string; role?: string }>()
@@ -75,7 +16,7 @@ export function AgentPage() {
 
   const navigate = useNavigate()
   const { selectedRole, setSelectedRole } = useUI()
-  const { logs: globalLogs, subtasks, runStatus, taskTitle, executeTask } = useApp()
+  const { logs: globalLogs, subtasks, runStatus, taskTitle } = useApp()
 
   useEffect(() => {
     if (effectiveRole && effectiveRole !== selectedRole) {
@@ -87,313 +28,181 @@ export function AgentPage() {
   const { fileTree: workspaceFiles } = useWorkspaceFiles(DEFAULT_WORKSPACE)
 
   const logEndRef = useRef<HTMLDivElement>(null)
-  const [modelSectionOpen, setModelSectionOpen] = useState(true)
-  const [contextOpen, setContextOpen] = useState(true)
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
   const [localStatusOverride, setLocalStatusOverride] = useState<AgentStatus | null>(null)
 
   const meta = ROLE_META[selectedRole] || ROLE_META.coder
 
-  // 1. Real State Filtering for Activity Log Stream
   const agentLogs = (globalLogs && globalLogs.length > 0)
     ? globalLogs.filter((l) => !l.role || l.role === selectedRole)
     : (agentData?.logs || [])
 
-  // 2. Active Subtask & Real Work State
-  const activeSubtask = subtasks.find((s) => s.role === selectedRole)
+  const currentSubtask = subtasks.find((st) => st.role === selectedRole)
 
-  // 3. Derived Agent Status
   let agentStatus: AgentStatus = localStatusOverride || 'idle'
   if (!localStatusOverride) {
-    if (activeSubtask) {
-      if (activeSubtask.status === 'running' || activeSubtask.status === 'working') agentStatus = 'working'
-      else if (activeSubtask.status === 'success' || activeSubtask.status === 'completed') agentStatus = 'completed'
-      else if (activeSubtask.status === 'error' || activeSubtask.status === 'failed') agentStatus = 'failed'
-    } else if (runStatus === 'planning' && selectedRole === 'planner') {
-      agentStatus = 'working'
-    } else if (runStatus === 'executing' && selectedRole === 'coder') {
-      agentStatus = 'working'
-    }
+    if (currentSubtask) {
+      if (currentSubtask.status === 'running' || currentSubtask.status === 'working') agentStatus = 'working'
+      else if (currentSubtask.status === 'success' || currentSubtask.status === 'completed') agentStatus = 'completed'
+      else if (currentSubtask.status === 'error' || currentSubtask.status === 'failed') agentStatus = 'failed'
+    } else if (runStatus === 'planning' && selectedRole === 'planner') agentStatus = 'working'
+    else if (runStatus === 'executing' && selectedRole === 'coder') agentStatus = 'working'
   }
-
-  // 4. Progress calculation
-  let progress = 0
-  if (agentStatus === 'completed') progress = 100
-  else if (agentStatus === 'working') progress = activeSubtask?.steps ? Math.min(90, activeSubtask.steps * 20) : 55
-  else if (agentStatus === 'paused') progress = 45
-
-  // 5. Terminal Process Output Filter
-  const terminalLogs = agentLogs.filter((l) => l.type === 'tool_result' || l.type === 'tool_call')
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [agentLogs.length])
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden font-sans bg-[#0B0C10] text-white select-none relative z-10">
+    <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
       
-      {/* ── 1. SECTION 1: HEADER & CONTROLS ───────────────────────── */}
-      <div className="px-6 py-4 border-b border-white/[0.08] bg-[#121723] flex-shrink-0 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      {/* Topbar */}
+      <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
+        <div className="topbar-left flex items-center gap-3">
           <button
             onClick={() => navigate('/agents')}
-            className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-neutral-400 hover:text-white cursor-pointer transition-colors border border-white/10"
-            title="Back to Agent Management"
+            className="icon-btn w-7 h-7 rounded-md flex items-center justify-center text-[var(--faint)] hover:text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors cursor-pointer"
+            title="Back to Agents"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={14} />
           </button>
-          
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-xs" style={{ backgroundColor: `${meta.color}22` }}>
-            <AgentIcon role={selectedRole} size={20} />
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-[18px] font-bold text-white tracking-tight">{meta.label} Worker Agent</h1>
-              <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full capitalize bg-emerald-400/10 text-emerald-400 border border-emerald-400/20">
-                {agentStatus}
-              </span>
-            </div>
-            <p className="text-[12px] text-neutral-400 mt-0.5 flex items-center gap-3 font-mono">
-              <span>Project: <strong className="text-neutral-200">SplitterAI Workspace</strong></span>
-              <span>Task: <strong className="text-indigo-300 truncate max-w-[280px]">{activeSubtask?.instruction || taskTitle || 'Idle'}</strong></span>
-            </p>
-          </div>
+          <span className="topbar-title font-semibold text-[14px]">Agent Workspace</span>
+          <span className="topbar-crumb font-mono text-[11.5px] text-[var(--faint)]">/ {meta.label}</span>
         </div>
 
-        {/* Status-Valid Control Actions */}
-        <div className="flex items-center gap-2">
-          {agentStatus === 'working' && (
-            <>
-              <button
-                onClick={() => {
-                  setLocalStatusOverride('paused')
-                  addEvent({ type: 'agent_paused', role: selectedRole, message: `${meta.label} Agent paused by user` })
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[12.5px] font-semibold transition-colors cursor-pointer"
-              >
-                <Pause size={13} />
-                <span>Pause</span>
-              </button>
-              <button
-                onClick={() => {
-                  setLocalStatusOverride('stopped')
-                  addEvent({ type: 'agent_stopped', role: selectedRole, message: `${meta.label} Agent execution stopped by user` })
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[12.5px] font-semibold transition-colors cursor-pointer"
-              >
-                <Square size={13} />
-                <span>Stop</span>
-              </button>
-            </>
-          )}
+        {/* Role Tabs */}
+        <div className="topbar-right flex items-center gap-3">
+          <div className="flex items-center gap-1 bg-[var(--panel)] border border-[var(--border-soft)] p-0.5 rounded-md">
+            {(['coder', 'auditor', 'tester', 'planner'] as AgentRole[]).map((r) => {
+              const isSel = selectedRole === r
+              return (
+                <button
+                  key={r}
+                  onClick={() => {
+                    setSelectedRole(r)
+                    navigate(`/agents/${r}`)
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11.5px] font-medium transition-colors cursor-pointer capitalize ${
+                    isSel ? 'bg-[var(--panel-2)] text-[var(--text)] font-bold' : 'text-[var(--dim)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  <AgentIcon role={r} size={12} />
+                  <span>{r}</span>
+                </button>
+              )
+            })}
+          </div>
 
-          {agentStatus === 'paused' && (
-            <>
-              <button
-                onClick={() => {
-                  setLocalStatusOverride('working')
-                  addEvent({ type: 'agent_resumed', role: selectedRole, message: `${meta.label} Agent resumed execution` })
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[12.5px] font-semibold transition-colors cursor-pointer"
-              >
-                <Play size={13} />
-                <span>Resume</span>
-              </button>
-              <button
-                onClick={() => {
-                  setLocalStatusOverride('stopped')
-                  addEvent({ type: 'agent_stopped', role: selectedRole, message: `${meta.label} Agent execution stopped by user` })
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-[12.5px] font-semibold transition-colors cursor-pointer"
-              >
-                <Square size={13} />
-                <span>Stop</span>
-              </button>
-            </>
-          )}
-
-          {(agentStatus === 'idle' || agentStatus === 'completed' || agentStatus === 'failed' || agentStatus === 'stopped') && (
-            <button
-              onClick={() => {
-                const task = `Run verification suite for ${meta.label}`
-                addEvent({ type: 'agent_started', role: selectedRole, message: `Launched task for ${meta.label}: "${task}"` })
-                executeTask(task)
-              }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6E56CF] hover:bg-[#5E46BF] text-white text-[12.5px] font-semibold transition-colors cursor-pointer shadow-sm"
-            >
-              <Play size={13} />
-              <span>Launch Task</span>
-            </button>
-          )}
+          <StatusBadge status={agentStatus} />
         </div>
       </div>
 
-      {/* Role Switcher Bar */}
-      <div className="flex items-center gap-2 px-6 py-2 bg-[#0E121C] border-b border-white/[0.06] flex-shrink-0 overflow-x-auto">
-        {(['planner', 'coder', 'auditor', 'tester'] as AgentRole[]).map((r) => {
-          const isSel = selectedRole === r
-          const rMeta = ROLE_META[r]
-          return (
-            <button
-              key={r}
-              onClick={() => {
-                setSelectedRole(r)
-                navigate(`/agents/${r}`)
-              }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all cursor-pointer ${
-                isSel
-                  ? 'bg-[#2B2358] text-white border border-[#48398C]'
-                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
-              }`}
-            >
-              <AgentIcon role={r} size={14} />
-              <span>{rMeta.label}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Main Workspace Body */}
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        
-        {/* Left Column: Current Work, Activity Log Stream & Output */}
-        <div className="flex-1 flex flex-col min-w-0 border-r border-white/[0.08] overflow-y-auto p-6 space-y-6">
+      {/* Page Body Grid */}
+      <div className="page-body flex-1 overflow-hidden p-5">
+        <div className="aw-grid grid grid-cols-[1.4fr_1fr] gap-3.5 h-full">
           
-          {/* ── 2. SECTION 2: CURRENT WORK ───────────────────────────── */}
-          <section className="rounded-2xl border border-white/[0.08] bg-[#141824] p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Activity size={16} className="text-[#9D8CFC]" />
-                <h3 className="text-[14px] font-bold text-white">Current Work</h3>
-              </div>
-              <span className="text-[11px] font-mono text-neutral-400">{progress}% Completed</span>
+          {/* Left Panel: Activity Stream */}
+          <div className="panel border border-[var(--border-soft)] rounded-[var(--radius)] flex flex-col overflow-hidden bg-[var(--panel)]">
+            <div className="panel-head flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-soft)] font-mono text-[10px] tracking-wider text-[var(--faint)] uppercase font-bold">
+              <span>LIVE ACTIVITY STREAM ({agentLogs.length})</span>
+              <span>{meta.label} Worker</span>
             </div>
 
-            {activeSubtask ? (
-              <div className="space-y-3">
-                <p className="text-[13.5px] font-medium text-white leading-relaxed">{activeSubtask.instruction}</p>
-                <div className="w-full h-2 rounded-full bg-white/[0.08] overflow-hidden">
-                  <div className="h-full rounded-full bg-[#9D8CFC] transition-all duration-500" style={{ width: `${progress}%` }} />
+            <div className="panel-body p-3.5 overflow-y-auto flex-1 font-sans">
+              {loading ? (
+                <div className="p-4 text-center font-mono text-[12px] text-[var(--dim)]">Loading activity...</div>
+              ) : error ? (
+                <div className="p-3 text-[12px] text-[var(--bad)] border border-[var(--bad)] rounded bg-[var(--bad-dim)]">
+                  ⚠️ Error: {error}
                 </div>
-              </div>
-            ) : (
-              <p className="text-[12.5px] text-neutral-500 italic">No work currently in progress for this agent.</p>
-            )}
-          </section>
-
-          {/* ── 3. SECTION 3: ACTIVITY LOG STREAM ─────────────────────── */}
-          <section className="rounded-2xl border border-white/[0.08] bg-[#141824] overflow-hidden flex flex-col min-h-[260px]">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.08] bg-[#101218]">
-              <div className="flex items-center gap-2 text-[13px] font-bold text-white">
-                <Terminal size={15} className="text-[#9D8CFC]" />
-                <span>Agent Activity Stream</span>
-              </div>
-              <span className="text-[11px] font-mono text-neutral-500">{agentLogs.length} events</span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto max-h-[320px] font-mono text-[12px]">
-              {agentLogs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center p-8 text-neutral-500 gap-1.5 text-center">
-                  <Activity size={24} className="opacity-30" />
-                  <p className="text-[13px] font-semibold text-neutral-400">No activity yet.</p>
-                  <p className="text-[11px] text-neutral-600">Events stream here live when tasks execute.</p>
+              ) : agentLogs.length === 0 ? (
+                <div className="p-8 text-center text-[var(--faint)] font-mono text-[12px] space-y-1">
+                  <p>No activity events recorded yet for {meta.label}.</p>
+                  <p className="text-[11px]">Events will stream in real-time when a task is launched.</p>
                 </div>
               ) : (
-                agentLogs.map((log) => <LogLine key={log.id} log={log} />)
-              )}
-              <div ref={logEndRef} />
-            </div>
-          </section>
-
-          {/* ── 4. SECTION 4: AGENT OUTPUT ───────────────────────────── */}
-          <section className="rounded-2xl border border-white/[0.08] bg-[#141824] p-5 space-y-3">
-            <h3 className="text-[14px] font-bold text-white flex items-center gap-2">
-              <CheckCircle2 size={16} className="text-emerald-400" />
-              <span>Generated Agent Output</span>
-            </h3>
-
-            {activeSubtask?.output ? (
-              <div className="p-4 rounded-xl bg-[#101218] border border-white/10 text-[12.5px] font-mono text-neutral-200 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-                {activeSubtask.output}
-              </div>
-            ) : (
-              <p className="text-[12.5px] text-neutral-500 italic">No output generated yet.</p>
-            )}
-          </section>
-
-          {/* ── 6. SECTION 6: TERMINAL / PROCESS OUTPUT (If present) ───── */}
-          {terminalLogs.length > 0 && (
-            <section className="rounded-2xl border border-white/[0.08] bg-[#101218] p-5 space-y-3">
-              <h3 className="text-[14px] font-bold text-white flex items-center gap-2 font-mono">
-                <Terminal size={15} className="text-indigo-400" />
-                <span>Process Subprocess Log</span>
-              </h3>
-              <div className="space-y-1 font-mono text-[11.5px] text-neutral-300">
-                {terminalLogs.map((t) => (
-                  <div key={t.id} className="p-2 rounded bg-black/40 border border-white/5 truncate">
-                    <span className="text-neutral-500 mr-2">[{t.timestamp}]</span>
-                    <span>{t.message}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-
-        {/* Right Column: Files & Model Fallback Chain */}
-        <div className="w-[340px] flex-shrink-0 flex flex-col bg-[#121723] overflow-y-auto p-5 space-y-5 border-l border-white/[0.08]">
-          
-          {/* ── 5. SECTION 5: FILES CREATED / MODIFIED ───────────────── */}
-          <div className="rounded-xl bg-[#101218] border border-white/10 p-4 space-y-3">
-            <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
-              <Folder size={15} className="text-amber-500" />
-              <span>Files Modified / Created</span>
-            </div>
-
-            <div className="space-y-1.5 font-mono text-[11.5px]">
-              {workspaceFiles.length === 0 ? (
-                <p className="text-[12px] text-neutral-500 italic">No files modified by this agent yet.</p>
-              ) : (
-                workspaceFiles.slice(0, 10).map((f) => (
-                  <div key={f.path || f.name} className="flex items-center justify-between p-2 rounded-lg bg-[#141824] border border-white/10 text-neutral-300">
-                    <div className="flex items-center gap-2 truncate">
-                      <FileText size={13} className="text-neutral-500 flex-shrink-0" />
-                      <span className="truncate">{f.name}</span>
+                <div className="space-y-0.5">
+                  {agentLogs.map((log, idx) => (
+                    <div
+                      key={log.id || idx}
+                      className="activity-item flex gap-3 text-[12px] py-1.5 border-b border-[var(--border-soft)] last:border-b-0"
+                    >
+                      <div className="activity-time font-mono text-[10.5px] text-[var(--faint)] whitespace-nowrap pt-0.5">
+                        {log.timestamp}
+                      </div>
+                      <div className="activity-text text-[var(--dim)] flex-1 leading-relaxed">
+                        <strong className="text-[var(--text)] font-semibold uppercase text-[10.5px] font-mono mr-1.5 text-[var(--accent)]">
+                          [{log.type}]
+                        </strong>
+                        {log.message}
+                      </div>
                     </div>
-                    <span className="text-[10px] text-neutral-500">{f.size || '1.2KB'}</span>
-                  </div>
-                ))
+                  ))}
+                  <div ref={logEndRef} />
+                </div>
               )}
             </div>
           </div>
 
-          {/* Model Fallback Chain */}
-          <div className="rounded-xl bg-[#101218] border border-white/10 p-4 space-y-3">
-            <button
-              onClick={() => setModelSectionOpen(!modelSectionOpen)}
-              className="w-full flex items-center justify-between text-left cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Cpu size={15} className="text-[#9D8CFC]" />
-                <span className="text-[13px] font-semibold text-white">Model Fallback Chain</span>
-              </div>
-              {modelSectionOpen ? <ChevronDown size={14} className="text-neutral-400" /> : <ChevronRight size={14} className="text-neutral-400" />}
-            </button>
+          {/* Right Panel: Workspace Files & Context */}
+          <div className="panel border border-[var(--border-soft)] rounded-[var(--radius)] flex flex-col overflow-hidden bg-[var(--panel)]">
+            <div className="panel-head flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-soft)] font-mono text-[10px] tracking-wider text-[var(--faint)] uppercase font-bold">
+              <span>MODIFIED FILES & CONTEXT</span>
+              <span>Workspace Files</span>
+            </div>
 
-            {modelSectionOpen && (
-              <div className="space-y-1.5 font-mono text-[11.5px] pt-1">
-                {(agentData?.modelChain || ['gemini/gemini-3.5-flash', 'xai/grok-2-beta']).map((m, idx) => (
-                  <div key={m} className="p-2 rounded-lg bg-[#141824] border border-white/10 flex items-center justify-between text-neutral-300">
-                    <span>{idx + 1}. {m}</span>
-                    <span className="text-[9.5px] uppercase font-bold text-indigo-400 px-1.5 py-0.5 rounded bg-indigo-500/20">Active</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="panel-body p-3.5 overflow-y-auto flex-1 font-mono text-[12px]">
+              {workspaceFiles.length === 0 ? (
+                <div className="p-6 text-center text-[var(--faint)] italic">No workspace files indexed</div>
+              ) : (
+                <div className="space-y-1">
+                  {workspaceFiles.slice(0, 15).map((f) => (
+                    <div
+                      key={f.path}
+                      onClick={() => setSelectedFilePath(f.path)}
+                      className="file-row flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] cursor-pointer text-[var(--dim)] transition-colors"
+                    >
+                      <FileText size={12} className="text-[var(--faint)] flex-shrink-0" />
+                      <span className="truncate">{f.name || f.path}</span>
+                      {f.modifiedBy && <span className="mod ml-auto w-1.5 h-1.5 rounded-full bg-[var(--accent)]" title={`Modified by ${f.modifiedBy}`} />}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-
         </div>
       </div>
+
+      {/* Code Inspector Drawer */}
+      {selectedFilePath && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[var(--radius)] p-5 max-w-[600px] w-full space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-2">
+              <h3 className="text-[14px] font-mono text-[var(--text)] font-semibold flex items-center gap-2">
+                <FileText size={14} className="text-[var(--accent)]" />
+                <span>{selectedFilePath}</span>
+              </h3>
+              <button onClick={() => setSelectedFilePath(null)} className="text-[var(--faint)] hover:text-[var(--text)]">
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="p-3 bg-[var(--bg)] border border-[var(--border-soft)] rounded font-mono text-[11.5px] text-[var(--text)] max-h-[300px] overflow-y-auto">
+              <code>// Inspected file context: {selectedFilePath}</code>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setSelectedFilePath(null)}
+                className="px-3.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-[12px] text-[var(--text)]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

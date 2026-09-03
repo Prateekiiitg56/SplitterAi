@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import { useParams, useLocation, useNavigate } from 'react'
 import TopBar from '../components/TopBar'
-import LogStream from '../components/LogStream'
 import TerminalPanel from '../components/TerminalPanel'
 import FileExplorer from '../components/FileExplorer'
 import ProjectTabShell from './ProjectTabShell'
@@ -9,27 +8,10 @@ import { useApp } from '../context/AppContext'
 import { useUI } from '../context/UIContext'
 import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
 import { DEFAULT_WORKSPACE } from '../config'
-import { ROLE_META, STATUS_META } from '../data'
+import { ROLE_META } from '../data'
 import type { AgentRole, Subtask } from '../types'
-import { AgentIcon } from '../components/Badges'
-import {
-  Activity,
-  CheckCircle2,
-  AlertTriangle,
-  Cpu,
-  Layers,
-  Terminal,
-  Folder,
-  ChevronUp,
-  ChevronDown,
-  ExternalLink,
-  Code,
-  FileText,
-  Play,
-  Zap,
-  Loader2,
-  Home,
-} from 'lucide-react'
+import { AgentIcon, StatusBadge } from '../components/Badges'
+import { Cpu, Zap, Loader2, Layers } from 'lucide-react'
 
 export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId?: string }>()
@@ -37,17 +19,11 @@ export default function ProjectOverviewPage() {
   const navigate = useNavigate()
 
   const { subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask } = useApp()
-  const { multiMode, setMultiMode, logFilter, setLogFilter } = useUI()
+  const { multiMode, setMultiMode } = useUI()
   const { fileTree: workspaceFiles } = useWorkspaceFiles()
 
-  // Selected agent for inline detail inspection
   const [selectedAgentRole, setSelectedAgentRole] = useState<AgentRole>('coder')
-  
-  // Collapsible panel states for Files (Right) and Terminal (Bottom)
-  const [filePanelOpen, setFilePanelOpen] = useState(true)
-  const [terminalPanelOpen, setTerminalPanelOpen] = useState(true)
 
-  // Auto-trigger execution if task was passed via navigation state
   useEffect(() => {
     const passedTask = location.state?.task
     if (passedTask && passedTask !== taskTitle && runStatus === 'idle') {
@@ -55,7 +31,6 @@ export default function ProjectOverviewPage() {
     }
   }, [location.state, taskTitle, runStatus, executeTask])
 
-  // Group subtasks by execution group number for parallel DAG visualization
   const groupedSubtasks = subtasks.reduce((acc, st) => {
     const groupNum = st.group || 1
     if (!acc[groupNum]) acc[groupNum] = []
@@ -65,16 +40,11 @@ export default function ProjectOverviewPage() {
 
   const groupNumbers = Object.keys(groupedSubtasks).map(Number).sort((a, b) => a - b)
 
-  // Filter logs for selected agent inline drawer
-  const selectedAgentLogs = logs.filter((l) => !l.role || l.role === selectedAgentRole)
-  const selectedAgentSubtask = subtasks.find((s) => s.role === selectedAgentRole)
-  const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.coder
-
   return (
     <ProjectTabShell>
-      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-[#121723] relative z-10 font-sans text-white select-none">
+      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-[var(--bg)] relative z-10 font-sans text-[var(--text)] select-none overflow-hidden">
         
-        {/* ── Top Bar ────────────────────────────────────────────── */}
+        {/* Top Bar */}
         <TopBar
           workspace="SplitterAI Workspace"
           runStatus={runStatus}
@@ -83,152 +53,93 @@ export default function ProjectOverviewPage() {
           subtasks={subtasks}
         />
 
-        {/* ── Execution Error Banner ─────────────────────────────── */}
+        {/* Execution Error Banner */}
         {errorMessage && (
-          <div className="mx-6 mt-3 p-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 text-[13px] flex items-center justify-between flex-shrink-0">
+          <div className="mx-5 mt-3 p-3 rounded-[var(--radius)] border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px] flex items-center justify-between flex-shrink-0">
             <span>⚠️ <strong>Execution Error:</strong> {errorMessage}</span>
-            <button onClick={clearError} className="text-red-400 hover:text-white font-bold ml-4">✕</button>
+            <button onClick={clearError} className="font-bold ml-4 hover:underline">✕</button>
           </div>
         )}
 
-        {/* ── Command Center Body (Visualizer + Inline Agent + File Panel) ── */}
-        <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
+        {/* Command Center Layout Grid */}
+        <div className="ov-layout grid grid-cols-[1fr_280px] grid-rows-[1fr_auto] gap-3 p-5 flex-1 min-h-0 min-w-0 overflow-hidden">
           
-          {/* ── LEFT: Master Task & Parallel Agent Visualizer ───── */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 space-y-6 border-r border-[#242C42]">
+          {/* Main Content Area */}
+          <div className="ov-main grid-row-[1/2] grid-col-[1/2] flex flex-col gap-3 min-h-0 overflow-y-auto">
             
-            {/* Master Task Header Card */}
-            <div className="rounded-2xl border border-white/10 bg-[#141824] p-5 space-y-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-neutral-400 font-bold">
-                  <Cpu size={15} className="text-[#9D8CFC]" />
-                  <span>MASTER TASK INSTRUCTION</span>
+            {/* Master Task Instruction Card */}
+            <div className="master-task border border-[var(--border-soft)] rounded-[var(--radius)] p-4 flex items-center justify-between gap-4 bg-[var(--panel)]">
+              <div className="master-task-left min-w-0">
+                <div className="master-task-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
+                  MASTER TASK INSTRUCTION
                 </div>
-                <span className="text-[11.5px] font-mono px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-semibold">
-                  {subtasks.length > 0 ? `${subtasks.length} Subtasks Decomposed` : 'Awaiting Task Prompt'}
-                </span>
+                <h2 className="master-task-text text-[14.5px] font-medium text-[var(--text)] leading-snug truncate">
+                  {taskTitle || 'Submit a prompt on Home or click "Start Project" to launch master task execution.'}
+                </h2>
               </div>
 
-              <h2 className="text-[17px] font-bold text-white leading-snug">
-                {taskTitle || 'Submit a prompt on Home or click "New Agent Run" to begin master task decomposition.'}
-              </h2>
+              <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-[var(--dim)] flex-shrink-0">
+                {subtasks.length > 0 ? `${subtasks.length} Subtasks Decomposed` : 'Awaiting Task'}
+              </span>
             </div>
 
-            {/* Parallel Agent Visualizer (Grouped Side-by-Side) */}
-            <div className="space-y-5">
-              <div className="flex items-center justify-between select-none">
+            {/* Parallel Agent DAG Visualizer */}
+            <div className="dag-wrap flex-1 border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] overflow-y-auto space-y-4">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Zap size={18} className="text-[#9D8CFC]" />
-                  <h3 className="text-[15px] font-bold text-white">Parallel Multi-Agent Visualizer</h3>
+                  <Zap size={15} className="text-[var(--accent)]" />
+                  <h3 className="text-[13px] font-semibold text-[var(--text)]">Parallel Multi-Agent Execution DAG</h3>
                 </div>
-                <span className="text-[12px] font-mono text-neutral-400">
-                  Click an agent card to inspect inline details
-                </span>
+                <span className="font-mono text-[11px] text-[var(--faint)]">Click a node to inspect details</span>
               </div>
 
               {runStatus === 'planning' ? (
-                <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-10 text-center text-neutral-300 space-y-3">
-                  <Loader2 size={32} className="animate-spin text-[#9D8CFC] mx-auto" />
-                  <h3 className="text-[16px] font-bold text-white">Decomposing Master Task</h3>
-                  <p className="text-[12.5px] text-neutral-400 font-mono">
-                    SplitterAI LLM planner is constructing your parallel multi-agent DAG execution graph...
-                  </p>
+                <div className="p-8 text-center text-[var(--dim)] space-y-2 border border-[var(--border-soft)] rounded bg-[var(--panel-2)]">
+                  <Loader2 size={24} className="animate-spin text-[var(--accent)] mx-auto" />
+                  <p className="text-[13px] font-medium text-[var(--text)]">Decomposing Master Task</p>
+                  <p className="text-[11.5px] text-[var(--faint)] font-mono">SplitterAI LLM planner is constructing parallel worker DAG...</p>
                 </div>
               ) : groupNumbers.length === 0 ? (
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-10 text-center text-neutral-400 space-y-3">
-                  <Layers size={32} className="mx-auto opacity-30 text-neutral-400" />
-                  <p className="text-[14px] font-semibold text-neutral-300">No Active Agent Visualizer Nodes</p>
-                  <p className="text-[12.5px] text-neutral-500">
-                    When a task is launched, parallel worker nodes will render side-by-side below.
-                  </p>
-                  <button
-                    onClick={() => navigate('/')}
-                    className="mt-2 px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-white text-[12.5px] font-semibold transition-colors cursor-pointer"
-                  >
-                    Start Task from Home
-                  </button>
+                <div className="p-8 text-center text-[var(--faint)] space-y-2 border border-[var(--border-soft)] rounded bg-[var(--panel-2)] font-mono text-[12px]">
+                  <Layers size={24} className="mx-auto opacity-40 text-[var(--faint)]" />
+                  <p className="text-[13px] font-medium text-[var(--dim)]">No Active Agent Visualizer Nodes</p>
+                  <p className="text-[11px]">When a task is launched, parallel worker nodes will render side-by-side below.</p>
                 </div>
               ) : (
                 groupNumbers.map((gNum) => {
                   const groupSubtasks = groupedSubtasks[gNum]
                   return (
-                    <div key={gNum} className="space-y-3">
-                      <div className="flex items-center gap-2 text-[12px] font-mono text-neutral-400">
-                        <span className="w-2 h-2 rounded-full bg-[#9D8CFC]" />
-                        <span className="font-bold text-white">Group {gNum} (Parallel Execution)</span>
-                        <span className="text-neutral-500">— {groupSubtasks.length} agents running simultaneously</span>
+                    <div key={gNum} className="space-y-2">
+                      <div className="dag-group-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold">
+                        GROUP {gNum} (PARALLEL EXECUTION — {groupSubtasks.length} WORKERS)
                       </div>
 
-                      {/* Side-by-Side Parallel Agent Cards */}
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="dag-row flex flex-wrap gap-3">
                         {groupSubtasks.map((st) => {
                           const meta = ROLE_META[st.role] || ROLE_META.coder
                           const isSelected = selectedAgentRole === st.role
                           const isWorking = st.status === 'running' || st.status === 'working'
                           const isDone = st.status === 'success' || st.status === 'completed'
-                          const isError = st.status === 'error' || st.status === 'failed'
-
-                          const progressPct = isDone ? 100 : isWorking ? Math.min(90, (st.steps || 1) * 25) : 0
 
                           return (
                             <div
                               key={st.id}
                               onClick={() => setSelectedAgentRole(st.role)}
-                              className={`rounded-2xl border p-5 flex flex-col justify-between gap-4 transition-all cursor-pointer shadow-sm relative overflow-hidden ${
-                                isSelected
-                                  ? 'border-[#9D8CFC] bg-[#1A2032] shadow-md ring-1 ring-[#9D8CFC]/40'
-                                  : 'border-white/[0.08] bg-[#141824] hover:border-white/[0.16] hover:bg-[#181E2E]'
-                              } ${isWorking ? 'border-indigo-500/50 shadow-indigo-500/10 animate-pulse' : ''}`}
+                              className={`dag-node w-[180px] border rounded-[var(--radius)] p-3 bg-[var(--panel-2)] flex flex-col justify-between gap-2 cursor-pointer transition-all ${
+                                isSelected ? 'border-[var(--accent)] shadow-[0_0_0_1px_var(--accent)]' : 'border-[var(--border-soft)] hover:border-[var(--border)]'
+                              } ${isWorking ? 'working border-[#1B3550]' : isDone ? 'completed border-[#12352F]' : ''}`}
                             >
-                              <div className="flex items-start justify-between">
-                                <div className="flex items-center gap-2.5">
-                                  <div
-                                    className="w-9 h-9 rounded-xl flex items-center justify-center shadow-xs"
-                                    style={{ backgroundColor: `${meta.color}22` }}
-                                  >
-                                    <AgentIcon role={st.role} size={18} />
-                                  </div>
-                                  <div>
-                                    <h4 className="text-[14px] font-bold text-white">{meta.label} Agent</h4>
-                                    <span className="text-[10px] font-mono text-neutral-400">Node {st.id}</span>
-                                  </div>
+                              <div className="dag-node-head flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <AgentIcon role={st.role} size={13} className="text-[var(--accent)]" />
+                                  <span className="dag-node-name font-medium text-[12px] text-[var(--text)]">{meta.label}</span>
                                 </div>
-
-                                <span
-                                  className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full capitalize border ${
-                                    isDone
-                                      ? 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20'
-                                      : isError
-                                      ? 'bg-red-400/10 text-red-400 border-red-400/20'
-                                      : isWorking
-                                      ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                                      : 'bg-white/5 text-neutral-400 border-white/10'
-                                  }`}
-                                >
-                                  {st.status || 'pending'}
-                                </span>
+                                <StatusBadge status={st.status || 'pending'} />
                               </div>
 
-                              <p className="text-[12.5px] text-neutral-300 line-clamp-2 leading-relaxed font-mono">
+                              <p className="dag-node-task text-[11px] text-[var(--dim)] line-clamp-2 leading-relaxed">
                                 {st.instruction}
                               </p>
-
-                              {/* Progress bar */}
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between text-[10.5px] font-mono text-neutral-400">
-                                  <span>Progress</span>
-                                  <span>{progressPct}%</span>
-                                </div>
-                                <div className="w-full h-1.5 rounded-full bg-white/[0.08] overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full transition-all duration-500"
-                                    style={{
-                                      width: `${progressPct}%`,
-                                      backgroundColor: isError ? '#EF4444' : meta.color,
-                                    }}
-                                  />
-                                </div>
-                              </div>
                             </div>
                           )
                         })}
@@ -240,92 +151,16 @@ export default function ProjectOverviewPage() {
             </div>
           </div>
 
-          {/* ── MIDDLE: Inline Selected Agent Detail Inspection Drawer ─ */}
-          <div className="w-[380px] flex-shrink-0 flex flex-col min-h-0 bg-[#101420] border-r border-[#242C42] overflow-y-auto p-5 space-y-5">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${selectedMeta.color}22` }}
-                >
-                  <AgentIcon role={selectedAgentRole} size={16} />
-                </div>
-                <div>
-                  <h3 className="text-[15px] font-bold text-white">{selectedMeta.label} Detail</h3>
-                  <span className="text-[11px] font-mono text-neutral-400">Role: {selectedAgentRole}</span>
-                </div>
-              </div>
-
-              <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">
-                {selectedAgentSubtask?.status || 'idle'}
-              </span>
-            </div>
-
-            {/* Current Task */}
-            <div className="rounded-xl bg-[#141824] border border-white/10 p-3.5 space-y-1.5">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">
-                CURRENT INSTRUCTION:
-              </span>
-              <p className="text-[12.5px] font-mono text-neutral-200 leading-relaxed">
-                {selectedAgentSubtask?.instruction || 'No task actively executing for this role.'}
-              </p>
-            </div>
-
-            {/* Activity Stream */}
-            <div className="rounded-xl bg-[#141824] border border-white/10 p-3.5 space-y-2">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 font-bold block">
-                LIVE ACTIVITY STREAM ({selectedAgentLogs.length}):
-              </span>
-              <div className="space-y-1.5 max-h-[220px] overflow-y-auto font-mono text-[11px]">
-                {selectedAgentLogs.length === 0 ? (
-                  <p className="text-[11.5px] text-neutral-500 italic">No activity recorded yet.</p>
-                ) : (
-                  selectedAgentLogs.slice(-6).map((log) => (
-                    <div key={log.id} className="p-2 rounded bg-[#101218] border border-white/5 text-neutral-300">
-                      <span className="text-neutral-500 text-[10px] mr-1.5">[{log.timestamp}]</span>
-                      <span>{log.message}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Generated Output */}
-            {selectedAgentSubtask?.output && (
-              <div className="rounded-xl bg-[#141824] border border-white/10 p-3.5 space-y-1.5">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold block">
-                  GENERATED OUTPUT:
-                </span>
-                <div className="p-2.5 rounded bg-[#101218] text-[11.5px] font-mono text-neutral-300 max-h-[140px] overflow-y-auto whitespace-pre-wrap">
-                  {selectedAgentSubtask.output}
-                </div>
-              </div>
-            )}
+          {/* Right Panel: File Explorer */}
+          <div className="ov-files grid-row-[1/3] grid-col-[2/3] min-h-0 border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)] overflow-hidden">
+            <FileExplorer workspace={DEFAULT_WORKSPACE} />
           </div>
 
-          {/* ── RIGHT: Collapsible File Explorer Panel (Phase 10) ───── */}
-          {filePanelOpen && (
-            <div className="w-[300px] flex-shrink-0 flex flex-col min-h-0 bg-[#0E121C] border-r border-[#242C42]">
-              <div className="flex items-center justify-between px-3.5 h-10 border-b border-white/[0.08] bg-[#101420]">
-                <div className="flex items-center gap-2 text-[11px] font-mono uppercase font-bold text-neutral-300">
-                  <Folder size={14} className="text-amber-500" />
-                  <span>WORKSPACE FILES</span>
-                </div>
-                <button onClick={() => setFilePanelOpen(false)} className="text-neutral-500 hover:text-white">
-                  <ChevronDown size={14} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-2">
-                <FileExplorer workspace={DEFAULT_WORKSPACE} />
-              </div>
-            </div>
-          )}
+          {/* Bottom Panel: Terminal */}
+          <div className="ov-terminal grid-row-[2/3] grid-col-[1/2] border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)] overflow-hidden">
+            <TerminalPanel />
+          </div>
         </div>
-
-        {/* ── BOTTOM DOCK: IDE Terminal Panel (Phase 11) ─────────────── */}
-        <TerminalPanel logs={logs} filter={logFilter} />
-
       </div>
     </ProjectTabShell>
   )
