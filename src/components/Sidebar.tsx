@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 import type { SessionEntry } from '../data'
 import { mockAgents, type AgentRole } from '../data'
-import SidebarAgentSimulation3D from './SidebarAgentSimulation3D'
 
 /* ── Sidebar palette (dark teal) ──────────────────────────────── */
 const S = {
@@ -219,9 +218,6 @@ export default function Sidebar({
           })}
         </div>
       </div>
-
-      {/* 3D Agent Simulation Canvas */}
-      <SidebarAgentSimulation3D />
 
       <div className="h-px mx-4 my-2" style={{ background: S.border }} />
 
