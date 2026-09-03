@@ -1,74 +1,52 @@
 @import "tailwindcss";
 
-/* ── Design Tokens — Cicada/Synqra Floating Frame System ─────── */
+/* ── Design Tokens — Rich Slate Navy IDE ─────────────────────── */
 @theme {
-  /* Wallpaper (behind the floating frame) */
-  --color-wallpaper: #D4D9CE;
+  /* Rich Navy Slate Canvas & Surfaces (Not pitch black) */
+  --color-bg: #0C1019;              /* Root wallpaper background */
+  --color-surface: #121723;          /* Main frame & sidebar background */
+  --color-card: #192031;             /* Elevated slate card fill */
+  --color-card-hover: #222B40;       /* Card hover state */
+  --color-recessed: #232C42;        /* Recessed wells / input tracks */
 
-  /* App surfaces (inside the frame) */
-  --color-bg: #EDECE7;              /* App canvas */
-  --color-surface: #FFFFFF;          /* Cards, panels */
-  --color-surface-hover: #F7F6F2;   /* Row/card hover */
-  --color-recessed: #F2F1EC;        /* Nested rows, code gutters, tab track */
+  /* Borders (Crisp visible slate-blue 1px borders) */
+  --color-border: #2B354F;
+  --color-border-subtle: #20283C;
+  --color-border-strong: #3D4A6E;
 
-  /* Borders */
-  --color-border: #E3E1D9;
-  --color-border-subtle: #EAE8E2;
-  --color-border-strong: #D5D3CB;
+  /* Text Hierarchy */
+  --color-text-1: #FFFFFF;          /* Headings, values */
+  --color-text-2: #9FA8C4;          /* Subtitles, body prose, labels */
+  --color-text-3: #677294;          /* Muted metadata, timestamps */
 
-  /* Text */
-  --color-text-1: #1C1E17;          /* Primary headings */
-  --color-text-2: #6B6E62;          /* Labels, body, nav */
-  --color-text-3: #A2A497;          /* Muted metadata, placeholders */
+  /* Cicada Purple Accent */
+  --color-accent: #6E56CF;
+  --color-accent-hover: #5E46BF;
+  --color-purple-light: #9D8CFC;
 
-  /* Single accent — deep forest green */
-  --color-accent: #41552F;
-  --color-accent-hover: #374A27;
-
-  /* Semantic status */
-  --color-green: #41552F;
-  --color-red: #C53030;
-  --color-amber: #B7791F;
-  --color-blue: #2B6CB0;
-
-  /* Legacy compat aliases */
-  --color-primary: #41552F;
-  --color-success: #41552F;
-  --color-urgent-red: #C53030;
-  --color-warning: #B7791F;
-  --color-text-primary: #1C1E17;
-  --color-text-secondary: #6B6E62;
-  --color-sidebar-bg: #FFFFFF;
-  --color-hover-bg: #F2F1EC;
-  --color-nav-pill: #F2F1EC;
-  --color-compose-bg: #FFFFFF;
-  --color-compose-text: #1C1E17;
-  --color-search-bg: #FFFFFF;
-  --color-star-yellow: #B7791F;
-  --color-purple: #6B6E62;
-  --color-surface-alt: #F2F1EC;
-  --color-raised: #FFFFFF;
-  --color-hover: #F2F1EC;
-  --color-brand: #41552F;
-  --color-warm: #6B6E62;
-  --color-sage: #A2A497;
-  --color-cream: #EDECE7;
-  --color-elevated: #F2F1EC;
-  --color-sidebar: #FFFFFF;
+  /* Status Colors */
+  --color-green: #30A46C;
+  --color-red: #E5484D;
+  --color-amber: #F5D90A;
+  --color-blue: #0091FF;
 
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
 
   /* Radii */
-  --radius-lg: 20px;    /* App frame */
-  --radius: 12px;       /* Cards */
-  --radius-sm: 8px;     /* Inputs, chips */
-  --radius-xs: 6px;     /* Small chips */
+  --radius-xl: 16px;
+  --radius-lg: 12px;
+  --radius: 8px;
+  --radius-sm: 6px;
 }
 
-/* ── Base ─────────────────────────────────────────────────────── */
-* { margin: 0; padding: 0; box-sizing: border-box; }
+/* ── Base Reset ──────────────────────────────────────────────── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 html, body, #root {
   height: 100%;
@@ -78,215 +56,46 @@ html, body, #root {
 
 body {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 20px;
   color: var(--color-text-1);
-  background: var(--color-wallpaper);
+  background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Textured Wallpaper Background ───────────────────────────── */
-.wallpaper {
-  background-color: var(--color-wallpaper);
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0 L60 30 L30 60 L0 30 Z' fill='none' stroke='%23B8BFB0' stroke-width='0.5' opacity='0.12'/%3E%3C/svg%3E");
-  background-size: 60px 60px;
+/* ── Custom Dark Scrollbar ───────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-/* ── Floating App Frame ──────────────────────────────────────── */
-.app-frame {
-  background: var(--color-bg);
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
-}
-
-/* ── Scrollbar ───────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D5D3CB; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #C5C3BA; }
-
-/* ── Typography Scale ────────────────────────────────────────── */
-.t-hero {
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: var(--color-text-1);
-}
-
-.t-section {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 20px;
-  color: var(--color-text-1);
-}
-
-.t-subhead {
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 22px;
-  color: var(--color-text-2);
-}
-
-.t-card-title {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 18px;
-  color: var(--color-text-1);
-}
-
-.t-body {
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 18px;
-  color: var(--color-text-2);
-}
-
-.t-label {
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 16px;
-  color: var(--color-text-2);
-}
-
-.t-caption {
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 16px;
-  color: var(--color-text-3);
-}
-
-.t-mono {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 16px;
-  color: var(--color-text-2);
-}
-
-.t-micro {
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 14px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-text-3);
-}
-
-/* ── Card System ─────────────────────────────────────────────── */
-.card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.card-inset {
-  background: var(--color-recessed);
-  border-radius: 8px;
-}
-
-/* ── Input System ────────────────────────────────────────────── */
-.input-field {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 13px;
-  color: var(--color-text-1);
-  outline: none;
-  transition: border-color 150ms;
-}
-.input-field:focus { border-color: var(--color-accent); }
-.input-field::placeholder { color: var(--color-text-3); }
-
-/* ── Button System ───────────────────────────────────────────── */
-.btn-primary {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 20px; border-radius: 999px;
-  background: var(--color-accent); color: #FFFFFF;
-  font-size: 13px; font-weight: 500;
-  border: none; cursor: pointer; transition: background 150ms;
-}
-.btn-primary:hover { background: var(--color-accent-hover); }
-
-.btn-secondary {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 20px; border-radius: 999px;
-  background: var(--color-surface); color: var(--color-text-1);
-  font-size: 13px; font-weight: 500;
-  border: 1px solid var(--color-border);
-  cursor: pointer; transition: border-color 150ms;
-}
-.btn-secondary:hover { border-color: var(--color-border-strong); }
-
-.btn-ghost {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 12px; border-radius: 999px;
-  background: transparent; color: var(--color-text-2);
-  font-size: 13px; font-weight: 500;
-  border: none; cursor: pointer;
-}
-.btn-ghost:hover { color: var(--color-text-1); }
-
-/* ── Chip / Pill ─────────────────────────────────────────────── */
-.chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 12px; border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  font-size: 13px; color: var(--color-text-1);
-}
-
-.chip-dashed {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border-radius: 999px;
-  border: 1px dashed var(--color-border-strong);
+::-webkit-scrollbar-track {
   background: transparent;
-  font-size: 13px; color: var(--color-text-2);
-  cursor: pointer; transition: border-color 150ms, background 150ms;
 }
-.chip-dashed:hover {
-  border-color: var(--color-accent);
-  background: rgba(65,85,47,0.04);
+::-webkit-scrollbar-thumb {
+  background: #2D3754;
+  border-radius: 3px;
 }
-
-.chip-inset {
-  background: var(--color-recessed);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--color-text-2);
+::-webkit-scrollbar-thumb:hover {
+  background: #3E4B73;
 }
 
-.chip-status {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
-}
-
-.chip-status-active {
-  background: var(--color-accent);
-  color: #FFFFFF;
-}
-
-.chip-status-idle {
-  background: var(--color-recessed);
-  color: var(--color-text-3);
+/* ── Focus Visible Ring ──────────────────────────────────────── */
+*:focus-visible {
+  outline: 2px solid var(--color-accent) !important;
+  outline-offset: 1px !important;
 }
 
 /* ── Animations ──────────────────────────────────────────────── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
 }
+
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  50% { opacity: 0.35; }
 }
-.animate-fade-in { animation: fadeIn 180ms ease-out both; }
+
+.animate-fade-in { animation: fadeIn 150ms ease-out both; }
 .animate-pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }

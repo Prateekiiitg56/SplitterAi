@@ -1,4 +1,3 @@
-import type React from 'react'
 import { Loader2, CheckCircle2, XCircle, Clock, Layers } from 'lucide-react'
 import type { AgentRole, SubtaskStatus } from '../data'
 
@@ -26,16 +25,9 @@ export function AgentIcon({ role, className = "w-3.5 h-3.5" }: { role: AgentRole
 
 export function AgentBadge({ role }: { role: AgentRole }) {
   const labels: Record<AgentRole, string> = { planner: 'Planner', coder: 'Coder', auditor: 'Auditor', tester: 'Tester' }
-  const tints: Record<AgentRole, { bg: string; color: string }> = {
-    planner: { bg: 'rgba(61,139,95,0.08)', color: '#3D8B5F' },
-    coder: { bg: 'rgba(37,99,235,0.08)', color: '#2563EB' },
-    auditor: { bg: 'rgba(217,119,6,0.08)', color: '#D97706' },
-    tester: { bg: 'rgba(139,92,246,0.08)', color: '#8B5CF6' },
-  }
-  const tint = tints[role]
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: tint.bg, color: tint.color }}>
+      <span className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-recessed)', color: 'var(--color-text-2)' }}>
         <AgentIcon role={role} className="w-3.5 h-3.5" />
       </span>
       <span className="text-[13px] font-semibold" style={{ color: 'var(--color-text-1)' }}>{labels[role] ?? role}</span>
@@ -44,27 +36,31 @@ export function AgentBadge({ role }: { role: AgentRole }) {
 }
 
 export function StatusBadge({ status }: { status: SubtaskStatus | 'active' | 'idle' }) {
-  const configs: Record<string, { bg: string; border: string; dot: string; text: string; label: string }> = {
-    active:  { bg: 'rgba(37,99,235,0.06)', border: 'rgba(37,99,235,0.15)', dot: '#2563EB', text: '#2563EB', label: 'Running' },
-    running: { bg: 'rgba(37,99,235,0.06)', border: 'rgba(37,99,235,0.15)', dot: '#2563EB', text: '#2563EB', label: 'Running' },
-    success: { bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.15)', dot: '#22C55E', text: '#16A34A', label: 'Done' },
-    error:   { bg: 'rgba(220,38,38,0.06)', border: 'rgba(220,38,38,0.15)', dot: '#DC2626', text: '#DC2626', label: 'Failed' },
+  if (status === 'active' || status === 'running') {
+    return <span className="chip-status chip-status-active">Running</span>
   }
-  const cfg = configs[status] || { bg: 'var(--color-elevated)', border: 'var(--color-border)', dot: 'var(--color-text-3)', text: 'var(--color-text-3)', label: 'Idle' }
-  const isAnimated = status === 'active' || status === 'running'
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border" style={{ background: cfg.bg, borderColor: cfg.border, color: cfg.text }}>
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isAnimated ? 'animate-pulse-dot' : ''}`} style={{ background: cfg.dot }} />
-      {cfg.label}
-    </span>
-  )
+  if (status === 'success') {
+    return (
+      <span className="chip-status text-[11px] font-semibold" style={{ background: 'rgba(65,85,47,0.1)', color: 'var(--color-accent)' }}>
+        Done
+      </span>
+    )
+  }
+  if (status === 'error') {
+    return (
+      <span className="chip-status text-[11px] font-semibold" style={{ background: 'rgba(197,48,48,0.08)', color: 'var(--color-red)' }}>
+        Failed
+      </span>
+    )
+  }
+  return <span className="chip-status chip-status-idle">Idle</span>
 }
 
 export function StatusIcon({ status }: { status: SubtaskStatus }) {
   switch (status) {
-    case 'running': return <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: '#2563EB' }} />
-    case 'success': return <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#22C55E' }} />
-    case 'error': return <XCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#DC2626' }} />
+    case 'running': return <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
+    case 'success': return <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-accent)' }} />
+    case 'error': return <XCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-red)' }} />
     default: return <Clock className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--color-text-3)' }} />
   }
 }

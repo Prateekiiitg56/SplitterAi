@@ -3,157 +3,40 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Paperclip,
-  Mic,
+  Plus,
   ChevronDown,
-  ArrowRight,
-  X,
-  FileText,
-  Layers,
-  Code,
-  ShieldCheck,
-  TestTube,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
+  Mic,
+  Volume2,
   Clock,
+  ChevronRight,
+  MoreVertical,
+  Bot,
   Play,
+  Settings,
+  FolderOpen,
+  GitBranch,
+  BookOpen,
+  Users,
+  Code,
+  BarChart3,
+  Infinity as InfinityIcon,
+  PenTool,
 } from "lucide-react";
-import {
-  mockAgents,
-  mockSessions,
-  ROLE_META,
-  type AgentRole,
-  type AgentStatus,
-} from "../../data";
 
-/* ── Agent Icon Map ───────────────────────────────────────────── */
-const agentIconMap: Record<AgentRole, React.ReactNode> = {
-  planner: <Layers size={16} strokeWidth={1.5} />,
-  coder: <Code size={16} strokeWidth={1.5} />,
-  auditor: <ShieldCheck size={16} strokeWidth={1.5} />,
-  tester: <TestTube size={16} strokeWidth={1.5} />,
-};
-
-/* ── Role icon chip tints ─────────────────────────────────────── */
-const roleChipStyle: Record<AgentRole, { bg: string; color: string }> = {
-  planner: { bg: "rgba(61,139,95,0.08)", color: "#3D8B5F" },
-  coder: { bg: "rgba(37,99,235,0.08)", color: "#2563EB" },
-  auditor: { bg: "rgba(217,119,6,0.08)", color: "#D97706" },
-  tester: { bg: "rgba(139,92,246,0.08)", color: "#8B5CF6" },
-};
-
-/* ── Role subtitles ───────────────────────────────────────────── */
-const roleSubtitles: Record<AgentRole, string> = {
-  planner: "TASK DECOMPOSITION & ORCHESTRATION",
-  coder: "CODE GENERATION & EDITING",
-  auditor: "SECURITY & CODE REVIEW",
-  tester: "TEST AUTOMATION & VERIFICATION",
-};
-
-/* ── Status Pill ──────────────────────────────────────────────── */
-function StatusPill({ status }: { status: AgentStatus }) {
-  const isActive = status === "active";
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium border"
-      style={{
-        background: isActive ? "rgba(37,99,235,0.06)" : "var(--color-surface)",
-        borderColor: isActive ? "rgba(37,99,235,0.15)" : "var(--color-border)",
-        color: isActive ? "#2563EB" : "var(--color-text-3)",
-      }}
-    >
-      <span
-        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? "animate-pulse-dot" : ""}`}
-        style={{ background: isActive ? "#2563EB" : "var(--color-text-3)" }}
-      />
-      {isActive ? "Running" : "Idle"}
-    </span>
-  );
-}
-
-/* ── Run Status Icon ──────────────────────────────────────────── */
-function RunStatusIcon({ status }: { status: string }) {
-  switch (status) {
-    case "done": return <CheckCircle2 size={14} style={{ color: "var(--color-green)" }} />;
-    case "error": return <XCircle size={14} style={{ color: "var(--color-red)" }} />;
-    case "executing":
-    case "planning": return <span className="w-2.5 h-2.5 rounded-full animate-pulse-dot" style={{ background: "var(--color-blue)" }} />;
-    default: return <AlertCircle size={14} style={{ color: "var(--color-text-3)" }} />;
-  }
-}
-
-/* ── Agent Card ───────────────────────────────────────────────── */
-function AgentCard({ role, onNavigate }: { role: AgentRole; onNavigate: (path: string) => void }) {
-  const agent = mockAgents.find((a) => a.role === role)!;
-  const meta = ROLE_META[role];
-  const chip = roleChipStyle[role];
-
-  return (
-    <div
-      onClick={() => onNavigate(`/agent/${role}`)}
-      className="card cursor-pointer transition-all"
-      style={{ padding: "16px 20px" }}
-    >
-      {/* Top row: icon chip + name + status pill */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-            style={{ background: chip.bg, color: chip.color }}
-          >
-            {agentIconMap[role]}
-          </div>
-          <span className="text-[14px] font-semibold" style={{ color: "var(--color-text-1)" }}>
-            {meta.label}
-          </span>
-        </div>
-        <StatusPill status={agent.status} />
-      </div>
-
-      {/* Role subtitle */}
-      <p className="t-micro mb-2">{roleSubtitles[role]}</p>
-
-      {/* Description */}
-      <p className="t-body mb-3" style={{ lineHeight: "18px" }}>
-        {meta.desc}
-      </p>
-
-      {/* Model chip */}
-      {agent.model && (
-        <div className="mb-3">
-          <span className="chip-inset">{agent.model}</span>
-        </div>
-      )}
-
-      {/* Footer: Configure link */}
-      <div className="flex items-center justify-end">
-        <span
-          className="inline-flex items-center gap-1 text-[13px] font-medium cursor-pointer transition-colors"
-          style={{ color: "var(--color-text-2)" }}
-        >
-          Configure <ArrowRight size={13} />
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* ── Main Interface ───────────────────────────────────────────── */
 export function AIAssistantInterface() {
   let navigate = (path: string) => { window.location.href = path; };
   try {
     const nav = useNavigate();
     if (typeof nav === "function") navigate = nav;
-  } catch (e) { /* fallback */ }
+  } catch { /* fallback */ }
 
   const [inputValue, setInputValue] = useState("");
-  const [attachments] = useState<string[]>(["project_spec.md", "schema.sql"]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = () => {
     if (inputValue.trim()) navigate("/run");
   };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
@@ -161,180 +44,312 @@ export function AIAssistantInterface() {
     }
   };
 
+  const suggestions = [
+    { icon: "✨", text: "Create an online store" },
+    { icon: "📊", text: "Analyze this GitHub repository" },
+    { icon: "🔐", text: "Create a registration form" },
+    { icon: "🐍", text: "Create animation in Python" },
+  ];
+
+  const recentProjects = [
+    {
+      title: "Soax Dashboard",
+      updated: "Updated 2h ago",
+      color: "bg-[#2563EB]",
+      tags: ["Next.js", "TypeScript", "Tailwind"],
+    },
+    {
+      title: "API Service",
+      updated: "Updated 1d ago",
+      color: "bg-[#30A46C]",
+      tags: ["Node.js", "Express", "MongoDB"],
+    },
+    {
+      title: "Landing Page",
+      updated: "Updated 2d ago",
+      color: "bg-[#EAB308]",
+      tags: ["React", "TypeScript", "Framer"],
+    },
+    {
+      title: "Design System",
+      updated: "Updated 3d ago",
+      color: "bg-[#6E56CF]",
+      tags: ["Figma", "Storybook", "CSS"],
+    },
+  ];
+
+  const launchAgents = [
+    {
+      role: "coder",
+      title: "Code Assistant",
+      desc: "Write, refactor and debug code effortlessly.",
+      color: "bg-[#6E56CF]",
+      icon: <Code size={16} className="text-white" />,
+    },
+    {
+      role: "auditor",
+      title: "Data Analyst",
+      desc: "Analyze, visualize and extract insights.",
+      color: "bg-[#30A46C]",
+      icon: <BarChart3 size={16} className="text-white" />,
+    },
+    {
+      role: "tester",
+      title: "DevOps Engineer",
+      desc: "Deploy, monitor and manage infrastructure.",
+      color: "bg-[#2563EB]",
+      icon: <InfinityIcon size={16} className="text-white" />,
+    },
+    {
+      role: "planner",
+      title: "UI/UX Designer",
+      desc: "Design beautiful interfaces and experiences.",
+      color: "bg-[#D946EF]",
+      icon: <PenTool size={16} className="text-white" />,
+    },
+  ];
+
   return (
-    <div className="flex-1 overflow-y-auto" style={{ background: "var(--color-bg)" }}>
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px 32px 48px" }}>
+    <div className="flex-1 overflow-y-auto bg-[#121723] text-white font-sans p-8 select-none">
+      <div className="max-w-[1080px] mx-auto space-y-9">
 
-        {/* ── Breadcrumb ─────────────────────────────────────── */}
-        <nav className="mb-5 text-[13px]" style={{ color: "var(--color-text-2)" }}>
-          <span className="cursor-pointer hover:underline" onClick={() => navigate("/")}>SplitterAi</span>
-          <span className="mx-1.5" style={{ color: "var(--color-text-3)" }}>/</span>
-          <span style={{ color: "var(--color-text-1)", fontWeight: 500 }}>Home</span>
-        </nav>
-
-        {/* ── Task Composer Card ─────────────────────────────── */}
-        <div className="card mb-4">
-          {/* Card header */}
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="t-section">New Task</h2>
-            <button className="cursor-pointer" style={{ color: "var(--color-text-3)" }}>
-              <ChevronDown size={16} strokeWidth={1.5} />
-            </button>
+        {/* ── 1. HERO HEADER WITH ORIGAMI MOTH ICON ───────────── */}
+        <div className="flex items-center gap-5 justify-center pt-2">
+          {/* Moth Icon Container */}
+          <div className="w-16 h-16 rounded-2xl bg-[#192031] border border-[#2B354F] flex items-center justify-center shadow-md p-2 flex-shrink-0">
+            <img
+              src="/cicada-logo.png"
+              alt="Cicada Logo"
+              className="w-12 h-12 object-contain"
+            />
           </div>
 
-          {/* Field: Task Description */}
-          <div className="mb-4">
-            <label className="t-label block mb-1.5">Task description</label>
+          <div>
+            <p className="text-[15px] font-medium text-[#9D8CFC] tracking-tight">
+              Hello Vlad, Welcome back!
+            </p>
+            <h1 className="text-[28px] font-bold text-white tracking-tight">
+              How can I help you today?
+            </h1>
+          </div>
+        </div>
+
+        {/* ── 2. PROMPT COMPOSER BOX ──────────────────────────── */}
+        <div className="bg-[#192031] rounded-2xl border border-[#2B354F] shadow-md overflow-hidden">
+          <div className="p-4 pb-2">
             <textarea
               ref={textareaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Describe the task for the agents (e.g. &quot;Build a REST API with Express and add unit tests&quot;)"
-              rows={4}
-              className="input-field w-full resize-none"
+              placeholder="Ask Diberdo to analyze my data and..."
+              rows={3}
+              className="w-full bg-transparent text-[14px] text-white placeholder:text-[#677294] outline-none resize-none leading-relaxed"
+              style={{ minHeight: 70 }}
             />
           </div>
 
-          {/* Attachment chips */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {attachments.map((file) => (
-              <span key={file} className="chip text-[13px]">
-                <FileText size={14} style={{ color: "var(--color-text-3)" }} />
-                <span>{file}</span>
-                <button className="cursor-pointer" style={{ color: "var(--color-text-3)" }}>
-                  <X size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[#232C42] bg-[#192031]">
+            {/* Left Controls */}
+            <div className="flex items-center gap-2">
+              <button className="w-7 h-7 rounded-full border border-[#2D3754] text-[#9FA8C4] flex items-center justify-center hover:bg-[#232C42] transition-colors cursor-pointer">
+                <Plus size={14} />
+              </button>
 
-          {/* Config row: side-by-side dropdowns */}
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <div>
-              <label className="t-label block mb-1.5">Mode</label>
-              <div
-                className="flex items-center justify-between px-3 h-9 rounded-lg border cursor-pointer"
-                style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
-              >
-                <span className="text-[13px]" style={{ color: "var(--color-text-1)" }}>Multi-agent</span>
-                <ChevronDown size={14} style={{ color: "var(--color-text-3)" }} />
-              </div>
-            </div>
-            <div>
-              <label className="t-label block mb-1.5">Planner Model</label>
-              <div
-                className="flex items-center justify-between px-3 h-9 rounded-lg border cursor-pointer"
-                style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
-              >
-                <span className="text-[13px] font-mono truncate" style={{ color: "var(--color-text-1)" }}>gemini-2.5-flash</span>
-                <ChevronDown size={14} style={{ color: "var(--color-text-3)" }} />
-              </div>
-            </div>
-            <div>
-              <label className="t-label block mb-1.5">Workspace</label>
-              <div
-                className="flex items-center justify-between px-3 h-9 rounded-lg border cursor-pointer"
-                style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
-              >
-                <span className="text-[13px] font-mono truncate" style={{ color: "var(--color-text-1)" }}>D:/projects/webapp</span>
-                <ChevronDown size={14} style={{ color: "var(--color-text-3)" }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Action bar */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t" style={{ borderColor: "var(--color-border-subtle)" }}>
-            <button className="btn-ghost">Cancel</button>
-            <button className="btn-secondary">
-              <Paperclip size={14} />
-              <span>Attach</span>
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleSend}
-              style={{ opacity: inputValue.trim() ? 1 : 0.5 }}
-            >
-              <Play size={14} />
-              <span>Run Task</span>
-            </button>
-          </div>
-        </div>
-
-        {/* ── Planner Card (full-width) ──────────────────────── */}
-        <AgentCard role="planner" onNavigate={navigate} />
-
-        {/* ── Visual connector ───────────────────────────────── */}
-        <div className="flex flex-col items-center" style={{ padding: "4px 0" }}>
-          <div className="w-px h-3" style={{ background: "var(--color-border-strong)" }} />
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--color-accent)" }} />
-          <div className="w-px h-3" style={{ background: "var(--color-border-strong)" }} />
-        </div>
-
-        {/* ── Worker Agent Cards (3-col grid) ────────────────── */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <AgentCard role="coder" onNavigate={navigate} />
-          <AgentCard role="auditor" onNavigate={navigate} />
-          <AgentCard role="tester" onNavigate={navigate} />
-        </div>
-
-        {/* ── History Card ───────────────────────────────────── */}
-        {mockSessions.length > 0 && (
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            <div className="flex items-center justify-between px-5 pt-5 pb-3">
-              <div>
-                <h2 className="t-section mb-0.5">History</h2>
-                <p className="t-caption">Recent execution runs</p>
-              </div>
-              <button
-                onClick={() => navigate("/run")}
-                className="text-[13px] font-medium cursor-pointer"
-                style={{ color: "var(--color-accent)" }}
-              >
-                View all →
+              <button className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#232C42] border border-[#2D3754] text-[12.5px] font-medium text-white hover:border-[#3E4B73] transition-colors cursor-pointer">
+                <span>GPT-5.5</span>
+                <ChevronDown size={13} className="text-[#677294]" />
               </button>
             </div>
 
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr style={{ borderTop: "1px solid var(--color-border-subtle)", borderBottom: "1px solid var(--color-border-subtle)" }}>
-                  {["STATUS", "TASK", "WORKERS", "CREATED"].map((col) => (
-                    <th
-                      key={col}
-                      className="px-5 py-2 t-micro"
-                      style={{ background: "var(--color-elevated)" }}
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {mockSessions.map((session) => (
-                  <tr
-                    key={session.id}
-                    onClick={() => navigate("/run")}
-                    className="cursor-pointer transition-colors"
-                    style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-surface-hover)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                  >
-                    <td className="px-5 py-3"><RunStatusIcon status={session.status} /></td>
-                    <td className="px-5 py-3 text-[13px]" style={{ color: "var(--color-text-1)", maxWidth: 400 }}>
-                      <span className="truncate block">{session.task}</span>
-                    </td>
-                    <td className="px-5 py-3 text-[12px] font-mono" style={{ color: "var(--color-text-2)" }}>
-                      {session.subtaskCount} agents
-                    </td>
-                    <td className="px-5 py-3 text-[12px] font-mono" style={{ color: "var(--color-text-3)" }}>
-                      {session.createdAt}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {/* Right Controls */}
+            <div className="flex items-center gap-2">
+              <button className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#232C42] border border-[#2D3754] text-[12.5px] font-medium text-[#9FA8C4] hover:border-[#3E4B73] transition-colors cursor-pointer">
+                <span>Planning</span>
+                <ChevronDown size={13} className="text-[#677294]" />
+              </button>
+
+              <button className="w-7 h-7 rounded-full border border-[#2D3754] text-[#9FA8C4] flex items-center justify-center hover:bg-[#232C42] transition-colors cursor-pointer">
+                <Mic size={14} />
+              </button>
+
+              <button
+                onClick={handleSend}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#6E56CF] hover:bg-[#5E46BF] text-white text-[12.5px] font-medium transition-colors shadow-sm cursor-pointer"
+              >
+                <Volume2 size={13} />
+                <span>Voice</span>
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* ── 3. SUGGESTION CHIPS ─────────────────────────────── */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap justify-center gap-3">
+            {suggestions.map((s) => (
+              <button
+                key={s.text}
+                onClick={() => setInputValue(s.text)}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#192031] border border-[#2B354F] text-[12.5px] text-[#9FA8C4] hover:text-white hover:border-[#6E56CF] transition-colors cursor-pointer"
+              >
+                <span>{s.icon}</span>
+                <span>{s.text}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex justify-center">
+            <button className="flex items-center gap-1 text-[12px] text-[#677294] hover:text-[#9FA8C4] cursor-pointer">
+              <span>More suggestions</span>
+              <ChevronDown size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── 4. RECENT PROJECTS SECTION ──────────────────────── */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-[#9D8CFC]" />
+              <h2 className="text-[15px] font-semibold text-white">Recent Projects</h2>
+            </div>
+            <button
+              onClick={() => navigate('/run')}
+              className="text-[12.5px] font-medium text-[#9D8CFC] hover:underline cursor-pointer"
+            >
+              View all
+            </button>
+          </div>
+
+          {/* Grid + Carousel Right Button */}
+          <div className="relative flex items-center gap-3">
+            <div className="grid grid-cols-4 gap-3 flex-1">
+              {recentProjects.map((project) => (
+                <div
+                  key={project.title}
+                  onClick={() => navigate('/run')}
+                  className="p-4 rounded-xl bg-[#192031] border border-[#2B354F] hover:border-[#3D4A6E] transition-all cursor-pointer space-y-3 group"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className={`w-8 h-8 rounded-lg ${project.color} flex items-center justify-center text-white font-bold text-[12px]`}>
+                      {project.title.charAt(0)}
+                    </div>
+                    <MoreVertical size={14} className="text-[#677294] group-hover:text-white" />
+                  </div>
+
+                  <div>
+                    <h3 className="text-[13.5px] font-semibold text-white truncate">{project.title}</h3>
+                    <p className="text-[11px] text-[#677294]">{project.updated}</p>
+                  </div>
+
+                  {/* Purple progress bar */}
+                  <div className="w-full h-1 rounded-full bg-[#232C42] overflow-hidden">
+                    <div className="h-full w-2/3 rounded-full bg-[#6E56CF]" />
+                  </div>
+
+                  {/* Tags */}
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {project.tags.map((tag) => (
+                      <span key={tag} className="px-2 py-0.5 rounded bg-[#232C42] border border-[#2D3754] text-[10px] font-mono text-[#9FA8C4]">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button className="w-8 h-8 rounded-full bg-[#192031] border border-[#2B354F] text-[#9FA8C4] hover:text-white flex items-center justify-center flex-shrink-0 cursor-pointer">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── 5. LAUNCH AGENTS SECTION ────────────────────────── */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Bot size={16} className="text-[#9D8CFC]" />
+                <h2 className="text-[15px] font-semibold text-white">Launch Agents</h2>
+              </div>
+              <p className="text-[12px] text-[#677294] mt-0.5">
+                AI agents ready to help you build, analyze and deploy.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/agent/planner')}
+              className="flex items-center gap-1.5 text-[12.5px] font-medium text-[#9D8CFC] hover:underline cursor-pointer"
+            >
+              <Settings size={13} />
+              <span>Manage Agents</span>
+            </button>
+          </div>
+
+          <div className="relative flex items-center gap-3">
+            <div className="grid grid-cols-4 gap-3 flex-1">
+              {launchAgents.map((agent) => (
+                <div
+                  key={agent.title}
+                  onClick={() => navigate(`/agent/${agent.role}`)}
+                  className="p-4 rounded-xl bg-[#192031] border border-[#2B354F] hover:border-[#3D4A6E] transition-all cursor-pointer space-y-3 flex flex-col justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`w-9 h-9 rounded-xl ${agent.color} flex items-center justify-center flex-shrink-0`}>
+                      {agent.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-[13.5px] font-semibold text-white truncate">{agent.title}</h3>
+                      <p className="text-[11.5px] text-[#9FA8C4] line-clamp-2 leading-tight mt-0.5">{agent.desc}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="flex items-center gap-1.5 text-[11px] text-[#30A46C] font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#30A46C]" />
+                      <span>Online</span>
+                    </span>
+
+                    <div className="w-6 h-6 rounded-full bg-[#6E56CF] text-white flex items-center justify-center cursor-pointer hover:bg-[#5E46BF] transition-colors">
+                      <Play size={11} className="ml-0.5" fill="white" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button className="w-8 h-8 rounded-full bg-[#192031] border border-[#2B354F] text-[#9FA8C4] hover:text-white flex items-center justify-center flex-shrink-0 cursor-pointer">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── 6. QUICK ACTION BAR (BOTTOM) ────────────────────── */}
+        <div className="p-3 rounded-2xl bg-[#192031] border border-[#2B354F] grid grid-cols-5 divide-x divide-[#2B354F]">
+          {[
+            { icon: <Plus size={16} className="text-[#9D8CFC]" />, title: 'New Project', sub: 'Start from scratch' },
+            { icon: <FolderOpen size={16} className="text-[#9D8CFC]" />, title: 'Open Project', sub: 'Browse workspace' },
+            { icon: <GitBranch size={16} className="text-[#9D8CFC]" />, title: 'Import Repository', sub: 'From GitHub, GitLab' },
+            { icon: <BookOpen size={16} className="text-[#9D8CFC]" />, title: 'Documentation', sub: 'Read the docs' },
+            { icon: <Users size={16} className="text-[#9D8CFC]" />, title: 'Community', sub: 'Join the community' },
+          ].map((item) => (
+            <button
+              key={item.title}
+              onClick={() => navigate('/run')}
+              className="flex items-center gap-3 px-4 py-2 hover:bg-[#222B40] transition-colors cursor-pointer text-left rounded-lg"
+            >
+              <div className="w-8 h-8 rounded-lg bg-[#232C42] border border-[#2D3754] flex items-center justify-center flex-shrink-0">
+                {item.icon}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-semibold text-white truncate">{item.title}</p>
+                <p className="text-[10.5px] text-[#677294] truncate">{item.sub}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+
       </div>
     </div>
   );
