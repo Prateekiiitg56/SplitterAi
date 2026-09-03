@@ -85,25 +85,13 @@ export default function IntegrationsPage() {
     if (typeof nav === 'function') navigate = nav
   } catch { /* fallback */ }
 
-  const [githubConnected, setGithubConnected] = useState(true)
-  const [githubToken, setGithubToken] = useState('ghp_************************************')
+  const { mcpServers, toggleMCPServer, addMCPServer } = useUI()
+
+  const [githubConnected, setGithubConnected] = useState(false)
+  const [githubToken, setGithubToken] = useState('')
   const [showToken, setShowToken] = useState(false)
   const [selectedRepo, setSelectedRepo] = useState('Prateekiiitg56/SplitterAi')
-  const [mcpServers, setMcpServers] = useState<MCPServer[]>(() => {
-    try {
-      const saved = localStorage.getItem('splitter_mcp_servers')
-      if (saved) return JSON.parse(saved)
-    } catch { /* fallback */ }
-    return DEFAULT_MCP_SERVERS
-  })
   const [syncing, setSyncing] = useState(false)
-
-  // Save changes to localStorage so user modifications survive page refresh
-  useEffect(() => {
-    try {
-      localStorage.setItem('splitter_mcp_servers', JSON.stringify(mcpServers))
-    } catch { /* fallback */ }
-  }, [mcpServers])
 
   // Custom MCP Modal state
   const [showAddModal, setShowAddModal] = useState(false)
@@ -116,29 +104,12 @@ export default function IntegrationsPage() {
   }
 
   const handleToggleMcp = (id: string) => {
-    setMcpServers((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          const nextStatus = s.status === 'disconnected' ? 'active' : 'disconnected'
-          return { ...s, status: nextStatus }
-        }
-        return s
-      })
-    )
+    toggleMCPServer(id)
   }
 
   const handleAddMcpServer = () => {
     if (!newMcpName.trim()) return
-    const newServer: MCPServer = {
-      id: `custom-${Date.now()}`,
-      name: newMcpName,
-      transport: 'stdio',
-      status: 'active',
-      description: newMcpCommand || 'Custom user-registered Model Context Protocol server.',
-      toolsCount: 4,
-      category: 'Custom MCP',
-    }
-    setMcpServers((prev) => [...prev, newServer])
+    addMCPServer(newMcpName, newMcpCommand)
     setNewMcpName('')
     setNewMcpCommand('')
     setShowAddModal(false)
@@ -243,7 +214,16 @@ export default function IntegrationsPage() {
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 p-2.5 rounded-xl bg-[#101218] border border-white/10 flex items-center justify-between text-[13px] font-mono text-white">
-                    <span>{showToken ? 'ghp_183920194820194820194820194820194820' : githubToken}</span>
+                    <input
+                      type={showToken ? 'text' : 'password'}
+                      value={githubToken}
+                      onChange={(e) => {
+                        setGithubToken(e.target.value)
+                        setGithubConnected(Boolean(e.target.value.trim()))
+                      }}
+                      placeholder="Enter GitHub PAT (e.g. ghp_...)"
+                      className="w-full bg-transparent outline-none placeholder:text-neutral-600 font-mono text-[13px]"
+                    />
                     <button
                       onClick={() => setShowToken(!showToken)}
                       className="text-neutral-500 hover:text-white cursor-pointer ml-2"

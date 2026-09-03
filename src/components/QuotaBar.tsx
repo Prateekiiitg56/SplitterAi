@@ -1,39 +1,7 @@
-import { useState, useEffect } from 'react'
-import { fetchAgentQuotas } from '../lib/api'
-
-export interface QuotaInfo {
-  provider: string
-  modelKey: string
-  requestsUsed: number
-  requestsLimit: number
-  usedPercentage: number
-  resetTime?: string
-  status: string
-}
+import { useQuotas } from '../hooks/useQuotas'
 
 export default function QuotaBar() {
-  const [quotas, setQuotas] = useState<QuotaInfo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    fetchAgentQuotas()
-      .then((data) => {
-        if (active) {
-          setQuotas(data)
-          setLoading(false)
-        }
-      })
-      .catch((err) => {
-        if (active) {
-          setError(err.message || 'Failed to load quotas')
-          setLoading(false)
-        }
-      })
-    return () => { active = false }
-  }, [])
+  const { quotas, loading, error } = useQuotas()
 
   if (loading) {
     return (

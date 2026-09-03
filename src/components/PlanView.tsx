@@ -93,7 +93,11 @@ export default function PlanView({
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-[#101218] border border-white/10 text-right">
               <p className="text-[10px] font-mono text-neutral-500 uppercase">MODEL CHAIN</p>
-              <p className="text-[13px] font-mono font-bold text-[#9D8CFC]">groq + gemini</p>
+              <p className="text-[13px] font-mono font-bold text-[#9D8CFC] truncate max-w-[140px]">
+                {subtasks.length > 0
+                  ? Array.from(new Set(subtasks.map((s) => s.model || 'gemini-3.5-flash').filter(Boolean))).join(', ')
+                  : 'gemini-3.5-flash'}
+              </p>
             </div>
           </div>
         </div>

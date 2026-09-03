@@ -54,34 +54,10 @@ function TreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
   )
 }
 
-interface FileExplorerProps {
-  workspace?: string
-}
+import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
 
 export default function FileExplorer({ workspace = DEFAULT_WORKSPACE }: FileExplorerProps) {
-  const [fileTree, setFileTree] = useState<FileNode[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    setError(null)
-    fetchFiles(workspace)
-      .then((data) => {
-        if (active) {
-          setFileTree(data)
-          setLoading(false)
-        }
-      })
-      .catch((err) => {
-        if (active) {
-          setError(err.message || 'Failed to load sandboxed file tree')
-          setLoading(false)
-        }
-      })
-    return () => { active = false }
-  }, [workspace])
+  const { fileTree, loading, error } = useWorkspaceFiles(workspace)
 
   return (
     <div className="flex flex-col h-full select-none bg-[#101218] border-t border-white/[0.08]">

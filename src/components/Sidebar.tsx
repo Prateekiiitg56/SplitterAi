@@ -44,8 +44,8 @@ export default function Sidebar({
 
   const mainNav = [
     { id: '/', label: 'Home', icon: <Home size={15} strokeWidth={1.75} /> },
-    { id: '/run', label: 'Overview', icon: <Compass size={15} strokeWidth={1.75} /> },
-    { id: '/agent/planner', label: 'Agents', icon: <Users size={15} strokeWidth={1.75} /> },
+    { id: '/projects', label: 'Projects', icon: <Compass size={15} strokeWidth={1.75} /> },
+    { id: '/agents', label: 'Agents', icon: <Users size={15} strokeWidth={1.75} /> },
     { id: '/integrations', label: 'Integrations', icon: <LayoutGrid size={15} strokeWidth={1.75} /> },
   ]
 
@@ -109,40 +109,53 @@ export default function Sidebar({
       </div>
 
       {/* ── Project Section ──────────────────────────────────── */}
-      <div className="px-3 mt-4">
+      <div className="px-3 mt-4 flex-1 overflow-y-auto">
         <p className="px-3 mb-2 text-[10.5px] font-bold uppercase tracking-wider text-[#677294]">
-          PROJECT
+          ACTIVE SESSIONS
         </p>
 
-        {/* AgentCLI Expandable Header */}
         <button
           onClick={() => setProjectOpen(!projectOpen)}
           className="flex items-center gap-2 w-full h-8.5 px-3 rounded-lg text-[13px] font-semibold text-white hover:bg-[#192031] transition-colors cursor-pointer"
         >
           {projectOpen ? <ChevronDown size={14} className="text-[#677294]" /> : <ChevronRight size={14} className="text-[#677294]" />}
-          <span className="flex-1 text-left">AgentCLI</span>
+          <span className="flex-1 text-left truncate">Workspace Runs</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-neutral-400">
+            {sessions.length}
+          </span>
         </button>
 
-        {/* Indented Sub-items */}
         {projectOpen && (
-          <div className="relative ml-5 pl-3.5 my-1 space-y-1">
+          <div className="relative ml-3 pl-2 my-1 space-y-1">
             <div className="absolute left-0 top-1 bottom-1 w-px bg-[#242C42]" />
 
-            {projectItems.map((child) => (
-              <button
-                key={child.label}
-                onClick={() => navigate(child.id)}
-                className="flex items-center gap-2.5 w-full h-7.5 px-2 rounded-lg text-[12.5px] font-medium text-[#9FA8C4] hover:text-white hover:bg-[#192031] transition-colors cursor-pointer"
-              >
-                <span className="text-[#677294]">{child.icon}</span>
-                <span>{child.label}</span>
-              </button>
-            ))}
+            {sessions.length === 0 ? (
+              <p className="text-[11px] text-[#677294] italic px-3 py-1">No active session runs</p>
+            ) : (
+              sessions.map((s, idx) => {
+                const isSelected = selectedSession === s.id
+                return (
+                  <button
+                    key={s.id || idx}
+                    onClick={() => {
+                      onSelectSession(s.id)
+                      navigate('/run')
+                    }}
+                    className={`flex items-center gap-2.5 w-full h-8 px-2.5 rounded-lg text-[12px] font-medium transition-colors cursor-pointer text-left truncate ${
+                      isSelected
+                        ? 'text-white bg-[#2B2358] border border-[#48398C]'
+                        : 'text-[#9FA8C4] hover:text-white hover:bg-[#192031]'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                    <span className="truncate flex-1">{s.task || s.workspace.split(/[/\\]/).pop()}</span>
+                  </button>
+                )
+              })
+            )}
           </div>
         )}
       </div>
-
-      <div className="flex-1" />
 
       {/* ── Bottom Section ───────────────────────────────────── */}
       <div className="px-3 pb-3 space-y-1">
@@ -162,11 +175,11 @@ export default function Sidebar({
         {/* User Profile Card */}
         <div className="flex items-center gap-2.5 px-2 py-2 border-t border-[#242C42] pt-3">
           <div className="w-8 h-8 rounded-full bg-[#30A46C] text-white font-bold text-[13px] flex items-center justify-center flex-shrink-0">
-            V
+            S
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12.5px] font-semibold text-white truncate leading-tight">Vlad Ermakov</p>
-            <p className="text-[10.5px] text-[#677294]">Free</p>
+            <p className="text-[12.5px] font-semibold text-white truncate leading-tight">Developer Workspace</p>
+            <p className="text-[10.5px] text-[#677294]">Active</p>
           </div>
           <button className="p-1.5 rounded-md text-[#677294] hover:text-white hover:bg-[#192031] cursor-pointer">
             <Settings size={15} strokeWidth={1.5} />

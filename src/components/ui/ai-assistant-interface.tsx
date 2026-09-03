@@ -1,65 +1,20 @@
-"use client";
-
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronDown,
-  Settings2,
-  Mic,
-  Send,
-  Plus,
-  ArrowUpRight,
-  MoreVertical,
+  Play,
+  ArrowRight,
   Store,
   BarChart3,
   ClipboardList,
   Wand2,
-  Code2,
-  Boxes,
-  PenTool,
   Check,
   Cpu,
-  Layers,
-  Zap,
-  Search,
-  ShieldCheck,
-  Play,
-  Loader2,
   Folder,
 } from "lucide-react";
 import { AVAILABLE_MODELS } from "../../data";
-import { fetchSessions } from "../../lib/api";
-
-const launchAgents = [
-  {
-    role: "coder",
-    icon: Code2,
-    color: "#7C6FF0",
-    name: "Code Assistant",
-    desc: "Write, refactor and debug code effortlessly.",
-  },
-  {
-    role: "auditor",
-    icon: BarChart3,
-    color: "#39C08A",
-    name: "Data Analyst",
-    desc: "Analyze, visualize and extract insights.",
-  },
-  {
-    role: "tester",
-    icon: Boxes,
-    color: "#3E8DF0",
-    name: "DevOps Engineer",
-    desc: "Deploy, monitor and manage infrastructure.",
-  },
-  {
-    role: "planner",
-    icon: PenTool,
-    color: "#E05FA8",
-    name: "UI/UX Designer",
-    desc: "Design beautiful interfaces and experiences.",
-  },
-];
+import { useApp } from "../../context/AppContext";
+import { useUI, executionModes } from "../../context/UIContext";
 
 const suggestions = [
   { icon: Store, label: "Create an online store" },
@@ -68,75 +23,23 @@ const suggestions = [
   { icon: Wand2, label: "Create animation in Python" },
 ];
 
-const executionModes = [
-  { id: 'Planning', label: 'Planning Mode', desc: 'Decomposes task into DAG graph of parallel workers', icon: Layers },
-  { id: 'Fast Execution', label: 'Fast Execution', desc: 'Direct single-agent tool execution without graph', icon: Zap },
-  { id: 'Deep Research', label: 'Deep Research', desc: 'Multi-source search & architecture synthesis', icon: Search },
-  { id: 'Code Audit', label: 'Code Audit', desc: 'PEP 8 quality & OWASP security vulnerability audit', icon: ShieldCheck },
-];
-
-function SectionHeading({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between mb-4 select-none">
-      <h2 className="text-[18px] font-semibold text-white tracking-tight">
-        {children}
-      </h2>
-      {action}
-    </div>
-  );
-}
-
 export function AIAssistantInterface() {
   const navigate = useNavigate();
+  const { sessions } = useApp();
+  const { selectedModel, setSelectedModel, selectedMode, setSelectedMode } = useUI();
 
   const [inputValue, setInputValue] = useState("");
-  const [selectedModel, setSelectedModel] = useState(AVAILABLE_MODELS[0]);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
-  const [selectedMode, setSelectedMode] = useState(executionModes[0]);
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sessions state cutover from mock to real GET /sessions
-  const [recentSessions, setRecentSessions] = useState<any[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
-  const [sessionsError, setSessionsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timerId: any = null;
-
-    const loadSessions = () => {
-      fetchSessions()
-        .then((data) => {
-          if (active) {
-            setRecentSessions(data || []);
-            setSessionsLoading(false);
-            setSessionsError(null);
-          }
-        })
-        .catch((err) => {
-          if (active) {
-            // Keep retrying in background silently every 3s if backend is starting up
-            setSessionsLoading(false);
-            setSessionsError(err.message || "Failed to fetch");
-            timerId = setTimeout(loadSessions, 3000);
-          }
-        });
-    };
-
-    loadSessions();
-
-    return () => {
-      active = false;
-      if (timerId) clearTimeout(timerId);
-    };
-  }, []);
+  const lastSession = sessions.length > 0 ? sessions[0] : null;
 
   const handleSend = (overrideText?: string) => {
     const textToSubmit = (overrideText || inputValue).trim();
     if (!textToSubmit) return;
 
-    navigate("/run", {
+    navigate("/projects/default", {
       state: {
         task: textToSubmit,
         model: selectedModel.id,
@@ -153,318 +56,178 @@ export function AIAssistantInterface() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#0B0C10] text-neutral-200 font-sans select-none">
-      <main className="px-8 py-8 max-w-[1200px] w-full mx-auto flex flex-col gap-8">
+    <div className="flex-1 flex flex-col justify-center items-center bg-[#0B0C10] text-neutral-200 font-sans select-none p-8 overflow-y-auto relative z-10">
+      <main className="max-w-[800px] w-full flex flex-col gap-6">
         
-        {/* ── 1. Recent Projects (Cut over from GET /sessions) ──────── */}
-        <section>
-          <SectionHeading
-            action={
-              <button
-                onClick={() => navigate('/run')}
-                className="text-[13px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer font-semibold transition-colors"
-              >
-                View all
-                <ArrowUpRight size={13} />
-              </button>
-            }
-          >
-            Recent Projects
-          </SectionHeading>
+        {/* ── 1. Header & One-Line Product Description ───────────── */}
+        <div className="flex flex-col items-center text-center gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-[#192031] border border-white/10 flex items-center justify-center p-2.5 shadow-md mb-1">
+            <img
+              src="/splitterai-logo.png"
+              alt="SplitterAI Logo"
+              className="w-9 h-9 object-contain"
+            />
+          </div>
 
-          {sessionsLoading ? (
-            <div className="grid grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 h-[176px] animate-pulse space-y-3">
-                  <div className="w-8 h-8 rounded-lg bg-white/[0.06]" />
-                  <div className="h-4 rounded bg-white/[0.06] w-3/4" />
-                  <div className="h-3 rounded bg-white/[0.06] w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : sessionsError ? (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-[13px] text-amber-300 flex items-center justify-between">
-              <span>⚠️ <strong>Failed to load recent sessions:</strong> {sessionsError}</span>
-              <button onClick={() => window.location.reload()} className="text-amber-300 underline font-semibold">Retry</button>
-            </div>
-          ) : (
-            (() => {
-            const projectsToDisplay = recentSessions.length > 0 ? recentSessions.slice(0, 4) : [
-              { workspace: "d:/CodeForces/SplitterAi", task: "SplitterAi Orchestrator", status: "done", created_at: "Updated 2h ago", subtask_count: 5 },
-              { workspace: "d:/CodeForces/SplitterAi", task: "API Service Backend", status: "done", created_at: "Updated 1d ago", subtask_count: 3 },
-              { workspace: "d:/CodeForces/SplitterAi", task: "Landing Page Interface", status: "done", created_at: "Updated 2d ago", subtask_count: 4 },
-              { workspace: "d:/CodeForces/SplitterAi", task: "Design System & MCP", status: "done", created_at: "Updated 3d ago", subtask_count: 2 },
-            ];
+          <h1 className="text-[32px] font-bold text-white tracking-tight">
+            SplitterAI Orchestrator
+          </h1>
 
-            return (
-              <div className="grid grid-cols-4 gap-4">
-                {projectsToDisplay.map((s: any, idx: number) => {
-                  const colors = ["#5B8DEF", "#39C08A", "#E8A23D", "#9B6BE0"];
-                  const color = colors[idx % colors.length];
-                  const wsName = (s.workspace || "SplitterAi").split(/[/\\]/).pop() || "Project";
-                  const isSuccess = s.status === 'done' || s.status === 'success';
-
-                  return (
-                    <div
-                      key={s.task + idx}
-                      onClick={() => navigate('/run')}
-                      className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 flex flex-col justify-between gap-4 hover:border-white/[0.16] hover:bg-white/[0.03] transition-all cursor-pointer min-h-[176px] shadow-xs"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-[13px] font-bold text-white shadow-2xs"
-                          style={{ backgroundColor: color }}
-                        >
-                          {wsName.charAt(0).toUpperCase()}
-                        </div>
-                        <button className="p-1 rounded text-neutral-500 hover:text-white transition-colors" title="Options">
-                          <MoreVertical size={15} />
-                        </button>
-                      </div>
-
-                      <div>
-                        <div className="text-[14px] font-semibold text-white truncate leading-snug">{s.task || wsName}</div>
-                        <div className="text-[12px] text-neutral-500 mt-0.5">{s.created_at || 'Just now'}</div>
-                      </div>
-
-                      <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{ width: isSuccess ? '100%' : '65%', backgroundColor: isSuccess ? '#39C08A' : color }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400">
-                        <span>{s.subtask_count || 1} subtasks</span>
-                        <span className="capitalize font-semibold text-emerald-400">{s.status || 'done'}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()
-          )}
-        </section>
-
-        {/* ── 2. Launch Agents ───────────────────────────────────── */}
-        <section>
-          <SectionHeading
-            action={
-              <button
-                onClick={() => navigate('/agent/planner')}
-                className="flex items-center gap-1.5 text-[13px] text-neutral-400 hover:text-neutral-200 cursor-pointer transition-colors font-medium"
-              >
-                <Settings2 size={14} />
-                Manage Agents
-              </button>
-            }
-          >
-            Launch Agents
-          </SectionHeading>
-
-          <p className="text-[13px] text-neutral-500 -mt-2.5 mb-4 leading-relaxed max-w-[80ch]">
-            AI agents ready to help you build, analyze and deploy.
+          <p className="text-[14px] text-neutral-400 max-w-[62ch] leading-relaxed">
+            Decomposes software instructions into parallel multi-agent DAG execution graphs across LLM model chains.
           </p>
+        </div>
 
-          <div className="grid grid-cols-4 gap-4">
-            {launchAgents.map((a) => (
-              <button
-                key={a.name}
-                onClick={() => navigate(`/agent/${a.role}`)}
-                className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 flex flex-col justify-between gap-3 text-left hover:border-white/[0.16] hover:bg-white/[0.03] transition-all cursor-pointer min-h-[156px] shadow-xs"
-              >
-                <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center shadow-2xs"
-                  style={{ backgroundColor: `${a.color}22` }}
-                >
-                  <a.icon size={17} style={{ color: a.color }} strokeWidth={1.75} />
+        {/* ── 2. Simple "Continue" Action for Existing Project ──────── */}
+        {lastSession && (
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between hover:border-white/[0.14] transition-colors">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 flex-shrink-0">
+                <Folder size={16} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-neutral-500 font-semibold">LAST ACTIVE WORKSPACE</span>
+                  <span className="text-[10.5px] font-mono px-1.5 py-0.2 rounded bg-emerald-400/10 text-emerald-400 border border-emerald-400/20 font-semibold">Active</span>
                 </div>
+                <p className="text-[13.5px] font-semibold text-white truncate leading-snug">
+                  {lastSession.task || lastSession.workspace.split(/[/\\]/).pop()}
+                </p>
+              </div>
+            </div>
 
-                <div>
-                  <div className="text-[14px] font-semibold text-white">{a.name}</div>
-                  <div className="text-[12.5px] text-neutral-400 mt-1 leading-relaxed line-clamp-2">
-                    {a.desc}
-                  </div>
-                </div>
-              </button>
-            ))}
+            <button
+              onClick={() => navigate(`/projects/${lastSession.id || 'default'}`)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-white text-[12.5px] font-semibold transition-colors cursor-pointer flex-shrink-0 ml-4"
+            >
+              <span>Continue Project</span>
+              <ArrowRight size={13} />
+            </button>
           </div>
-        </section>
+        )}
 
-        {/* ── 3. Interactive Prompt Composer (Hero Section) ──────── */}
-        <section className="pt-2">
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-8 flex flex-col items-center text-center shadow-md">
+        {/* ── 3. Start New Task Composer ──────────────────────────── */}
+        <div className="rounded-2xl border border-white/10 bg-[#101218] p-5 text-left shadow-lg flex flex-col gap-3">
+          <textarea
+            ref={textareaRef}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Instruct agents to build code, refactor functions, or run tasks..."
+            rows={3}
+            className="w-full bg-transparent text-[14.5px] text-white placeholder:text-neutral-500 outline-none resize-none leading-relaxed min-h-[80px]"
+          />
+
+          <div className="flex items-center justify-between pt-3 border-t border-white/[0.08] relative">
             
-            {/* SplitterAI Logo Badge */}
-            <div className="w-12 h-12 rounded-xl bg-[#192031] border border-white/10 flex items-center justify-center mb-4 p-2 shadow-xs">
-              <img
-                src="/splitterai-logo.png"
-                alt="SplitterAI Logo"
-                className="w-8 h-8 object-contain"
-              />
-            </div>
+            {/* Interactive Model Selector */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setModelDropdownOpen(!modelDropdownOpen);
+                  setModeDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] text-[12.5px] font-medium text-white transition-colors cursor-pointer"
+              >
+                <Cpu size={14} className="text-indigo-400" />
+                <span>{selectedModel.label}</span>
+                <ChevronDown size={13} className="text-neutral-400" />
+              </button>
 
-            <div className="text-[13px] text-indigo-400 mb-1 font-semibold tracking-tight">
-              Hello Vlad, welcome back
-            </div>
-
-            <h1 className="text-[28px] font-bold text-white tracking-tight mb-6">
-              How can I help you today?
-            </h1>
-
-            {/* Prompt Container */}
-            <div className="w-full max-w-[720px]">
-              <div className="rounded-xl border border-white/10 bg-[#101218] p-4.5 text-left shadow-xs flex flex-col gap-3">
-                <textarea
-                  ref={textareaRef}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask SplitterAI agents to build code, analyze repositories, or run tasks..."
-                  rows={2}
-                  className="w-full bg-transparent text-[14px] text-white placeholder:text-neutral-500 outline-none resize-none leading-relaxed min-h-[64px]"
-                />
-
-                <div className="flex items-center justify-between pt-3 border-t border-white/[0.06] relative">
-                  
-                  {/* Interactive Model Selector Dropdown */}
-                  <div className="relative">
+              {modelDropdownOpen && (
+                <div className="absolute left-0 bottom-full mb-2 w-[280px] rounded-xl border border-white/10 bg-[#141824] shadow-xl p-1.5 z-50">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 px-2.5 py-1.5 font-bold">
+                    SELECT MODEL CHAIN
+                  </div>
+                  {AVAILABLE_MODELS.map((m) => (
                     <button
+                      key={m.id}
                       onClick={() => {
-                        setModelDropdownOpen(!modelDropdownOpen);
-                        setModeDropdownOpen(false);
+                        setSelectedModel(m);
+                        setModelDropdownOpen(false);
                       }}
-                      className="flex items-center gap-1.5 text-[13px] text-neutral-200 border border-white/10 rounded-lg px-3.5 py-1.5 hover:border-white/20 transition-colors cursor-pointer font-semibold bg-[#141824]"
+                      className="flex items-center justify-between w-full p-2 rounded-lg text-[12.5px] text-left hover:bg-white/[0.06] text-white transition-colors cursor-pointer"
                     >
-                      <Cpu size={14} className="text-[#9D8CFC]" />
-                      <span>{selectedModel.label}</span>
-                      <ChevronDown size={13} className="text-neutral-500" />
-                    </button>
-
-                    {modelDropdownOpen && (
-                      <div className="absolute left-0 bottom-full mb-2 w-[300px] rounded-xl bg-[#141824] border border-white/10 shadow-2xl p-1.5 space-y-1 z-50 text-left">
-                        <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500">
-                          SELECT ACTIVE MODEL
-                        </div>
-                        {AVAILABLE_MODELS.map((m) => (
-                          <button
-                            key={m.id}
-                            onClick={() => {
-                              setSelectedModel(m);
-                              setModelDropdownOpen(false);
-                            }}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors cursor-pointer ${
-                              selectedModel.id === m.id
-                                ? "bg-[#2B2358] text-white border border-[#48398C]"
-                                : "hover:bg-white/[0.04] text-neutral-300 hover:text-white"
-                            }`}
-                          >
-                            <div>
-                              <p className="text-[12.5px] font-semibold leading-tight">{m.label}</p>
-                              <p className="text-[10px] font-mono text-neutral-500 mt-0.5">{m.provider}</p>
-                            </div>
-                            {selectedModel.id === m.id && (
-                              <Check size={14} className="text-[#9D8CFC] flex-shrink-0" />
-                            )}
-                          </button>
-                        ))}
+                      <div>
+                        <div className="font-semibold">{m.label}</div>
+                        <div className="text-[10.5px] text-neutral-400">{m.provider}</div>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    
-                    {/* Interactive Mode Selector Dropdown */}
-                    <div className="relative">
-                      <button
-                        onClick={() => {
-                          setModeDropdownOpen(!modeDropdownOpen);
-                          setModelDropdownOpen(false);
-                        }}
-                        className="text-[13px] text-neutral-300 border border-white/10 rounded-lg px-3.5 py-1.5 flex items-center gap-1.5 hover:border-white/20 transition-colors cursor-pointer font-semibold bg-[#141824]"
-                      >
-                        <selectedMode.icon size={13} className="text-[#9D8CFC]" />
-                        <span>{selectedMode.id}</span>
-                        <ChevronDown size={13} className="text-neutral-500" />
-                      </button>
-
-                      {modeDropdownOpen && (
-                        <div className="absolute right-0 bottom-full mb-2 w-[320px] rounded-xl bg-[#141824] border border-white/10 shadow-2xl p-1.5 space-y-1 z-50 text-left">
-                          <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500">
-                            SELECT EXECUTION MODE
-                          </div>
-                          {executionModes.map((mode) => (
-                            <button
-                              key={mode.id}
-                              onClick={() => {
-                                setSelectedMode(mode);
-                                setModeDropdownOpen(false);
-                              }}
-                              className={`w-full flex items-start gap-2.5 px-3 py-2 rounded-lg text-left transition-colors cursor-pointer ${
-                                selectedMode.id === mode.id
-                                  ? "bg-[#2B2358] text-white border border-[#48398C]"
-                                  : "hover:bg-white/[0.04] text-neutral-300 hover:text-white"
-                              }`}
-                            >
-                              <mode.icon size={15} className="text-[#9D8CFC] mt-0.5 flex-shrink-0" />
-                              <div className="flex-1">
-                                <p className="text-[12.5px] font-semibold leading-tight">{mode.label}</p>
-                                <p className="text-[10.5px] text-neutral-400 mt-0.5 leading-relaxed">{mode.desc}</p>
-                              </div>
-                              {selectedMode.id === mode.id && (
-                                <Check size={14} className="text-[#9D8CFC] flex-shrink-0 mt-0.5" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Mic button */}
-                    <button className="p-2 text-neutral-400 hover:text-white cursor-pointer transition-colors rounded-lg hover:bg-white/[0.04]" title="Voice mic">
-                      <Mic size={16} strokeWidth={1.75} />
+                      {selectedModel.id === m.id && <Check size={14} className="text-indigo-400" />}
                     </button>
-
-                    {/* Send / Run Task Action Button */}
-                    <button
-                      onClick={() => handleSend()}
-                      disabled={!inputValue.trim()}
-                      className="flex items-center gap-2 text-[13px] text-white bg-[#6E56CF] hover:bg-[#5E46BF] border border-indigo-500/30 rounded-full px-5 py-2 font-semibold transition-all cursor-pointer shadow-sm active:scale-[0.98] disabled:opacity-40"
-                    >
-                      <Play size={13} className="fill-current" />
-                      <span>Run Task</span>
-                    </button>
-                  </div>
+                  ))}
                 </div>
-              </div>
-
-              {/* Suggestion Chips */}
-              <div className="flex flex-wrap items-center justify-center gap-2.5 mt-5">
-                {suggestions.map((s) => (
-                  <button
-                    key={s.label}
-                    onClick={() => {
-                      setInputValue(s.label);
-                      handleSend(s.label);
-                    }}
-                    className="flex items-center gap-2 text-[12.5px] font-medium text-neutral-300 border border-white/10 rounded-full px-4 py-1.5 hover:border-white/25 hover:text-white transition-colors cursor-pointer bg-white/[0.01]"
-                  >
-                    <s.icon size={13} strokeWidth={1.75} className="text-neutral-400" />
-                    {s.label}
-                  </button>
-                ))}
-                <button className="flex items-center gap-1 text-[12.5px] font-medium text-neutral-500 px-2.5 py-1.5 hover:text-neutral-300 cursor-pointer">
-                  More suggestions
-                  <ChevronDown size={13} />
-                </button>
-              </div>
+              )}
             </div>
 
+            {/* Interactive Mode Selector & Submit Action */}
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setModeDropdownOpen(!modeDropdownOpen);
+                    setModelDropdownOpen(false);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] text-[12.5px] font-medium text-white transition-colors cursor-pointer"
+                >
+                  <selectedMode.icon size={13} className="text-indigo-400" />
+                  <span>{selectedMode.label}</span>
+                  <ChevronDown size={13} className="text-neutral-400" />
+                </button>
+
+                {modeDropdownOpen && (
+                  <div className="absolute right-0 bottom-full mb-2 w-[300px] rounded-xl border border-white/10 bg-[#141824] shadow-xl p-1.5 z-50">
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-400 px-2.5 py-1.5 font-bold">
+                      EXECUTION MODE
+                    </div>
+                    {executionModes.map((mode) => (
+                      <button
+                        key={mode.id}
+                        onClick={() => {
+                          setSelectedMode(mode);
+                          setModeDropdownOpen(false);
+                        }}
+                        className="flex items-start gap-2.5 w-full p-2.5 rounded-lg text-left hover:bg-white/[0.06] text-white transition-colors cursor-pointer"
+                      >
+                        <mode.icon size={15} className="text-indigo-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <div className="text-[13px] font-semibold">{mode.label}</div>
+                          <div className="text-[11px] text-neutral-400 leading-snug">{mode.desc}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() => handleSend()}
+                disabled={!inputValue.trim()}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#6E56CF] hover:bg-[#5E46BF] disabled:opacity-40 text-white text-[13px] font-semibold transition-all cursor-pointer shadow-md active:scale-[0.98]"
+              >
+                <Play size={13} />
+                <span>Run Task</span>
+              </button>
+            </div>
           </div>
-        </section>
+        </div>
+
+        {/* ── 4. Suggestion Chips ─────────────────────────────────── */}
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+          {suggestions.map((s) => (
+            <button
+              key={s.label}
+              onClick={() => handleSend(s.label)}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.16] hover:bg-white/[0.06] text-[12.5px] text-neutral-300 transition-colors cursor-pointer"
+            >
+              <s.icon size={13} className="text-neutral-500" />
+              <span>{s.label}</span>
+            </button>
+          ))}
+        </div>
 
       </main>
     </div>
   );
 }
+
+export default AIAssistantInterface;
