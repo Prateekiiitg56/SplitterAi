@@ -30,7 +30,7 @@ interface MCPServer {
   category: string
 }
 
-const initialMCPServers: MCPServer[] = [
+const DEFAULT_MCP_SERVERS: MCPServer[] = [
   {
     id: 'filesystem',
     name: 'Filesystem MCP Server',
@@ -63,8 +63,8 @@ const initialMCPServers: MCPServer[] = [
     name: 'Three.js DevTools MCP',
     transport: 'stdio',
     status: 'active',
-    description: 'WebGL scene tree inspector, shader source editor, and renderer profiler.',
-    toolsCount: 38,
+    description: 'Scene inspection, material tuning, postprocessing effects, and canvas rendering.',
+    toolsCount: 42,
     category: 'Developer Tools',
   },
   {
@@ -89,8 +89,21 @@ export default function IntegrationsPage() {
   const [githubToken, setGithubToken] = useState('ghp_************************************')
   const [showToken, setShowToken] = useState(false)
   const [selectedRepo, setSelectedRepo] = useState('Prateekiiitg56/SplitterAi')
-  const [mcpServers, setMcpServers] = useState<MCPServer[]>(initialMCPServers)
+  const [mcpServers, setMcpServers] = useState<MCPServer[]>(() => {
+    try {
+      const saved = localStorage.getItem('splitter_mcp_servers')
+      if (saved) return JSON.parse(saved)
+    } catch { /* fallback */ }
+    return DEFAULT_MCP_SERVERS
+  })
   const [syncing, setSyncing] = useState(false)
+
+  // Save changes to localStorage so user modifications survive page refresh
+  useEffect(() => {
+    try {
+      localStorage.setItem('splitter_mcp_servers', JSON.stringify(mcpServers))
+    } catch { /* fallback */ }
+  }, [mcpServers])
 
   // Custom MCP Modal state
   const [showAddModal, setShowAddModal] = useState(false)

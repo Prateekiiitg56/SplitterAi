@@ -1,54 +1,36 @@
-import { useState } from 'react'
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Loader2, FolderSearch } from 'lucide-react'
+import { fetchFiles } from '../lib/api'
+import { DEFAULT_WORKSPACE } from '../config'
 
 export interface FileNode {
   name: string
-  type: 'file' | 'folder'
+  path?: string
+  type: 'file' | 'dir' | 'folder'
   children?: FileNode[]
-  size?: string
-  modified?: string
+  size?: number | string
 }
-
-export const mockFileTree: FileNode[] = [
-  {
-    name: 'src', type: 'folder', children: [
-      { name: 'main.py', type: 'file', size: '1.2 KB', modified: '10:42 AM' },
-      { name: 'utils.py', type: 'file', size: '845 B', modified: '9:15 AM' },
-      {
-        name: 'tests', type: 'folder', children: [
-          { name: 'test_main.py', type: 'file', size: '2.1 KB', modified: '10:42 AM' },
-          { name: 'test_utils.py', type: 'file', size: '1.5 KB', modified: '9:15 AM' },
-        ]
-      },
-    ]
-  },
-  { name: 'fizzbuzz.py', type: 'file', size: '238 B', modified: '10:42 AM' },
-  { name: 'fibonacci.py', type: 'file', size: '195 B', modified: '10:42 AM' },
-  { name: 'factorial.py', type: 'file', size: '310 B', modified: '10:42 AM' },
-  { name: 'requirements.txt', type: 'file', size: '45 B', modified: 'Yesterday' },
-  { name: 'README.md', type: 'file', size: '1.8 KB', modified: 'Yesterday' },
-  { name: '.gitignore', type: 'file', size: '120 B', modified: 'Aug 31' },
-]
 
 function TreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
   const [open, setOpen] = useState(depth === 0)
+  const isDir = node.type === 'dir' || node.type === 'folder'
 
-  if (node.type === 'folder') {
+  if (isDir) {
     return (
       <div>
         <button
           onClick={() => setOpen((p) => !p)}
-          className="flex items-center gap-1.5 w-full h-7 hover:bg-zinc-100/70 rounded text-zinc-700 transition-colors cursor-pointer group"
+          className="flex items-center gap-1.5 w-full h-7 hover:bg-white/[0.04] rounded text-neutral-300 transition-colors cursor-pointer group"
           style={{ paddingLeft: `${depth * 14 + 6}px` }}
         >
-          {open ? <ChevronDown size={12} className="text-zinc-400 flex-shrink-0" /> : <ChevronRight size={12} className="text-zinc-400 flex-shrink-0" />}
-          {open ? <FolderOpen size={14} className="text-amber-600 flex-shrink-0" /> : <Folder size={14} className="text-amber-600 flex-shrink-0" />}
-          <span className="text-[12.5px] font-medium truncate" style={{ color: 'var(--color-text-1)' }}>
+          {open ? <ChevronDown size={12} className="text-neutral-500 flex-shrink-0" /> : <ChevronRight size={12} className="text-neutral-500 flex-shrink-0" />}
+          {open ? <FolderOpen size={14} className="text-amber-400 flex-shrink-0" /> : <Folder size={14} className="text-amber-400 flex-shrink-0" />}
+          <span className="text-[12.5px] font-medium truncate text-white">
             {node.name}
           </span>
         </button>
         {open && node.children?.map((child) => (
-          <TreeNode key={child.name} node={child} depth={depth + 1} />
+          <TreeNode key={child.path || child.name} node={child} depth={depth + 1} />
         ))}
       </div>
     )
@@ -56,16 +38,16 @@ function TreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
 
   return (
     <button
-      className="flex items-center gap-1.5 w-full h-7 hover:bg-zinc-100/70 rounded transition-colors cursor-pointer group"
+      className="flex items-center gap-1.5 w-full h-7 hover:bg-white/[0.04] rounded transition-colors cursor-pointer group"
       style={{ paddingLeft: `${depth * 14 + 20}px` }}
     >
-      <File size={13} className="text-zinc-400 flex-shrink-0" />
-      <span className="text-[12.5px] font-mono truncate flex-1 text-left" style={{ color: 'var(--color-text-2)' }}>
+      <File size={13} className="text-neutral-400 flex-shrink-0" />
+      <span className="text-[12.5px] font-mono truncate flex-1 text-left text-neutral-300">
         {node.name}
       </span>
       {node.size && (
-        <span className="text-[10px] font-mono text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0">
-          {node.size}
+        <span className="text-[10px] font-mono text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pr-2 flex-shrink-0">
+          {typeof node.size === 'number' ? `${node.size} B` : node.size}
         </span>
       )}
     </button>
@@ -73,23 +55,65 @@ function TreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
 }
 
 interface FileExplorerProps {
-  files: FileNode[]
-  workspace: string
+  workspace?: string
 }
 
-export default function FileExplorer({ files, workspace }: FileExplorerProps) {
+export default function FileExplorer({ workspace = DEFAULT_WORKSPACE }: FileExplorerProps) {
+  const [fileTree, setFileTree] = useState<FileNode[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError(null)
+    fetchFiles(workspace)
+      .then((data) => {
+        if (active) {
+          setFileTree(data)
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setError(err.message || 'Failed to load sandboxed file tree')
+          setLoading(false)
+        }
+      })
+    return () => { active = false }
+  }, [workspace])
+
   return (
-    <div className="flex flex-col h-full select-none" style={{ background: 'var(--color-surface)' }}>
-      <div className="flex items-center justify-between h-9 px-3 border-b flex-shrink-0" style={{ borderColor: 'var(--color-border)' }}>
-        <span className="t-micro">Workspace Files</span>
-        <span className="text-[10px] font-mono text-zinc-400 truncate max-w-[90px]" title={workspace}>
+    <div className="flex flex-col h-full select-none bg-[#101218] border-t border-white/[0.08]">
+      <div className="flex items-center justify-between h-9 px-3.5 border-b border-white/[0.08] flex-shrink-0">
+        <span className="text-[10px] font-mono uppercase font-bold tracking-wider text-neutral-400">SANDBOXED FILES</span>
+        <span className="text-[10px] font-mono text-neutral-500 truncate max-w-[120px]" title={workspace}>
           {workspace.split('/').pop()}
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto p-1">
-        {files.map((node) => (
-          <TreeNode key={node.name} node={node} />
-        ))}
+
+      <div className="flex-1 overflow-y-auto p-1.5">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 p-4 text-neutral-500 text-[11px]">
+            <Loader2 size={14} className="animate-spin text-[#9D8CFC]" />
+            <span>Reading workspace...</span>
+          </div>
+        ) : error ? (
+          <div className="p-3 text-[11px] text-amber-400 space-y-1">
+            <p className="font-semibold">⚠️ File Tree Error</p>
+            <p className="text-neutral-400 text-[10px]">{error}</p>
+          </div>
+        ) : fileTree.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-6 text-center text-neutral-500 gap-1.5">
+            <FolderSearch size={20} className="opacity-40" />
+            <p className="text-[12px] font-medium">Workspace is empty</p>
+            <p className="text-[10px] text-neutral-600">Files created by agent workers will appear here.</p>
+          </div>
+        ) : (
+          fileTree.map((node) => (
+            <TreeNode key={node.path || node.name} node={node} />
+          ))
+        )}
       </div>
     </div>
   )

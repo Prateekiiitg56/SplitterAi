@@ -9,8 +9,7 @@
  * - WebSocket /ws → real-time log event streaming
  */
 
-const API_BASE = 'http://localhost:8000'
-const WS_URL = 'ws://localhost:8000/ws'
+import { API_BASE, WS_URL } from '../config'
 
 // ── Types matching backend schemas ─────────────────────────────
 
@@ -87,9 +86,29 @@ export async function getSessions(): Promise<SessionInfo[]> {
   return res.json()
 }
 
-export async function getAgents(): Promise<AgentConfig[]> {
+export const fetchSessions = getSessions
+
+export async function fetchAgents(): Promise<Array<{ role: string; model_chain: string[]; status: string }>> {
   const res = await fetch(`${API_BASE}/agents`)
   if (!res.ok) return []
+  return res.json()
+}
+
+export async function fetchAgentDetail(role: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/agents/${role}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch agent '${role}'`)
+  return res.json()
+}
+
+export async function fetchAgentQuotas(): Promise<any[]> {
+  const res = await fetch(`${API_BASE}/agents/quota`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch quotas`)
+  return res.json()
+}
+
+export async function fetchFiles(workspace: string): Promise<any[]> {
+  const res = await fetch(`${API_BASE}/files?workspace=${encodeURIComponent(workspace)}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch file tree`)
   return res.json()
 }
 

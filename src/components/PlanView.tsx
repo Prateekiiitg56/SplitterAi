@@ -82,7 +82,7 @@ export default function PlanView({
               </span>
             </div>
             <h1 className="text-[18px] font-bold text-white leading-snug tracking-tight">
-              {task || 'Create fizzbuzz, fibonacci, and factorial scripts'}
+              {task || 'No active task run'}
             </h1>
           </div>
 

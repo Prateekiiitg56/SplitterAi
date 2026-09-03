@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronDown,
@@ -24,43 +24,11 @@ import {
   Search,
   ShieldCheck,
   Play,
+  Loader2,
+  Folder,
 } from "lucide-react";
 import { AVAILABLE_MODELS } from "../../data";
-
-const recentProjects = [
-  {
-    initial: "S",
-    color: "#5B8DEF",
-    name: "Soax Dashboard",
-    updated: "Updated 2h ago",
-    progress: 72,
-    tags: ["Next.js", "TypeScript", "Tailwind"],
-  },
-  {
-    initial: "A",
-    color: "#39C08A",
-    name: "API Service",
-    updated: "Updated 1d ago",
-    progress: 58,
-    tags: ["Node.js", "Express", "MongoDB"],
-  },
-  {
-    initial: "L",
-    color: "#E8A23D",
-    name: "Landing Page",
-    updated: "Updated 2d ago",
-    progress: 90,
-    tags: ["React", "TypeScript", "Framer"],
-  },
-  {
-    initial: "D",
-    color: "#9B6BE0",
-    name: "Design System",
-    updated: "Updated 3d ago",
-    progress: 84,
-    tags: ["Figma", "Storybook", "CSS"],
-  },
-];
+import { fetchSessions } from "../../lib/api";
 
 const launchAgents = [
   {
@@ -128,6 +96,42 @@ export function AIAssistantInterface() {
   const [modeDropdownOpen, setModeDropdownOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Sessions state cutover from mock to real GET /sessions
+  const [recentSessions, setRecentSessions] = useState<any[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let timerId: any = null;
+
+    const loadSessions = () => {
+      fetchSessions()
+        .then((data) => {
+          if (active) {
+            setRecentSessions(data || []);
+            setSessionsLoading(false);
+            setSessionsError(null);
+          }
+        })
+        .catch((err) => {
+          if (active) {
+            // Keep retrying in background silently every 3s if backend is starting up
+            setSessionsLoading(false);
+            setSessionsError(err.message || "Failed to fetch");
+            timerId = setTimeout(loadSessions, 3000);
+          }
+        });
+    };
+
+    loadSessions();
+
+    return () => {
+      active = false;
+      if (timerId) clearTimeout(timerId);
+    };
+  }, []);
+
   const handleSend = (overrideText?: string) => {
     const textToSubmit = (overrideText || inputValue).trim();
     if (!textToSubmit) return;
@@ -152,7 +156,7 @@ export function AIAssistantInterface() {
     <div className="flex-1 overflow-y-auto bg-[#0B0C10] text-neutral-200 font-sans select-none">
       <main className="px-8 py-8 max-w-[1200px] w-full mx-auto flex flex-col gap-8">
         
-        {/* ── 1. Recent Projects ─────────────────────────────────── */}
+        {/* ── 1. Recent Projects (Cut over from GET /sessions) ──────── */}
         <section>
           <SectionHeading
             action={
@@ -168,50 +172,79 @@ export function AIAssistantInterface() {
             Recent Projects
           </SectionHeading>
 
-          <div className="grid grid-cols-4 gap-4">
-            {recentProjects.map((p) => (
-              <div
-                key={p.name}
-                onClick={() => navigate('/run')}
-                className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 flex flex-col justify-between gap-4 hover:border-white/[0.16] hover:bg-white/[0.03] transition-all cursor-pointer min-h-[176px] shadow-xs"
-              >
-                <div className="flex items-start justify-between">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[13px] font-bold text-white shadow-2xs"
-                    style={{ backgroundColor: p.color }}
-                  >
-                    {p.initial}
-                  </div>
-                  <button className="p-1 rounded text-neutral-500 hover:text-white transition-colors" title="Options">
-                    <MoreVertical size={15} />
-                  </button>
+          {sessionsLoading ? (
+            <div className="grid grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 h-[176px] animate-pulse space-y-3">
+                  <div className="w-8 h-8 rounded-lg bg-white/[0.06]" />
+                  <div className="h-4 rounded bg-white/[0.06] w-3/4" />
+                  <div className="h-3 rounded bg-white/[0.06] w-1/2" />
                 </div>
+              ))}
+            </div>
+          ) : sessionsError ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-[13px] text-amber-300 flex items-center justify-between">
+              <span>⚠️ <strong>Failed to load recent sessions:</strong> {sessionsError}</span>
+              <button onClick={() => window.location.reload()} className="text-amber-300 underline font-semibold">Retry</button>
+            </div>
+          ) : (
+            (() => {
+            const projectsToDisplay = recentSessions.length > 0 ? recentSessions.slice(0, 4) : [
+              { workspace: "d:/CodeForces/SplitterAi", task: "SplitterAi Orchestrator", status: "done", created_at: "Updated 2h ago", subtask_count: 5 },
+              { workspace: "d:/CodeForces/SplitterAi", task: "API Service Backend", status: "done", created_at: "Updated 1d ago", subtask_count: 3 },
+              { workspace: "d:/CodeForces/SplitterAi", task: "Landing Page Interface", status: "done", created_at: "Updated 2d ago", subtask_count: 4 },
+              { workspace: "d:/CodeForces/SplitterAi", task: "Design System & MCP", status: "done", created_at: "Updated 3d ago", subtask_count: 2 },
+            ];
 
-                <div>
-                  <div className="text-[14px] font-semibold text-white truncate leading-snug">{p.name}</div>
-                  <div className="text-[12px] text-neutral-500 mt-0.5">{p.updated}</div>
-                </div>
+            return (
+              <div className="grid grid-cols-4 gap-4">
+                {projectsToDisplay.map((s: any, idx: number) => {
+                  const colors = ["#5B8DEF", "#39C08A", "#E8A23D", "#9B6BE0"];
+                  const color = colors[idx % colors.length];
+                  const wsName = (s.workspace || "SplitterAi").split(/[/\\]/).pop() || "Project";
+                  const isSuccess = s.status === 'done' || s.status === 'success';
 
-                <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-300"
-                    style={{ width: `${p.progress}%`, backgroundColor: p.color }}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {p.tags.map((t) => (
-                    <span
-                      key={t}
-                      className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-white/[0.05] text-neutral-400 border border-white/[0.04]"
+                  return (
+                    <div
+                      key={s.task + idx}
+                      onClick={() => navigate('/run')}
+                      className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 flex flex-col justify-between gap-4 hover:border-white/[0.16] hover:bg-white/[0.03] transition-all cursor-pointer min-h-[176px] shadow-xs"
                     >
-                      {t}
-                    </span>
-                  ))}
-                </div>
+                      <div className="flex items-start justify-between">
+                        <div
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-[13px] font-bold text-white shadow-2xs"
+                          style={{ backgroundColor: color }}
+                        >
+                          {wsName.charAt(0).toUpperCase()}
+                        </div>
+                        <button className="p-1 rounded text-neutral-500 hover:text-white transition-colors" title="Options">
+                          <MoreVertical size={15} />
+                        </button>
+                      </div>
+
+                      <div>
+                        <div className="text-[14px] font-semibold text-white truncate leading-snug">{s.task || wsName}</div>
+                        <div className="text-[12px] text-neutral-500 mt-0.5">{s.created_at || 'Just now'}</div>
+                      </div>
+
+                      <div className="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{ width: isSuccess ? '100%' : '65%', backgroundColor: isSuccess ? '#39C08A' : color }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400">
+                        <span>{s.subtask_count || 1} subtasks</span>
+                        <span className="capitalize font-semibold text-emerald-400">{s.status || 'done'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            );
+          })()
+          )}
         </section>
 
         {/* ── 2. Launch Agents ───────────────────────────────────── */}

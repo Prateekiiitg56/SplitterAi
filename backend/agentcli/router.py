@@ -22,6 +22,45 @@ logger = logging.getLogger(__name__)
 # Suppress litellm's verbose default logging
 litellm.suppress_debug_info = True
 
+# In-memory call log for real quota & usage tracking
+ROUTER_CALL_LOG: list[dict[str, Any]] = []
+
+
+def get_usage_metrics() -> dict[str, Any]:
+    """Calculate real usage metrics per provider and per role from call history."""
+    provider_limits = {
+        "gemini": {"provider": "Google Gemini", "limit_requests": 1500, "limit_tokens": 1000000},
+        "xai": {"provider": "xAI Grok", "limit_requests": 1000, "limit_tokens": 500000},
+        "openrouter": {"provider": "OpenRouter", "limit_requests": 2000, "limit_tokens": 2000000},
+    }
+
+    metrics: dict[str, dict[str, Any]] = {
+        p: {"provider": info["provider"], "calls": 0, "errors": 0, "limit_requests": info["limit_requests"]}
+        for p, info in provider_limits.items()
+    }
+
+    role_metrics: dict[str, int] = {
+        role.value: 0 for role in AgentRole
+    }
+
+    for log in ROUTER_CALL_LOG:
+        p = log.get("provider", "other")
+        r = log.get("role", "unknown")
+
+        if r in role_metrics:
+            role_metrics[r] += 1
+
+        if p in metrics:
+            metrics[p]["calls"] += 1
+            if not log.get("success", False):
+                metrics[p]["errors"] += 1
+
+    return {
+        "providers": metrics,
+        "roles": role_metrics,
+        "total_calls": len(ROUTER_CALL_LOG),
+    }
+
 
 class AllModelsFailedError(Exception):
     """Raised when every model in the fallback chain fails."""
@@ -106,6 +145,14 @@ async def call_model(
                     }
                     for tc in message.tool_calls
                 ]
+
+            provider = model.split("/")[0] if "/" in model else model
+            ROUTER_CALL_LOG.append({
+                "model": model,
+                "provider": provider,
+                "role": role.value,
+                "success": True,
+            })
 
             if on_event:
                 on_event(LogEntry(
