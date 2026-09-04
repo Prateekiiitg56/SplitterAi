@@ -27,8 +27,12 @@ class Sandbox:
 
     def __init__(self, workspace: str):
         self.workspace = Path(workspace).resolve()
-        # Create workspace if it doesn't exist
-        self.workspace.mkdir(parents=True, exist_ok=True)
+        # Fail loudly if workspace doesn't exist rather than silently creating
+        if not self.workspace.exists():
+            raise ValueError(
+                f"Workspace directory does not exist: '{self.workspace}'. "
+                f"Create it manually or set the correct workspace path."
+            )
 
     def resolve_path(self, path: str) -> Path:
         """Resolve a relative path against the workspace root.

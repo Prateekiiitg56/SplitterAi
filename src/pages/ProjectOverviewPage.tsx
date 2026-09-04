@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useLocation, useNavigate } from 'react'
+import { useParams, useLocation, useNavigate } from 'react-router-dom'
 import TopBar from '../components/TopBar'
 import TerminalPanel from '../components/TerminalPanel'
 import FileExplorer from '../components/FileExplorer'

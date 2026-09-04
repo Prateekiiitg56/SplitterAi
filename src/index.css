@@ -106,6 +106,80 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   outline-offset: 1px;
 }
 
+/* ── Canonical Button Tokens (design.md §5) ──────────────────── */
+.btn-primary {
+  background-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  transition: opacity 0.15s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.92;
+}
+
+.btn-ghost {
+  background-color: transparent;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  border-radius: var(--radius);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--faint);
+}
+
+/* ── Canonical Status Badge (design.md §5) ───────────────────── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  text-transform: lowercase;
+  border: 1px solid var(--border-soft);
+  background: var(--panel-2);
+  color: var(--dim);
+}
+
+.status-badge.working, .status-badge.running, .status-badge.executing, .status-badge.planning {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: rgba(72, 180, 255, 0.3);
+}
+
+.status-badge.completed, .status-badge.done, .status-badge.success {
+  color: var(--good);
+  background: var(--good-dim);
+  border-color: rgba(77, 207, 184, 0.3);
+}
+
+.status-badge.failed, .status-badge.error {
+  color: var(--bad);
+  background: var(--bad-dim);
+  border-color: rgba(255, 110, 130, 0.3);
+}
+
+.status-badge.paused, .status-badge.waiting, .status-badge.queued {
+  color: var(--wait);
+  background: var(--wait-dim);
+  border-color: rgba(139, 147, 255, 0.3);
+}
+
+.status-badge.idle, .status-badge.pending {
+  color: var(--faint);
+  background: transparent;
+  border-color: var(--border-soft);
+}
+
 /* Status Dot Glyphs */
 .dot {
   width: 7px;

@@ -19,9 +19,10 @@ import { AVAILABLE_MODELS, ROLE_META } from "../../data";
 import { useApp } from "../../context/AppContext";
 import { useUI, executionModes } from "../../context/UIContext";
 import type { AgentRole, Subtask } from "../../types";
-import { sendChatMessage } from "../../lib/api";
+import { sendChatMessage, planTask } from "../../lib/api";
 import { AgentIcon, StatusDot } from "../Badges";
 import Background3D from "../Background3D";
+import { DEFAULT_WORKSPACE } from "../../config";
 
 interface ChatMessage {
   id: string;
@@ -68,7 +69,10 @@ export function AIAssistantInterface() {
       lower.includes("divide") ||
       lower.includes("build an app") ||
       lower.includes("build a website") ||
-      lower.includes("create a project")
+      lower.includes("create a project") ||
+      lower.includes("create an app") ||
+      lower.includes("build a") ||
+      lower.includes("implement a")
     );
   };
 
@@ -90,32 +94,37 @@ export function AIAssistantInterface() {
 
     if (isMultiAgentSplitRequest(textToSubmit)) {
       setIsPlanning(true);
-      setTimeout(() => {
-        const generatedSubtasks: Subtask[] = sessionAgents.map((role, idx) => ({
-          id: `st-${idx + 1}`,
-          role: role,
-          group: idx < 2 ? 1 : 2,
-          instruction:
-            role === "planner"
-              ? `Plan architecture & subtask division for: "${textToSubmit}"`
-              : role === "coder"
-              ? `Write code implementation for: "${textToSubmit}"`
-              : role === "auditor"
-              ? `Audit code security and PEP8 compliance`
-              : `Run unit tests & verify correctness`,
-          status: "pending",
+      try {
+        // Call real backend planner instead of fabricating subtasks client-side
+        const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE);
+        const generatedSubtasks: Subtask[] = planResult.subtasks.map((st, idx) => ({
+          id: st.id || `st-${idx + 1}`,
+          role: st.role as AgentRole,
+          group: st.group,
+          instruction: st.instruction,
+          status: "pending" as const,
           steps: 0,
         }));
-
         setDraftPlan({ taskTitle: textToSubmit, subtasks: generatedSubtasks });
+      } catch (err: any) {
+        const errorMsg: ChatMessage = {
+          id: `agent-err-${Date.now()}`,
+          sender: "agent",
+          role: "planner",
+          text: `⚠️ Plan generation failed: ${err?.message || "Could not reach the backend planner."}`,
+          timestamp: ts,
+        };
+        setChatMessages((prev) => [...prev, errorMsg]);
+      } finally {
         setIsPlanning(false);
-      }, 800);
+      }
       return;
     }
 
     setIsSending(true);
     try {
-      const resp = await sendChatMessage(selectedAgentRole, textToSubmit);
+      const historyPayload = chatMessages.map((m) => ({ sender: m.sender, text: m.text }));
+      const resp = await sendChatMessage(selectedAgentRole, textToSubmit, selectedModel.id, historyPayload);
       const agentMsg: ChatMessage = {
         id: `agent-${Date.now()}`,
         sender: "agent",
@@ -147,10 +156,9 @@ export function AIAssistantInterface() {
 
   const handleConfirmAndLaunch = async () => {
     if (!draftPlan) return;
-    const projectId = `proj-${Date.now()}`;
     await executeTaskWithPlan(draftPlan.taskTitle, draftPlan.subtasks);
     setDraftPlan(null);
-    navigate(`/projects/${projectId}`);
+    navigate(`/projects/latest`);
   };
 
   const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.coder;
@@ -182,10 +190,19 @@ export function AIAssistantInterface() {
 
           {/* Active Chat Thread View (If messages exist) */}
           {chatMessages.length > 0 && (
-            <div className="w-full max-h-[220px] overflow-y-auto mb-4 space-y-3 bg-[var(--panel)] border border-[var(--border-soft)] p-4 rounded-[var(--radius)]">
+            <div className="w-full max-h-[260px] overflow-y-auto mb-4 space-y-3 bg-[var(--panel)] border border-[var(--border-soft)] p-4 rounded-[var(--radius)] shadow-lg">
               {chatMessages.map((msg) => (
-                <div key={msg.id} className={`flex gap-2.5 ${msg.sender === 'user' ? 'justify-end' : ''}`}>
-                  <div className={`p-2.5 rounded-lg text-[12.5px] max-w-[85%] ${msg.sender === 'user' ? 'bg-[var(--accent)] text-[#070A10] font-medium' : 'bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)]'}`}>
+                <div key={msg.id} className={`flex gap-2.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.sender === 'agent' && (
+                    <div className="mt-0.5 shrink-0">
+                      <AgentIcon role={msg.role || selectedAgentRole} size={14} />
+                    </div>
+                  )}
+                  <div className={`p-2.5 rounded-lg text-[12.5px] max-w-[85%] leading-relaxed ${
+                    msg.sender === 'user'
+                      ? 'bg-[var(--accent)] text-[#070A10] font-medium'
+                      : 'bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)]'
+                  }`}>
                     {msg.text}
                   </div>
                 </div>
@@ -193,7 +210,7 @@ export function AIAssistantInterface() {
               {isSending && (
                 <div className="text-[11.5px] font-mono text-[var(--faint)] flex items-center gap-2">
                   <Loader2 size={12} className="animate-spin text-[var(--accent)]" />
-                  <span>{selectedMeta.label} is replying...</span>
+                  <span>{selectedMeta.label} ({selectedModel.label}) is replying...</span>
                 </div>
               )}
               <div ref={chatEndRef} />
@@ -205,45 +222,99 @@ export function AIAssistantInterface() {
             
             {/* Agent & Model Picker Header Bar */}
             <div className="agent-picker flex items-center justify-between gap-2 mb-2 text-[11.5px] text-[var(--faint)]">
-              <div className="relative">
-                <button
-                  onClick={() => setAgentDropdownOpen(!agentDropdownOpen)}
-                  className="agent-name text-[var(--dim)] hover:text-[var(--text)] flex items-center gap-1.5 cursor-pointer font-medium"
-                >
-                  <AgentIcon role={selectedAgentRole} size={13} className="text-[var(--accent)]" />
-                  <span>{selectedMeta.label} — {selectedModel.label}</span>
-                  <span className="caret text-[9px]">▾</span>
-                </button>
+              <div className="flex items-center gap-2 relative">
+                {/* Agent Dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAgentDropdownOpen(!agentDropdownOpen);
+                      setModelDropdownOpen(false);
+                    }}
+                    className="agent-name text-[var(--dim)] hover:text-[var(--text)] flex items-center gap-1.5 cursor-pointer font-medium px-2 py-1 rounded border border-[var(--border-soft)] bg-[var(--panel-2)] transition-colors"
+                  >
+                    <AgentIcon role={selectedAgentRole} size={13} className="text-[var(--accent)]" />
+                    <span>{selectedMeta.label}</span>
+                    <span className="caret text-[9px]">▾</span>
+                  </button>
 
-                {agentDropdownOpen && (
-                  <div className="absolute left-0 top-full mt-1.5 w-[220px] rounded-md border border-[var(--border)] bg-[var(--panel)] shadow-2xl p-1.5 z-50">
-                    <div className="font-mono text-[10px] uppercase text-[var(--faint)] px-2 py-1 font-bold">
-                      SELECT ACTIVE AGENT
+                  {agentDropdownOpen && (
+                    <div className="absolute left-0 top-full mt-1.5 w-[210px] rounded-md border border-[var(--border)] bg-[var(--panel)] shadow-2xl p-1.5 z-50">
+                      <div className="font-mono text-[10px] uppercase text-[var(--faint)] px-2 py-1 font-bold">
+                        SELECT ACTIVE AGENT
+                      </div>
+                      {(["planner", "coder", "auditor", "tester"] as AgentRole[]).map((r) => {
+                        const meta = ROLE_META[r];
+                        const isSel = selectedAgentRole === r;
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => {
+                              setSelectedAgentRole(r);
+                              setAgentDropdownOpen(false);
+                            }}
+                            className={`flex items-center justify-between w-full p-2 rounded text-[12px] font-medium text-left cursor-pointer ${
+                              isSel ? "bg-[var(--panel-2)] text-[var(--text)]" : "hover:bg-[var(--panel-2)] text-[var(--dim)]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <AgentIcon role={r} size={13} />
+                              <span>{meta.label}</span>
+                            </div>
+                            {isSel && <Check size={12} className="text-[var(--accent)]" />}
+                          </button>
+                        );
+                      })}
                     </div>
-                    {(["planner", "coder", "auditor", "tester"] as AgentRole[]).map((r) => {
-                      const meta = ROLE_META[r];
-                      const isSel = selectedAgentRole === r;
-                      return (
-                        <button
-                          key={r}
-                          onClick={() => {
-                            setSelectedAgentRole(r);
-                            setAgentDropdownOpen(false);
-                          }}
-                          className={`flex items-center justify-between w-full p-2 rounded text-[12px] font-medium text-left cursor-pointer ${
-                            isSel ? "bg-[var(--panel-2)] text-[var(--text)]" : "hover:bg-[var(--panel-2)] text-[var(--dim)]"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <AgentIcon role={r} size={13} />
-                            <span>{meta.label}</span>
-                          </div>
-                          {isSel && <Check size={12} className="text-[var(--accent)]" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                  )}
+                </div>
+
+                {/* Model Selector Dropdown */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModelDropdownOpen(!modelDropdownOpen);
+                      setAgentDropdownOpen(false);
+                    }}
+                    className="model-name text-[var(--dim)] hover:text-[var(--text)] flex items-center gap-1.5 cursor-pointer font-medium px-2 py-1 rounded border border-[var(--border-soft)] bg-[var(--panel-2)] transition-colors"
+                  >
+                    <Cpu size={13} className="text-[var(--accent)]" />
+                    <span>{selectedModel.label}</span>
+                    <span className="caret text-[9px]">▾</span>
+                  </button>
+
+                  {modelDropdownOpen && (
+                    <div className="absolute left-0 top-full mt-1.5 w-[260px] rounded-md border border-[var(--border)] bg-[var(--panel)] shadow-2xl p-1.5 z-50">
+                      <div className="font-mono text-[10px] uppercase text-[var(--faint)] px-2 py-1 font-bold">
+                        SELECT AI MODEL
+                      </div>
+                      {AVAILABLE_MODELS.map((m) => {
+                        const isSel = selectedModel.id === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedModel(m);
+                              setModelDropdownOpen(false);
+                            }}
+                            className={`flex items-center justify-between w-full p-2 rounded text-[12px] font-medium text-left cursor-pointer ${
+                              isSel ? "bg-[var(--panel-2)] text-[var(--text)]" : "hover:bg-[var(--panel-2)] text-[var(--dim)]"
+                            }`}
+                          >
+                            <div className="flex flex-col">
+                              <span>{m.label}</span>
+                              <span className="text-[10px] text-[var(--faint)] font-mono">{m.provider}</span>
+                            </div>
+                            {isSel && <Check size={12} className="text-[var(--accent)]" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <span className="font-mono text-[10.5px] text-[var(--faint)]">{sessionAgents.length} Active Agent(s)</span>
@@ -295,16 +366,16 @@ export function AIAssistantInterface() {
             {/* Prompt Hint */}
             <div className="home-hint mt-4 text-[11.5px] text-[var(--faint)] text-center">
               Try:{" "}
-              <button onClick={() => handleSend("build a login page with tests")} className="font-medium text-[var(--dim)] hover:underline cursor-pointer">
-                build a login page with tests
+              <button onClick={() => handleSend("build a REST API with auth and tests")} className="font-medium text-[var(--dim)] hover:underline cursor-pointer">
+                build a REST API with auth and tests
               </button>
               ,{" "}
-              <button onClick={() => handleSend("audit these three scripts")} className="font-medium text-[var(--dim)] hover:underline cursor-pointer">
-                audit these three scripts
+              <button onClick={() => handleSend("divide this project into frontend and backend")} className="font-medium text-[var(--dim)] hover:underline cursor-pointer">
+                divide this project into frontend and backend
               </button>
               , or{" "}
-              <button onClick={() => handleSend("split a REST API across the team")} className="font-medium text-[var(--dim)] hover:underline cursor-pointer">
-                split a REST API across the team
+              <button onClick={() => handleSend("split a todo app across the team")} className="font-medium text-[var(--dim)] hover:underline cursor-pointer">
+                split a todo app across the team
               </button>
             </div>
           </div>

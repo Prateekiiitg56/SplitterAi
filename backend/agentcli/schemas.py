@@ -116,6 +116,7 @@ class RunRequest(BaseModel):
     task: str
     workspace: str
     plan_file: Optional[str] = None  # FR-8: manual plan mode
+    subtasks: Optional[list[dict]] = None  # User-confirmed subtasks from plan review UI
 
 
 class HealthResponse(BaseModel):

@@ -12,6 +12,8 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Any
 
+import httpx
+
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,9 +31,19 @@ from agentcli.schemas import (
     RunStatus,
 )
 from agentcli.session import list_sessions, save_run_result
+from agentcli.integrations_store import (
+    load_all_integrations,
+    save_integration,
+    delete_integration as db_delete_integration,
+    update_integration_roles,
+)
 
 # Load .env
+import os
 load_dotenv()
+root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+if os.path.exists(root_env):
+    load_dotenv(root_env, override=True)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -135,6 +147,29 @@ async def health():
     return HealthResponse()
 
 
+@app.post("/plan")
+async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Generate an execution plan without executing it — for plan-review-confirm flow."""
+    verify_shared_secret(x_api_key, token)
+    task = payload.get("task", "")
+    if not task:
+        raise HTTPException(status_code=400, detail="Task is required")
+
+    config = ExecutionConfig()
+    on_event = make_event_emitter()
+
+    plan = await generate_plan(
+        task=task,
+        config=config,
+        on_event=on_event,
+    )
+
+    return {
+        "task": task,
+        "subtasks": [st.model_dump() for st in plan.subtasks],
+    }
+
+
 @app.post("/run", response_model=RunResult)
 async def run_task(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Execute a task through the multi-agent pipeline."""
@@ -145,8 +180,25 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
     # Build event emitter for real-time WebSocket streaming
     on_event = make_event_emitter()
 
-    # Step 1: Generate or load plan
-    if request.plan_file:
+    # Step 1: Generate or load plan — user-confirmed subtasks take priority
+    if request.subtasks:
+        # User confirmed these subtasks from the plan review UI — use them directly
+        from agentcli.schemas import Subtask as SubtaskSchema
+        confirmed_subtasks = []
+        for item in request.subtasks:
+            confirmed_subtasks.append(SubtaskSchema(
+                id=str(item.get("id", f"t{len(confirmed_subtasks)+1}")),
+                role=AgentRole(item.get("role", "coder")),
+                group=int(item.get("group", 1)),
+                instruction=str(item.get("instruction", "")),
+            ))
+        plan = Plan(subtasks=confirmed_subtasks)
+        on_event(LogEntry(
+            type="info",
+            role=AgentRole.planner,
+            message=f"Using user-confirmed plan: {len(plan.subtasks)} subtasks",
+        ))
+    elif request.plan_file:
         plan = load_manual_plan(request.plan_file)
         on_event(LogEntry(
             type="info",
@@ -187,14 +239,15 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
 
 
 @app.post("/chat")
-async def chat_with_agent(payload: dict):
+async def chat_with_agent(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Direct conversational chat endpoint for single agent interaction calling real LLM model router."""
+    verify_shared_secret(x_api_key, token)
     role_str = payload.get("role", "coder")
     message = payload.get("message", "").strip()
     history = payload.get("history", [])
+    model_override = payload.get("model")
 
     if not message:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
     import datetime
@@ -208,6 +261,9 @@ async def chat_with_agent(payload: dict):
         role_enum = SchemaAgentRole(role_str)
         config = ExecutionConfig()
         model_chain = config.get_model_chain(role_enum)
+
+        if model_override:
+            model_chain = [model_override] + [m for m in model_chain if m != model_override]
 
         # Build OpenAI chat messages
         system_prompts = {
@@ -237,7 +293,8 @@ async def chat_with_agent(payload: dict):
 
         reply_content = res.get("content", "").strip()
         if not reply_content:
-            reply_content = f"As the {role_str.capitalize()} Agent, I've processed your request: '{message}'."
+            logger.warning("Model returned empty content for role=%s, message='%s' — using fallback", role_str, message[:80])
+            reply_content = "[Fallback] The model returned an empty response. Please try again or rephrase your request."
 
         return {
             "reply": reply_content,
@@ -246,21 +303,21 @@ async def chat_with_agent(payload: dict):
             "model": res.get("model"),
         }
     except Exception as err:
-        # Real error response
-        from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"LLM Provider Error ({role_str}): {str(err)}")
 
 
 @app.get("/sessions")
-async def get_sessions():
+async def get_sessions(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """List recent sessions for the dashboard sidebar."""
+    verify_shared_secret(x_api_key, token)
     sessions = list_sessions(limit=20)
     return [s.model_dump() for s in sessions]
 
 
 @app.get("/agents")
-async def get_agents():
+async def get_agents(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Get agent role configurations."""
+    verify_shared_secret(x_api_key, token)
     config = ExecutionConfig()
     return [
         {
@@ -273,8 +330,9 @@ async def get_agents():
 
 
 @app.get("/agents/quota")
-async def get_agent_quotas():
+async def get_agent_quotas(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Per-role/provider usage against free-tier limits sourced from router call logs."""
+    verify_shared_secret(x_api_key, token)
     from agentcli.router import get_usage_metrics
     metrics = get_usage_metrics()
 
@@ -297,11 +355,11 @@ async def get_agent_quotas():
 
 
 @app.get("/agents/{role}")
-async def get_agent_detail(role: str):
+async def get_agent_detail(role: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Get detailed status, logs, and subtask metrics for a specific agent role."""
+    verify_shared_secret(x_api_key, token)
     valid_roles = [r.value for r in AgentRole]
     if role not in valid_roles:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail=f"Role '{role}' not found")
 
     config = ExecutionConfig()
@@ -325,8 +383,9 @@ async def get_agent_detail(role: str):
 
 
 @app.get("/files")
-async def get_files(workspace: str = "d:/CodeForces/SplitterAi"):
+async def get_files(workspace: str = ".", x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Sandboxed recursive file tree (never reads outside workspace root)."""
+    verify_shared_secret(x_api_key, token)
     try:
         sb = Sandbox(workspace)
         root_path = sb.resolve_path(".")
@@ -361,19 +420,22 @@ async def get_files(workspace: str = "d:/CodeForces/SplitterAi"):
 
 # ── Integrations Endpoint (Server-Side Credential Storage & Handshake) ────────
 
-INTEGRATIONS_STORE = {}
+# Load integrations from SQLite on startup (survives restarts)
+INTEGRATIONS_STORE = load_all_integrations()
 
 @app.get("/integrations")
-async def get_integrations():
+async def get_integrations(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Get all connected integrations without raw secrets."""
+    verify_shared_secret(x_api_key, token)
     return list(INTEGRATIONS_STORE.values())
 
 @app.post("/integrations/connect")
-async def connect_integration(payload: dict):
+async def connect_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Validate server-side connection and store credentials securely server-side."""
+    verify_shared_secret(x_api_key, token)
     itype = payload.get("type")
     name = payload.get("name", "Custom Integration")
-    token = payload.get("token")
+    int_token = payload.get("token")
     url = payload.get("url")
     repo = payload.get("repo")
     allowed_roles = payload.get("allowedRoles", ["planner", "coder", "auditor", "tester"])
@@ -385,40 +447,80 @@ async def connect_integration(payload: dict):
     # Server-Side Handshake & Validation
     if itype == "mcp":
         if not url:
-            from fastapi import HTTPException
             raise HTTPException(status_code=400, detail="MCP Server URL is required.")
-        # Perform server-side validation (HTTP HEAD/GET)
         if not (url.startswith("http://") or url.startswith("https://") or url.startswith("sse://") or url.startswith("stdio://")):
-            from fastapi import HTTPException
             raise HTTPException(status_code=400, detail="Invalid MCP Server URL schema.")
+
+        # Real reachability check for HTTP/HTTPS MCP servers
+        mcp_status = "connected"
+        mcp_error = None
+        if url.startswith("http://") or url.startswith("https://"):
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.head(url)
+                    if resp.status_code >= 400:
+                        mcp_status = "error"
+                        mcp_error = f"MCP server returned HTTP {resp.status_code}"
+            except Exception as e:
+                mcp_status = "error"
+                mcp_error = f"Cannot reach MCP server: {str(e)[:200]}"
+        elif url.startswith("sse://") or url.startswith("stdio://"):
+            mcp_status = "pending_verification"
+            mcp_error = "Non-HTTP transport — reachability not verified automatically"
 
         integration_obj = {
             "id": iid,
             "type": "mcp",
             "name": name,
-            "status": "connected",
+            "status": mcp_status,
             "connectedAt": now_str,
             "config": {"url": url, "transport": "sse" if "sse" in url else "http"},
             "scopes": ["mcp:tools", "mcp:resources"],
             "allowedRoles": allowed_roles,
-            "lastError": None,
+            "lastError": mcp_error,
         }
     elif itype == "github":
-        if not token and not repo:
-            from fastapi import HTTPException
+        if not int_token and not repo:
             raise HTTPException(status_code=400, detail="GitHub access token or repository is required.")
 
         repo_name = repo or "Prateekiiitg56/SplitterAi"
+
+        # Validate GitHub token by calling the API
+        gh_status = "connected"
+        gh_error = None
+        if int_token:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    gh_resp = await client.get(
+                        f"https://api.github.com/repos/{repo_name}",
+                        headers={
+                            "Authorization": f"Bearer {int_token}",
+                            "Accept": "application/vnd.github+json",
+                        },
+                    )
+                    if gh_resp.status_code == 401:
+                        raise HTTPException(status_code=400, detail="GitHub token is invalid or expired.")
+                    elif gh_resp.status_code == 404:
+                        raise HTTPException(status_code=400, detail=f"GitHub repo '{repo_name}' not found or token lacks access.")
+                    elif gh_resp.status_code >= 400:
+                        gh_status = "error"
+                        gh_error = f"GitHub API returned HTTP {gh_resp.status_code}"
+            except HTTPException:
+                raise
+            except Exception as e:
+                gh_status = "error"
+                gh_error = f"Cannot reach GitHub API: {str(e)[:200]}"
+
         integration_obj = {
             "id": iid,
             "type": "github",
             "name": f"GitHub ({repo_name})",
-            "status": "connected",
+            "status": gh_status,
             "connectedAt": now_str,
             "config": {"repo": repo_name, "org": repo_name.split("/")[0]},
             "scopes": ["repo", "read:org", "workflow"],
             "allowedRoles": allowed_roles,
-            "lastError": None,
+            "lastError": gh_error,
         }
     else:
         integration_obj = {
@@ -434,27 +536,31 @@ async def connect_integration(payload: dict):
         }
 
     INTEGRATIONS_STORE[iid] = integration_obj
+    save_integration(integration_obj)  # Persist to SQLite
     return integration_obj
 
 @app.post("/integrations/disconnect")
-async def disconnect_integration(payload: dict):
+async def disconnect_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Revoke and delete stored credentials server-side."""
+    verify_shared_secret(x_api_key, token)
     iid = payload.get("id")
     if iid in INTEGRATIONS_STORE:
         del INTEGRATIONS_STORE[iid]
+        db_delete_integration(iid)  # Remove from SQLite
         return {"success": True, "message": "Integration disconnected and credentials revoked."}
     return {"success": True, "message": "Already disconnected."}
 
 @app.post("/integrations/reconfigure")
-async def reconfigure_integration(payload: dict):
+async def reconfigure_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Update scopes or allowed roles for an integration."""
+    verify_shared_secret(x_api_key, token)
     iid = payload.get("id")
     allowed_roles = payload.get("allowedRoles")
     if iid in INTEGRATIONS_STORE:
         if allowed_roles is not None:
             INTEGRATIONS_STORE[iid]["allowedRoles"] = allowed_roles
+            update_integration_roles(iid, allowed_roles)  # Persist to SQLite
         return INTEGRATIONS_STORE[iid]
-    from fastapi import HTTPException
     raise HTTPException(status_code=404, detail="Integration not found.")
 
 

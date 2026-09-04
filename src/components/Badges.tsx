@@ -79,7 +79,7 @@ export function StatusBadge({ status }: { status: AgentStatus | SubtaskStatus | 
   }
 
   return (
-    <span className={`status ${statusClass}`}>
+    <span className={`status-badge ${statusClass}`}>
       <StatusDot status={status} />
       <span>{label}</span>
     </span>

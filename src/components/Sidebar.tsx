@@ -1,4 +1,4 @@
-import { useNavigate } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { StatusDot } from './Badges'
 import type { SessionEntry } from '../types'
 

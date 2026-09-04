@@ -128,7 +128,17 @@ export function useAgentRunner() {
       ])
 
       try {
-        const result = await runTask({ task: newTask, workspace })
+        const result = await runTask({
+          task: newTask,
+          workspace,
+          subtasks: initialSubtasks.map((st) => ({
+            id: st.id,
+            role: st.role,
+            group: st.group || 1,
+            instruction: st.instruction,
+            status: st.status,
+          })),
+        })
         setRunStatus(result.status === 'error' ? 'error' : 'done')
         if (result.subtasks && result.subtasks.length > 0) {
           setSubtasks(

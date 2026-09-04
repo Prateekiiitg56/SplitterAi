@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { ArrowLeft, FileText, ChevronRight, RefreshCw, X } from 'lucide-react'
 import { ROLE_META } from '../data'

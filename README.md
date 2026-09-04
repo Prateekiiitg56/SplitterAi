@@ -268,15 +268,18 @@ The React dashboard is the visual control center for the agent system. It provid
 
 ### Design System
 
-The interface uses a curated 5-color warm cinematic palette with a dark sidebar + light content split:
+SplitterAI uses a dark, high-density cold-blue developer console interface (Linear/Vercel/VS Code style). See [design.md](design.md) for the full specification.
 
-| Color | Hex | Usage |
+| Token | Hex | Usage |
 | :--- | :--- | :--- |
-| Deep Teal | `#244855` | Sidebar background, primary text, brand identity |
-| Coral | `#E64833` | Primary CTA, active states, accent indicators |
-| Warm Brown | `#874F41` | Secondary text, borders, metadata |
-| Sage | `#90AEAD` | Muted labels, model tags, tertiary text |
-| Warm Cream | `#FBE9D0` | Content canvas, sidebar text highlights |
+| `--bg` | `#070A10` | App base background |
+| `--panel` | `#0F1420` | Surface cards & panels |
+| `--panel-2` | `#151B29` | Input fields, node backgrounds & dropdowns |
+| `--border` | `#232B3D` | Default borders |
+| `--accent` | `#48B4FF` | Primary active accent, CTAs & focus rings |
+| `--good` | `#4DCFB8` | Completed / success status |
+| `--bad` | `#FF6E82` | Failed / error status |
+| `--wait` | `#8B93FF` | Queued / waiting status |
 
 ---
 

@@ -57,7 +57,7 @@ def resolve_api_key(role: AgentRole, model: str) -> str | None:
 
     Priority:
       1. Role-specific env var (e.g. CODER_API_KEY)
-      2. Provider-specific env var (e.g. GEMINI_API_KEY, XAI_GROK_API_KEY, OPENROUTER_SUPER_KEY)
+      2. Model-specific / Provider-specific env var
       3. None (let litellm figure it out from its own env defaults)
     """
     # 1. Role-specific key
@@ -65,7 +65,28 @@ def resolve_api_key(role: AgentRole, model: str) -> str | None:
     if role_key:
         return role_key
 
-    # 2. Provider key — derive provider from model string
+    # 2. Specific model or provider key resolution
+    lower_model = model.lower()
+    if "ultra" in lower_model:
+        key = os.environ.get("OPENROUTER_ULTRA_KEY") or os.environ.get("OPENROUTER_SUPER_KEY") or os.environ.get("OPENROUTER_API_KEY")
+        if key:
+            return key
+
+    if "openrouter" in lower_model:
+        key = os.environ.get("OPENROUTER_SUPER_KEY") or os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENROUTER_ULTRA_KEY")
+        if key:
+            return key
+
+    if "gemini" in lower_model:
+        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY_ALT")
+        if key:
+            return key
+
+    if "xai" in lower_model or "grok" in lower_model:
+        key = os.environ.get("XAI_GROK_API_KEY")
+        if key:
+            return key
+
     provider = model.split("/")[0] if "/" in model else model
     provider_key = os.environ.get(PROVIDER_KEY_ENVVARS.get(provider, ""))
     if provider_key:

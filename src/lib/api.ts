@@ -17,6 +17,18 @@ export interface RunRequest {
   task: string
   workspace: string
   plan_file?: string
+  subtasks?: Array<{
+    id: string
+    role: string
+    group: number
+    instruction: string
+    status?: string
+  }>
+}
+
+export interface PlanResult {
+  task: string
+  subtasks: SubtaskResult[]
 }
 
 export interface SubtaskResult {
@@ -68,6 +80,18 @@ export interface AgentConfig {
 
 // ── REST Client ────────────────────────────────────────────────
 
+export async function planTask(task: string, workspace: string): Promise<PlanResult> {
+  const res = await fetch(`${API_BASE}/plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task, workspace }),
+  })
+  if (!res.ok) {
+    throw new Error(`Plan generation failed: ${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}
+
 export async function runTask(request: RunRequest): Promise<RunResult> {
   const res = await fetch(`${API_BASE}/run`, {
     method: 'POST',
@@ -112,11 +136,16 @@ export async function fetchFiles(workspace: string): Promise<any[]> {
   return res.json()
 }
 
-export async function sendChatMessage(role: string, message: string): Promise<{ reply: string; role: string; timestamp: string }> {
+export async function sendChatMessage(
+  role: string,
+  message: string,
+  model?: string,
+  history?: Array<{ sender: 'user' | 'agent'; text: string }>
+): Promise<{ reply: string; role: string; timestamp: string; model?: string }> {
   const res = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, message }),
+    body: JSON.stringify({ role, message, model, history }),
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to send chat message`)
   return res.json()
