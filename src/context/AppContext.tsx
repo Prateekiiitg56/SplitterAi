@@ -25,9 +25,29 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
+const WORKSPACE_STORAGE_KEY = 'splitterai_current_workspace'
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [currentWorkspace, setCurrentWorkspace] = useState<string>(DEFAULT_WORKSPACE)
+  const [currentWorkspace, setCurrentWorkspaceState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(WORKSPACE_STORAGE_KEY)
+      return saved || DEFAULT_WORKSPACE
+    } catch {
+      return DEFAULT_WORKSPACE
+    }
+  })
+
+  const setCurrentWorkspace = (workspace: string) => {
+    setCurrentWorkspaceState(workspace)
+    try {
+      localStorage.setItem(WORKSPACE_STORAGE_KEY, workspace)
+    } catch (e) {
+      console.warn('Failed to save current workspace to localStorage', e)
+    }
+  }
+
   const { sessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions } = useSessions()
+
   const {
     subtasks,
     logs,

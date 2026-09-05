@@ -113,6 +113,57 @@ app.add_middleware(
 )
 
 
+# ── Middleware: Rate Limiting & Request Size Caps ────────────────
+
+import time
+from collections import defaultdict
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+
+_rate_limit_records: dict[str, list[float]] = defaultdict(list)
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        rate_limit = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
+        client_ip = request.client.host if request.client else "127.0.0.1"
+        now = time.time()
+
+        timestamps = [t for t in _rate_limit_records[client_ip] if now - t < 60]
+        _rate_limit_records[client_ip] = timestamps
+
+        if len(timestamps) >= rate_limit:
+            return Response(
+                content=json.dumps({"detail": f"Rate limit exceeded. Maximum {rate_limit} requests per minute."}),
+                status_code=429,
+                media_type="application/json",
+            )
+
+        _rate_limit_records[client_ip].append(now)
+        return await call_next(request)
+
+
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdigit():
+            max_bytes = 50 * 1024 * 1024 if request.url.path == "/workspaces/upload" else 10 * 1024 * 1024
+            if int(content_length) > max_bytes:
+                return Response(
+                    content=json.dumps({"detail": f"Request body payload exceeds maximum allowed size ({max_bytes // (1024*1024)}MB)."}),
+                    status_code=413,
+                    media_type="application/json",
+                )
+        return await call_next(request)
+
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(RequestSizeLimitMiddleware)
+
+
 def verify_shared_secret(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Verify shared-secret token if SHARED_SECRET env var is configured."""
     secret = os.getenv("SHARED_SECRET")
@@ -123,6 +174,7 @@ def verify_shared_secret(x_api_key: str | None = Header(None, alias="X-API-Key")
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or missing shared secret header (X-API-Key) or token query parameter.",
             )
+
 
 
 # ── Event Broadcasting Helper ────────────────────────────────────
@@ -454,6 +506,29 @@ async def upload_workspace(
         raise HTTPException(status_code=500, detail=f"Failed to import workspace: {str(err)}")
 
 
+@app.delete("/workspaces/cleanup")
+async def cleanup_workspaces(
+    max_age_seconds: int = Query(604800, description="Purge workspaces older than specified seconds (default 7 days)"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    token: str | None = Query(None),
+):
+    """Purge old extracted workspaces exceeding TTL retention policy."""
+    verify_shared_secret(x_api_key, token)
+    try:
+        from agentcli.workspace_import import cleanup_expired_workspaces
+        deleted_count, freed_bytes = cleanup_expired_workspaces(max_age_seconds=max_age_seconds)
+        return {
+            "success": True,
+            "deletedCount": deleted_count,
+            "freedBytes": freed_bytes,
+            "message": f"Purged {deleted_count} expired workspace(s), freed {freed_bytes / (1024*1024):.2f} MB",
+        }
+    except Exception as err:
+        logger.error(f"Workspace cleanup failed: {err}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to cleanup workspaces: {str(err)}")
+
+
+
 @app.post("/workflows/import-n8n")
 async def import_n8n_workflow(
     payload: dict,
@@ -630,12 +705,18 @@ async def reconfigure_integration(payload: dict, x_api_key: str | None = Header(
 # ── WebSocket Endpoint ────────────────────────────────────────────
 
 @app.websocket("/ws")
-async def websocket_endpoint(ws: WebSocket, token: str | None = Query(None)):
+async def websocket_endpoint(
+    ws: WebSocket,
+    token: str | None = Query(None),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+):
     """Real-time event stream for the dashboard."""
     secret = os.getenv("SHARED_SECRET")
-    if secret and token != secret:
-        await ws.close(code=4001, reason="Unauthorized shared secret token")
-        return
+    if secret:
+        provided = token or x_api_key or ws.headers.get("x-api-key")
+        if not provided or provided != secret:
+            await ws.close(code=4001, reason="Unauthorized shared secret token")
+            return
 
     await manager.connect(ws)
     try:
@@ -646,6 +727,7 @@ async def websocket_endpoint(ws: WebSocket, token: str | None = Query(None)):
                 await ws.send_text("pong")
     except WebSocketDisconnect:
         manager.disconnect(ws)
+
 
 
 # ── Main ──────────────────────────────────────────────────────────

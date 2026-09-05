@@ -82,10 +82,25 @@ class Orchestrator:
 
         all_completed: list[Subtask] = []
         results: dict[str, str] = {}
+        abort_on_error = getattr(self.config, "abort_on_group_error", False)
+        group_failed = False
 
         for group_num in group_nums:
             group_subtasks = groups[group_num]
             is_parallel = len(group_subtasks) > 1
+
+            if group_failed and abort_on_error:
+                for st in group_subtasks:
+                    st.status = SubtaskStatus.error
+                    st.error = "Cancelled due to prerequisite group failure"
+                    st.finished_at = time.time()
+                    all_completed.append(st)
+                    results[st.id] = f"CANCELLED: {st.error}"
+                self._emit(LogEntry(
+                    type=LogType.info,
+                    message=f"Group {group_num} skipped due to abort_on_group_error policy",
+                ))
+                continue
 
             self._emit(LogEntry(
                 type=LogType.group_start,
@@ -103,6 +118,7 @@ class Orchestrator:
             for i, result in enumerate(completed):
                 if isinstance(result, Exception):
                     # FR-16: Capture exception as subtask error
+                    group_failed = True
                     st = group_subtasks[i]
                     st.status = SubtaskStatus.error
                     st.error = str(result)[:500]
@@ -119,7 +135,8 @@ class Orchestrator:
                         message=f"Subtask {st.id} failed: {str(result)[:200]}",
                     ))
                 else:
-                    # Successful or handled error subtask
+                    if result.status == SubtaskStatus.error:
+                        group_failed = True
                     all_completed.append(result)
                     results[result.id] = result.output or result.error or ""
 
@@ -127,6 +144,7 @@ class Orchestrator:
                 type=LogType.group_end,
                 message=f"Group {group_num} complete",
             ))
+
 
         # Build final result
         total_duration = (time.time() - start_time) * 1000

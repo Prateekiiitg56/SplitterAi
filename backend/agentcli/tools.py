@@ -72,41 +72,78 @@ def list_directory(sandbox: Sandbox, path: str = ".") -> str:
     return f"Contents of '{path}':\n" + "\n".join(entries)
 
 
-def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int = 10240) -> str:
-    """Execute a shell command within the sandbox workspace.
+# Dangerous host/cloud probes blocked at command level
+BLOCKED_PROBE_PATTERNS = [
+    "169.254.169.254",
+    "metadata.google.internal",
+    "instance-data/latest",
+]
 
-    FR-18: timeout + output truncation.
+
+def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int = 10240) -> str:
+    """Execute a shell command strictly within the sandbox workspace.
+
+    FR-18: timeout + output truncation + environment isolation.
     """
+    # 1. Check for suspicious SSRF / cloud metadata endpoint probes
+    for pattern in BLOCKED_PROBE_PATTERNS:
+        if pattern in command:
+            raise SandboxEscapeError(command, str(sandbox.workspace))
+
+    # 2. Build sanitized environment (strip host secrets & keys)
+    safe_env = {
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": str(sandbox.workspace),
+        "TMP": str(sandbox.workspace),
+        "TEMP": str(sandbox.workspace),
+        "USER": os.environ.get("USER", "agent"),
+        "LANG": os.environ.get("LANG", "en_US.UTF-8"),
+        "SHELL": os.environ.get("SHELL", "powershell.exe" if os.name == "nt" else "/bin/sh"),
+        "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+        "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
+        "PATHEXT": os.environ.get("PATHEXT", ""),
+    }
+    safe_env = {k: v for k, v in safe_env.items() if v}
+
+    # 3. Execute subprocess with process tree termination on timeout
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             command,
             shell=True,
             cwd=str(sandbox.workspace),
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
-            env={**os.environ, "HOME": str(sandbox.workspace)},
+            env=safe_env,
         )
 
+        try:
+            stdout_data, stderr_data = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            return f"Error: Command timed out after {timeout}s: {command}"
+
         output_parts = []
-        if result.stdout:
-            stdout = result.stdout[:max_output]
-            if len(result.stdout) > max_output:
+        if stdout_data:
+            stdout = stdout_data[:max_output]
+            if len(stdout_data) > max_output:
                 stdout += f"\n... [stdout truncated at {max_output} bytes]"
             output_parts.append(stdout)
-        if result.stderr:
-            stderr = result.stderr[:max_output]
-            if len(result.stderr) > max_output:
+        if stderr_data:
+            stderr = stderr_data[:max_output]
+            if len(stderr_data) > max_output:
                 stderr += f"\n... [stderr truncated at {max_output} bytes]"
             output_parts.append(f"STDERR:\n{stderr}")
 
         output = "\n".join(output_parts) if output_parts else "(no output)"
-        return f"Exit code: {result.returncode}\n{output}"
+        return f"Exit code: {proc.returncode}\n{output}"
 
-    except subprocess.TimeoutExpired:
-        return f"Error: Command timed out after {timeout}s: {command}"
+    except SandboxEscapeError:
+        raise
     except Exception as e:
         return f"Error executing command: {e}"
+
 
 
 def search_code(sandbox: Sandbox, query: str, path: str = ".") -> str:

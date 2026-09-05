@@ -109,11 +109,13 @@ def parse_n8n_workflow(raw_json: dict[str, Any]) -> Plan:
 
     # Compute topological group numbers (same group = parallel execution)
     group_map: dict[str, int] = {}
+    cyclic_nodes: set[str] = set()
 
     def get_node_group(n_name: str, visited: set[str]) -> int:
         if n_name in group_map:
             return group_map[n_name]
         if n_name in visited:
+            cyclic_nodes.add(n_name)
             return 1  # Cycle safety fallback
 
         visited.add(n_name)
@@ -122,7 +124,8 @@ def parse_n8n_workflow(raw_json: dict[str, Any]) -> Plan:
             group_map[n_name] = 1
             return 1
 
-        max_parent_group = max(get_node_group(p, visited.copy()) for p in node_parents)
+        parent_groups = [get_node_group(p, visited.copy()) for p in node_parents]
+        max_parent_group = max(parent_groups) if parent_groups else 0
         group = max_parent_group + 1
         group_map[n_name] = group
         return group
@@ -141,6 +144,8 @@ def parse_n8n_workflow(raw_json: dict[str, Any]) -> Plan:
         node_type = str(node.get("type", ""))
         role = TYPE_ROLE_MAP.get(node_type, AgentRole.unassigned)
         instruction = derive_instruction(node)
+        if name in cyclic_nodes:
+            instruction = f"[Warning: Cyclic Dependency] {instruction}"
         group = group_map.get(name, 1)
 
         subtask = Subtask(
@@ -153,3 +158,4 @@ def parse_n8n_workflow(raw_json: dict[str, Any]) -> Plan:
         idx += 1
 
     return Plan(subtasks=subtasks)
+

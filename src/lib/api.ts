@@ -78,60 +78,92 @@ export interface AgentConfig {
   status: string
 }
 
-// ── REST Client ────────────────────────────────────────────────
+// ── REST Client with Timeout & Network Resilience ────────────────
+
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    return res
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s: ${url}`)
+    }
+    if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+      throw new Error(`Backend server unreachable at ${API_BASE}. Make sure 'python backend/server.py' is running.`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
 export async function planTask(task: string, workspace: string): Promise<PlanResult> {
-  const res = await fetch(`${API_BASE}/plan`, {
+  const res = await fetchWithTimeout(`${API_BASE}/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ task, workspace }),
-  })
+  }, 45000)
   if (!res.ok) {
-    throw new Error(`Plan generation failed: ${res.status} ${res.statusText}`)
+    const err = await res.json().catch(() => ({ detail: `Plan generation failed: ${res.status} ${res.statusText}` }))
+    throw new Error(err.detail || `Plan generation failed (${res.status})`)
   }
   return res.json()
 }
 
 export async function runTask(request: RunRequest): Promise<RunResult> {
-  const res = await fetch(`${API_BASE}/run`, {
+  const res = await fetchWithTimeout(`${API_BASE}/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
-  })
+  }, 60000)
   if (!res.ok) {
-    throw new Error(`Run failed: ${res.status} ${res.statusText}`)
+    const err = await res.json().catch(() => ({ detail: `Run failed: ${res.status} ${res.statusText}` }))
+    throw new Error(err.detail || `Run failed (${res.status})`)
   }
   return res.json()
 }
 
 export async function getSessions(): Promise<SessionInfo[]> {
-  const res = await fetch(`${API_BASE}/sessions`)
-  if (!res.ok) return []
-  return res.json()
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/sessions`, {}, 10000)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
 }
 
 export const fetchSessions = getSessions
 
 export async function fetchAgents(): Promise<Array<{ role: string; model_chain: string[]; status: string }>> {
-  const res = await fetch(`${API_BASE}/agents`)
-  if (!res.ok) return []
-  return res.json()
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/agents`, {}, 10000)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
 }
 
 export async function fetchAgentDetail(role: string): Promise<any> {
-  const res = await fetch(`${API_BASE}/agents/${role}`)
+  const res = await fetchWithTimeout(`${API_BASE}/agents/${role}`, {}, 10000)
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch agent '${role}'`)
   return res.json()
 }
 
 export async function fetchAgentQuotas(): Promise<any[]> {
-  const res = await fetch(`${API_BASE}/agents/quota`)
+  const res = await fetchWithTimeout(`${API_BASE}/agents/quota`, {}, 10000)
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch quotas`)
   return res.json()
 }
 
 export async function fetchFiles(workspace: string): Promise<any[]> {
-  const res = await fetch(`${API_BASE}/files?workspace=${encodeURIComponent(workspace)}`)
+  const res = await fetchWithTimeout(`${API_BASE}/files?workspace=${encodeURIComponent(workspace)}`, {}, 10000)
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch file tree`)
   return res.json()
 }
@@ -140,10 +172,10 @@ export async function uploadWorkspace(file: File): Promise<{ workspace: string; 
   const formData = new FormData()
   formData.append('file', file)
 
-  const res = await fetch(`${API_BASE}/workspaces/upload`, {
+  const res = await fetchWithTimeout(`${API_BASE}/workspaces/upload`, {
     method: 'POST',
     body: formData,
-  })
+  }, 60000)
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to upload workspace zip' }))
@@ -154,11 +186,11 @@ export async function uploadWorkspace(file: File): Promise<{ workspace: string; 
 }
 
 export async function importN8nWorkflow(json: object): Promise<PlanResult> {
-  const res = await fetch(`${API_BASE}/workflows/import-n8n`, {
+  const res = await fetchWithTimeout(`${API_BASE}/workflows/import-n8n`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(json),
-  })
+  }, 30000)
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to import n8n workflow' }))
@@ -174,11 +206,11 @@ export async function sendChatMessage(
   model?: string,
   history?: Array<{ sender: 'user' | 'agent'; text: string }>
 ): Promise<{ reply: string; role: string; timestamp: string; model?: string }> {
-  const res = await fetch(`${API_BASE}/chat`, {
+  const res = await fetchWithTimeout(`${API_BASE}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ role, message, model, history }),
-  })
+  }, 60000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to send chat message' }))
     throw new Error(err.detail || 'Failed to send chat message')
@@ -187,17 +219,17 @@ export async function sendChatMessage(
 }
 
 export async function fetchIntegrations(): Promise<any[]> {
-  const res = await fetch(`${API_BASE}/integrations`)
+  const res = await fetchWithTimeout(`${API_BASE}/integrations`, {}, 10000)
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch integrations`)
   return res.json()
 }
 
 export async function connectIntegration(payload: any): Promise<any> {
-  const res = await fetch(`${API_BASE}/integrations/connect`, {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/connect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  })
+  }, 15000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to connect integration' }))
     throw new Error(err.detail || 'Connection failed')
@@ -206,28 +238,28 @@ export async function connectIntegration(payload: any): Promise<any> {
 }
 
 export async function disconnectIntegration(id: string): Promise<any> {
-  const res = await fetch(`${API_BASE}/integrations/disconnect`, {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/disconnect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
-  })
+  }, 10000)
   if (!res.ok) throw new Error('Failed to disconnect integration')
   return res.json()
 }
 
 export async function reconfigureIntegration(id: string, allowedRoles: string[]): Promise<any> {
-  const res = await fetch(`${API_BASE}/integrations/reconfigure`, {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/reconfigure`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id, allowedRoles }),
-  })
+  }, 10000)
   if (!res.ok) throw new Error('Failed to reconfigure integration')
   return res.json()
 }
 
 export async function healthCheck(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/health`)
+    const res = await fetchWithTimeout(`${API_BASE}/health`, {}, 5000)
     return res.ok
   } catch {
     return false

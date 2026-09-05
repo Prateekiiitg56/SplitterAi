@@ -19,6 +19,31 @@ def _get_db_path() -> Path:
     return base / "sessions.db"
 
 
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Verify integrations table schema and safely add missing columns if schema evolves."""
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(integrations)")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+
+    expected_columns = {
+        "id": "TEXT PRIMARY KEY",
+        "type": "TEXT NOT NULL",
+        "name": "TEXT NOT NULL",
+        "status": "TEXT NOT NULL DEFAULT 'connected'",
+        "connected_at": "TEXT NOT NULL DEFAULT ''",
+        "config_json": "TEXT NOT NULL DEFAULT '{}'",
+        "scopes_json": "TEXT NOT NULL DEFAULT '[]'",
+        "allowed_roles_json": "TEXT NOT NULL DEFAULT '[]'",
+        "last_error": "TEXT",
+    }
+
+    for col_name, col_def in expected_columns.items():
+        if col_name not in existing_columns and "PRIMARY KEY" not in col_def:
+            conn.execute(f"ALTER TABLE integrations ADD COLUMN {col_name} {col_def}")
+
+    conn.commit()
+
+
 def _get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with integrations schema initialized."""
     db_path = _get_db_path()
@@ -38,7 +63,9 @@ def _get_connection() -> sqlite3.Connection:
         )
     """)
     conn.commit()
+    _run_migrations(conn)
     return conn
+
 
 
 def _row_to_dict(row: tuple) -> dict:

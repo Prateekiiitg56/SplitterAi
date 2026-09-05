@@ -8,10 +8,12 @@ FR-13: Each worker gets isolated message history.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
 from typing import Any, Callable, Optional
+
 
 from .config import ExecutionConfig
 from .prompts import get_system_prompt
@@ -85,15 +87,29 @@ class AgentWorker:
             for step in range(self.max_steps):
                 subtask.steps = step + 1
 
-                # Call model
-                response = await call_model(
-                    messages=messages,
-                    model_chain=self.model_chain,
-                    role=self.role,
-                    config=self.config,
-                    tools=tools,
-                    on_event=self.on_event,
-                )
+                # Call model with step-level timeout
+                step_timeout = getattr(self.config, "step_timeout", 60)
+                try:
+                    response = await asyncio.wait_for(
+                        call_model(
+                            messages=messages,
+                            model_chain=self.model_chain,
+                            role=self.role,
+                            config=self.config,
+                            tools=tools,
+                            on_event=self.on_event,
+                        ),
+                        timeout=step_timeout,
+                    )
+                except asyncio.TimeoutError:
+                    self._emit(LogEntry(
+                        type=LogType.error,
+                        role=self.role,
+                        subtask_id=subtask.id,
+                        message=f"Step {step + 1} timed out after {step_timeout}s",
+                    ))
+                    raise TimeoutError(f"Step {step + 1} timed out after {step_timeout}s")
+
 
                 subtask.model = response.get("model")
 

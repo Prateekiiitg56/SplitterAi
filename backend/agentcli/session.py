@@ -23,6 +23,29 @@ def _get_db_path() -> Path:
     return base / "sessions.db"
 
 
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Verify table schema and safely add missing columns if schema evolves."""
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(sessions)")
+    existing_columns = {row[1] for row in cursor.fetchall()}
+
+    expected_columns = {
+        "workspace": "TEXT PRIMARY KEY",
+        "task": "TEXT NOT NULL DEFAULT ''",
+        "status": "TEXT NOT NULL DEFAULT 'idle'",
+        "messages_json": "TEXT NOT NULL DEFAULT '[]'",
+        "subtask_count": "INTEGER NOT NULL DEFAULT 0",
+        "created_at": "TEXT NOT NULL DEFAULT ''",
+        "updated_at": "REAL NOT NULL DEFAULT 0",
+    }
+
+    for col_name, col_def in expected_columns.items():
+        if col_name not in existing_columns and "PRIMARY KEY" not in col_def:
+            conn.execute(f"ALTER TABLE sessions ADD COLUMN {col_name} {col_def}")
+
+    conn.commit()
+
+
 def _get_connection() -> sqlite3.Connection:
     """Get a SQLite connection with the schema initialized."""
     db_path = _get_db_path()
@@ -40,7 +63,9 @@ def _get_connection() -> sqlite3.Connection:
         )
     """)
     conn.commit()
+    _run_migrations(conn)
     return conn
+
 
 
 # ── Public API ────────────────────────────────────────────────────

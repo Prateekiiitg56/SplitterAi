@@ -121,3 +121,42 @@ def extract_zip_to_workspace(
 
             shutil.rmtree(target_dir, ignore_errors=True)
         raise
+
+
+def cleanup_expired_workspaces(
+    max_age_seconds: int = 7 * 86400,
+    workspaces_root: Path | str | None = None,
+) -> tuple[int, int]:
+    """Purge extracted workspace directories older than max_age_seconds under workspaces_root.
+
+    Returns:
+        tuple[int, int]: (deleted_workspace_count, freed_bytes)
+    """
+    if workspaces_root is None:
+        workspaces_root = DEFAULT_WORKSPACES_ROOT
+    root = Path(workspaces_root).resolve()
+
+    if not root.exists():
+        return 0, 0
+
+    import shutil
+    import time
+
+    now = time.time()
+    deleted_count = 0
+    freed_bytes = 0
+
+    for item in root.iterdir():
+        if item.is_dir() and item.name.startswith("ws-"):
+            try:
+                mtime = item.stat().st_mtime
+                if now - mtime > max_age_seconds:
+                    dir_size = sum(f.stat().st_size for f in item.rglob("*") if f.is_file())
+                    shutil.rmtree(item, ignore_errors=True)
+                    deleted_count += 1
+                    freed_bytes += dir_size
+            except Exception:
+                continue
+
+    return deleted_count, freed_bytes
+
