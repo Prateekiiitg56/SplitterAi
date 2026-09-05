@@ -33,13 +33,6 @@ export default function ProjectAgentsPage() {
       instruction: 'Break down project requirements into subtasks and assign priorities.',
       runsAfter: null,
     },
-    {
-      id: 'agent-2',
-      label: 'Agent 2',
-      role: 'coder',
-      instruction: 'Write code logic and implement requested features.',
-      runsAfter: 'agent-1',
-    },
   ])
 
   // Group calculation logic matching orchestrator.py

@@ -70,7 +70,7 @@ export function useAgentRunner() {
   }, [])
 
   const executeTask = useCallback(
-    async (newTask: string, workspace: string = DEFAULT_WORKSPACE) => {
+    async (newTask: string, workspace: string = DEFAULT_WORKSPACE, model?: string) => {
       setTaskTitle(newTask)
       setRunStatus('planning')
       setSubtasks([])
@@ -79,7 +79,7 @@ export function useAgentRunner() {
       setLogs((prev) => [...prev, { id: `l-${Date.now()}`, timestamp: ts, type: 'info', message: `Task: "${newTask}"` }])
 
       try {
-        const result = await runTask({ task: newTask, workspace })
+        const result = await runTask({ task: newTask, workspace, model })
         setRunStatus(result.status === 'error' ? 'error' : 'done')
         if (result.subtasks) {
           setSubtasks(
@@ -116,7 +116,7 @@ export function useAgentRunner() {
   )
 
   const executeTaskWithPlan = useCallback(
-    async (newTask: string, initialSubtasks: Subtask[], workspace: string = DEFAULT_WORKSPACE) => {
+    async (newTask: string, initialSubtasks: Subtask[], workspace: string = DEFAULT_WORKSPACE, model?: string) => {
       setTaskTitle(newTask)
       setRunStatus('executing')
       setSubtasks(initialSubtasks.map((st) => ({ ...st, status: 'working' })))
@@ -131,6 +131,7 @@ export function useAgentRunner() {
         const result = await runTask({
           task: newTask,
           workspace,
+          model,
           subtasks: initialSubtasks.map((st) => ({
             id: st.id,
             role: st.role,

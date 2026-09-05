@@ -15,8 +15,9 @@ from typing import Any
 import httpx
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse
 
 from agentcli.config import ExecutionConfig
 from agentcli.orchestrator import Orchestrator
@@ -199,6 +200,34 @@ async def health():
     return HealthResponse()
 
 
+@app.get("/preview")
+@app.get("/preview/{file_name:path}")
+async def preview_workspace(file_name: str = ""):
+    """Serve generated website files (index.html, style.css, script.js) from workspace_output in a separate browser tab."""
+    workspace_dir = os.path.abspath("workspace_output")
+    if not os.path.exists(workspace_dir):
+        workspace_dir = os.path.abspath(".")
+
+    target_file = file_name if file_name else "index.html"
+    file_path = os.path.join(workspace_dir, target_file)
+
+    resolved_file = os.path.abspath(file_path)
+    resolved_ws = os.path.abspath(workspace_dir)
+    if not resolved_file.startswith(resolved_ws):
+        raise HTTPException(status_code=403, detail="Forbidden: path escapes workspace")
+
+    if not os.path.exists(file_path):
+        if not file_name or file_name == "index.html":
+            return HTMLResponse("""<!DOCTYPE html>
+<html>
+<head><title>Workspace Preview</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0b0f19;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;} .box{background:#1e293b;padding:30px;border-radius:12px;text-align:center;max-width:500px;} h2{color:#60a5fa;}</style></head>
+<body><div class="box"><h2>🌐 Live Workspace Preview</h2><p>No <code>index.html</code> generated yet. Type a task prompt on SplitterAI and click <b>Start Project</b> to generate your web app.</p></div></body>
+</html>""")
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(file_path)
+
+
 @app.post("/plan")
 async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Generate an execution plan without executing it — for plan-review-confirm flow."""
@@ -208,6 +237,10 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
         raise HTTPException(status_code=400, detail="Task is required")
 
     config = ExecutionConfig()
+    req_model = payload.get("model")
+    if req_model:
+        config.set_model_chain(AgentRole.planner, [req_model] + config.get_model_chain(AgentRole.planner))
+
     on_event = make_event_emitter()
 
     plan = await generate_plan(
@@ -227,6 +260,10 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
     """Execute a task through the multi-agent pipeline."""
     verify_shared_secret(x_api_key, token)
     config = ExecutionConfig()
+    if request.model:
+        for r in AgentRole:
+            config.set_model_chain(r, [request.model] + config.get_model_chain(r))
+
     sandbox = Sandbox(request.workspace)
 
     # Build event emitter for real-time WebSocket streaming

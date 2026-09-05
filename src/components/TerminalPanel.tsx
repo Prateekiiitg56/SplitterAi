@@ -122,23 +122,23 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
       <div className="flex items-center justify-between h-9 px-4 border-b border-[var(--border-soft)] bg-[var(--panel-2)] text-[11.5px] flex-shrink-0">
 
         {/* Tabs */}
-        <div className="flex items-center gap-1">
-          <div className="flex items-center gap-1.5 mr-3 text-[var(--text)] font-medium">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 font-sans font-medium text-[var(--text)] text-[12px] pr-2 border-r border-[var(--border-soft)]">
             <Terminal size={14} className="text-[var(--accent)]" />
-            <span>Terminal</span>
+            <span>Terminal Logs</span>
           </div>
 
           {(['all', 'tools', 'shell'] as const).map((tab) => {
             const isAct = activeTab === tab
-            const label = tab === 'all' ? 'All events' : tab === 'tools' ? 'Tool outputs' : 'Shell'
+            const label = tab === 'all' ? 'All Events' : tab === 'tools' ? 'Tool Outputs' : 'Commands'
             return (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 aria-pressed={isAct}
-                className={`px-2.5 py-1 rounded-control text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`px-2.5 py-0.5 rounded-[var(--r-control)] text-[11px] font-medium transition-colors cursor-pointer ${
                   isAct
-                    ? 'bg-[var(--accent-quiet)] text-[var(--text)] border border-[var(--accent-edge)]'
+                    ? 'bg-[var(--accent-quiet)] text-[var(--text)] border border-[var(--accent-edge)] font-semibold'
                     : 'text-[var(--dim)] hover:text-[var(--text)] hover:bg-[var(--panel-3)]'
                 }`}
               >

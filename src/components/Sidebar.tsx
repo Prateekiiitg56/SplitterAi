@@ -11,6 +11,7 @@ import {
 import { StatusDot } from './Badges'
 import { cx } from '../lib/cx'
 import type { SessionEntry } from '../types'
+import { useBackendHealth } from '../hooks/useBackendHealth'
 
 interface SidebarProps {
   collapsed?: boolean
@@ -40,9 +41,11 @@ export default function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { isOnline } = useBackendHealth()
 
   const isActive = (id: string) =>
     id === '/' ? location.pathname === '/' : location.pathname.startsWith(id)
+
 
   return (
     <aside
@@ -183,10 +186,20 @@ export default function Sidebar({
       >
         {!collapsed && (
           <span
-            className="w-6 h-6 rounded-full bg-[var(--panel-2)] border border-[var(--border)] flex items-center justify-center font-mono text-[10px] text-[var(--dim)] font-bold flex-shrink-0"
+            className={cx(
+              'w-6 h-6 rounded-full border flex items-center justify-center font-mono text-[10px] font-bold flex-shrink-0 relative',
+              isOnline
+                ? 'bg-[var(--good-quiet)] border-[var(--good)] text-[var(--good)]'
+                : 'bg-[var(--bad-quiet)] border-[var(--bad)] text-[var(--bad)]',
+            )}
             aria-hidden="true"
+            title={isOnline ? 'Backend server connected (:8000)' : 'Backend server offline (:8000)'}
           >
-            P
+            {isOnline ? (
+              <span className="w-2 h-2 rounded-full bg-[var(--good)] animate-pulse" />
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-[var(--bad)]" />
+            )}
           </span>
         )}
         {!collapsed && (
@@ -194,7 +207,9 @@ export default function Sidebar({
             <span className="block text-[11.5px] font-medium text-[var(--text)] truncate">
               Developer workspace
             </span>
-            <span className="block text-[10.5px] text-[var(--faint)]">Active</span>
+            <span className={cx('block text-[10.5px] font-mono', isOnline ? 'text-[var(--good)]' : 'text-[var(--bad)]')}>
+              {isOnline ? 'Server :8000' : 'Server offline'}
+            </span>
           </span>
         )}
         {onToggleCollapse && (
@@ -214,6 +229,7 @@ export default function Sidebar({
           </button>
         )}
       </div>
+
     </aside>
   )
 }

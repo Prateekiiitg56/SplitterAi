@@ -16,6 +16,7 @@ import { API_BASE, WS_URL } from '../config'
 export interface RunRequest {
   task: string
   workspace: string
+  model?: string
   plan_file?: string
   subtasks?: Array<{
     id: string
@@ -102,12 +103,12 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}, t
   }
 }
 
-export async function planTask(task: string, workspace: string): Promise<PlanResult> {
+export async function planTask(task: string, workspace: string, model?: string): Promise<PlanResult> {
   const res = await fetchWithTimeout(`${API_BASE}/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ task, workspace }),
-  }, 45000)
+    body: JSON.stringify({ task, workspace, model }),
+  }, 120000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Plan generation failed: ${res.status} ${res.statusText}` }))
     throw new Error(err.detail || `Plan generation failed (${res.status})`)
@@ -120,7 +121,7 @@ export async function runTask(request: RunRequest): Promise<RunResult> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
-  }, 60000)
+  }, 180000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Run failed: ${res.status} ${res.statusText}` }))
     throw new Error(err.detail || `Run failed (${res.status})`)

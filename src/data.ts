@@ -47,10 +47,11 @@ export const STATUS_META: Record<SubtaskStatus, { label: string; color: string; 
   stopped:   { label: 'Stopped',   color: '#7C3AED', bg: '#7C3AED14' },
 }
 
-/* ── Active Real Models ───────────────────────────────────────── */
-
 export const AVAILABLE_MODELS: ModelOption[] = [
   { id: 'gemini/gemini-3.5-flash', label: 'Google Gemini 3.5 Flash', provider: 'Google AI' },
   { id: 'openrouter/nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron-3 Super 120B (Free)', provider: 'OpenRouter' },
   { id: 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free', label: 'Nemotron-3 Ultra 550B (Free)', provider: 'OpenRouter' },
+  { id: 'openrouter/meta-llama/llama-3.3-70b-instruct', label: 'Meta Llama 3.3 (70B)', provider: 'OpenRouter' },
+  { id: 'openrouter/qwen/qwen-2.5-coder-32b-instruct', label: 'Qwen 2.5 Coder (32B)', provider: 'OpenRouter' },
+  { id: 'openrouter/openai/gpt-4o-mini', label: 'OpenAI GPT-4o Mini', provider: 'OpenRouter' },
 ]

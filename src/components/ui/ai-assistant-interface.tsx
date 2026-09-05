@@ -10,6 +10,7 @@ import {
   Loader2,
   Send,
   Paperclip,
+  X,
 } from 'lucide-react'
 import { AVAILABLE_MODELS, ROLE_META } from '../../data'
 import { useApp } from '../../context/AppContext'
@@ -43,7 +44,7 @@ export function AIAssistantInterface() {
   const [selectedAgentRole, setSelectedAgentRole] = useState<AgentRole>('planner')
   const [agentDropdownOpen, setAgentDropdownOpen] = useState(false)
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
-  const [sessionAgents, setSessionAgents] = useState<AgentRole[]>(['planner', 'coder'])
+  const [sessionAgents, setSessionAgents] = useState<AgentRole[]>(['planner'])
   const [showAddAgentModal, setShowAddAgentModal] = useState(false)
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -61,7 +62,6 @@ export function AIAssistantInterface() {
   }, [chatMessages.length, isSending])
 
   const isMultiAgentSplitRequest = (msg: string) => {
-    if (sessionAgents.length < 2) return false
     const lower = msg.toLowerCase()
     return (
       lower.includes('split') ||
@@ -95,7 +95,7 @@ export function AIAssistantInterface() {
     if (isMultiAgentSplitRequest(textToSubmit)) {
       setIsPlanning(true)
       try {
-        const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE)
+        const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE, selectedModel.id)
         const generatedSubtasks: Subtask[] = planResult.subtasks.map((st, idx) => ({
           id: st.id || `st-${idx + 1}`,
           role: st.role as AgentRole,
@@ -153,11 +153,21 @@ export function AIAssistantInterface() {
     setShowAddAgentModal(false)
   }
 
+  const handleRemoveAgentFromSession = (role: AgentRole) => {
+    if (sessionAgents.length <= 1) return
+    const updated = sessionAgents.filter((r) => r !== role)
+    setSessionAgents(updated)
+    if (selectedAgentRole === role && updated.length > 0) {
+      setSelectedAgentRole(updated[0])
+    }
+  }
+
   const handleConfirmAndLaunch = async () => {
     if (!draftPlan) return
-    await executeTaskWithPlan(draftPlan.taskTitle, draftPlan.subtasks)
+    const planToExecute = draftPlan
     setDraftPlan(null)
-    navigate(`/projects/latest`)
+    navigate('/projects/default')
+    await executeTaskWithPlan(planToExecute.taskTitle, planToExecute.subtasks, DEFAULT_WORKSPACE, selectedModel.id)
   }
 
   const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.coder
@@ -325,9 +335,41 @@ export function AIAssistantInterface() {
                 </div>
               </div>
 
-              <span className="font-mono text-micro text-[var(--faint)] tabular-nums">
-                {sessionAgents.length} agent{sessionAgents.length === 1 ? '' : 's'} active
-              </span>
+              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                {sessionAgents.map((r) => {
+                  const meta = ROLE_META[r] || ROLE_META.coder
+                  const isSelected = selectedAgentRole === r
+                  return (
+                    <span
+                      key={r}
+                      onClick={() => setSelectedAgentRole(r)}
+                      className={cx(
+                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-micro font-medium transition-colors cursor-pointer select-none',
+                        isSelected
+                          ? 'bg-[var(--panel-3)] border-[var(--accent-edge)] text-[var(--text)]'
+                          : 'bg-[var(--panel-2)] border-[var(--border-soft)] text-[var(--dim)] hover:text-[var(--text)]'
+                      )}
+                    >
+                      <AgentIcon role={r} size={11} />
+                      <span>{meta.label}</span>
+                      {sessionAgents.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveAgentFromSession(r)
+                          }}
+                          aria-label={`Remove ${meta.label}`}
+                          title={`Remove ${meta.label} agent`}
+                          className="hover:text-[var(--bad)] text-[var(--faint)] transition-colors p-0.5 rounded-full -mr-0.5"
+                        >
+                          <X size={10} />
+                        </button>
+                      )}
+                    </span>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Thread */}
@@ -530,22 +572,39 @@ export function AIAssistantInterface() {
             {ROLES.map((r) => {
               const isAlreadyIn = sessionAgents.includes(r)
               const meta = ROLE_META[r]
+              const canRemove = isAlreadyIn && sessionAgents.length > 1
               return (
                 <button
                   key={r}
                   type="button"
-                  disabled={isAlreadyIn}
-                  onClick={() => handleAddAgentToSession(r)}
+                  onClick={() => {
+                    if (isAlreadyIn) {
+                      if (canRemove) handleRemoveAgentFromSession(r)
+                    } else {
+                      handleAddAgentToSession(r)
+                    }
+                  }}
                   className={cx(
-                    'flex flex-col items-center gap-1.5 rounded-[var(--r-control)] border p-3',
-                    'text-meta font-medium capitalize transition-colors duration-[var(--d-quick)] ease-standard',
+                    'flex flex-col items-center justify-between gap-1.5 rounded-[var(--r-control)] border p-3 cursor-pointer',
+                    'text-meta font-medium capitalize transition-all duration-[var(--d-quick)] ease-standard',
                     isAlreadyIn
-                      ? 'border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--faint)] opacity-50 cursor-not-allowed'
-                      : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text)] hover:border-[var(--accent-edge)]',
+                      ? 'border-[var(--accent-edge)] bg-[var(--panel-3)] text-[var(--text)]'
+                      : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--dim)] hover:border-[var(--accent-edge)] hover:text-[var(--text)]',
                   )}
                 >
-                  <AgentIcon role={r} size={16} />
-                  <span>{meta.label}</span>
+                  <div className="flex items-center gap-1.5">
+                    <AgentIcon role={r} size={16} />
+                    <span>{meta.label}</span>
+                  </div>
+                  <span className="text-micro font-mono">
+                    {isAlreadyIn ? (
+                      <span className="text-[var(--good)] flex items-center gap-1">
+                        <Check size={10} /> Active {canRemove ? '(Click to remove)' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--faint)]">+ Click to add</span>
+                    )}
+                  </span>
                 </button>
               )
             })}

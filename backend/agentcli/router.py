@@ -148,10 +148,15 @@ async def call_model(
         max_retries = 2
         for retry in range(max_retries):
             try:
+                # Alias gemini-3.5-flash to active valid Gemini endpoint
+                target_model = model
+                if "gemini-3.5-flash" in model.lower():
+                    target_model = "gemini/gemini-2.0-flash"
+
                 kwargs: dict[str, Any] = {
-                    "model": model,
+                    "model": target_model,
                     "messages": messages,
-                    "timeout": 60,
+                    "timeout": 30,
                 }
                 if api_key:
                     kwargs["api_key"] = api_key

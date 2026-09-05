@@ -17,8 +17,8 @@ interface AppContextType {
   runStatus: RunStatus
   taskTitle: string
   errorMessage: string | null
-  executeTask: (newTask: string, workspace?: string) => Promise<void>
-  executeTaskWithPlan: (newTask: string, initialSubtasks: Subtask[], workspace?: string) => Promise<void>
+  executeTask: (newTask: string, workspace?: string, model?: string) => Promise<void>
+  executeTaskWithPlan: (newTask: string, initialSubtasks: Subtask[], workspace?: string, model?: string) => Promise<void>
   addEvent: (event: Partial<LogEntry>) => void
   clearError: () => void
 }

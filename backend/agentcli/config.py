@@ -17,25 +17,30 @@ from .schemas import AgentRole
 DEFAULT_MODEL_CHAINS: dict[AgentRole, list[str]] = {
     AgentRole.planner: [
         "gemini/gemini-3.5-flash",
+        "openrouter/meta-llama/llama-3.3-70b-instruct",
         "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+        "openrouter/openai/gpt-4o-mini",
     ],
     AgentRole.coder: [
-        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
         "gemini/gemini-3.5-flash",
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/meta-llama/llama-3.3-70b-instruct",
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+        "openrouter/openai/gpt-4o-mini",
     ],
     AgentRole.auditor: [
         "gemini/gemini-3.5-flash",
+        "openrouter/meta-llama/llama-3.3-70b-instruct",
         "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+        "openrouter/openai/gpt-4o-mini",
     ],
     AgentRole.tester: [
-        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
         "gemini/gemini-3.5-flash",
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/meta-llama/llama-3.3-70b-instruct",
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+        "openrouter/openai/gpt-4o-mini",
     ],
 }
+
 
 
 # ── Per-Role API Key Resolution ───────────────────────────────────

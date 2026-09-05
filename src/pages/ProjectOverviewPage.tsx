@@ -6,11 +6,12 @@ import FileExplorer from '../components/FileExplorer'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
 import { useUI } from '../context/UIContext'
+import { Button } from '../components/primitives/Button'
 import { DEFAULT_WORKSPACE } from '../config'
 import { ROLE_META, AVAILABLE_MODELS } from '../data'
 import type { AgentRole, Subtask } from '../types'
 import { AgentIcon, StatusBadge } from '../components/Badges'
-import { Cpu, Zap, Loader2, Layers, ChevronDown } from 'lucide-react'
+import { Cpu, Zap, Loader2, Layers, ChevronDown, Play, ExternalLink } from 'lucide-react'
 
 export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId?: string }>()
@@ -20,13 +21,14 @@ export default function ProjectOverviewPage() {
   const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
 
   const [selectedAgentRole, setSelectedAgentRole] = useState<AgentRole>('coder')
+  const [taskInput, setTaskInput] = useState('')
 
   useEffect(() => {
     const passedTask = location.state?.task
     if (passedTask && passedTask !== taskTitle && runStatus === 'idle') {
-      executeTask(passedTask, currentWorkspace)
+      executeTask(passedTask, currentWorkspace, selectedModel.id)
     }
-  }, [location.state, taskTitle, runStatus, executeTask, currentWorkspace])
+  }, [location.state, taskTitle, runStatus, executeTask, currentWorkspace, selectedModel.id])
 
   const groupedSubtasks = subtasks.reduce((acc, st) => {
     const groupNum = st.group || 1
@@ -44,7 +46,7 @@ export default function ProjectOverviewPage() {
         {/* Top Bar */}
         <PageHeader
           icon={<Cpu size={15} />}
-          title={taskTitle || 'Overview'}
+          title={taskTitle || 'Project Overview'}
           meta={currentWorkspace}
           actions={
             <>
@@ -54,20 +56,20 @@ export default function ProjectOverviewPage() {
                   <button
                     onClick={() => setMultiMode(true)}
                     aria-pressed={multiMode}
-                    className={`h-7 px-2.5 font-mono text-[11px] tracking-tight transition-colors ${
+                    className={`h-7 px-3 font-medium text-[11.5px] transition-colors ${
                       multiMode ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]'
                     }`}
                   >
-                    split
+                    Multi-Agent
                   </button>
                   <button
                     onClick={() => setMultiMode(false)}
                     aria-pressed={!multiMode}
-                    className={`h-7 px-2.5 font-mono text-[11px] tracking-tight transition-colors border-l border-[var(--border)] ${
+                    className={`h-7 px-3 font-medium text-[11.5px] transition-colors border-l border-[var(--border)] ${
                       !multiMode ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]'
                     }`}
                   >
-                    single
+                    Single Agent
                   </button>
                 </div>
               </div>
@@ -80,7 +82,7 @@ export default function ProjectOverviewPage() {
                     const next = AVAILABLE_MODELS.find((m) => m.id === e.target.value)
                     if (next) setSelectedModel(next)
                   }}
-                  className="appearance-none h-7 pl-2.5 pr-7 bg-[var(--bg-inset)] border border-[var(--border)] rounded-control font-mono text-[11px] text-[var(--text)] cursor-pointer hover:border-[var(--border-strong)] focus:border-[var(--accent)] focus:outline-none transition-[border-color]"
+                  className="appearance-none h-7 pl-2.5 pr-7 bg-[var(--bg-inset)] border border-[var(--border)] rounded-control font-medium text-[11.5px] text-[var(--text)] cursor-pointer hover:border-[var(--border-strong)] focus:border-[var(--accent)] focus:outline-none transition-[border-color]"
                 >
                   {AVAILABLE_MODELS.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -94,6 +96,17 @@ export default function ProjectOverviewPage() {
                   className="absolute right-1.5 pointer-events-none text-[var(--faint)]"
                 />
               </label>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.open('http://localhost:8000/preview', '_blank')}
+                className="flex items-center gap-1 px-2.5 font-medium text-[11.5px] border border-[var(--border)] hover:border-[var(--accent-edge)]"
+                title="Open generated website in a separate new browser tab"
+              >
+                <ExternalLink size={12} className="text-[var(--accent)]" />
+                <span>Open Preview (New Tab)</span>
+              </Button>
             </>
           }
         />
@@ -112,20 +125,80 @@ export default function ProjectOverviewPage() {
           {/* Main Content Area */}
           <div className="ov-main col-start-1 row-start-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
             
-            {/* Master Task Instruction Card */}
-            <div className="master-task border border-[var(--border-soft)] rounded-[var(--radius)] p-4 flex items-center justify-between gap-4 bg-[var(--panel)]">
-              <div className="master-task-left min-w-0">
-                <div className="master-task-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
-                  MASTER TASK INSTRUCTION
+            {/* Project Task & Start Execution Card */}
+            <div className="master-task border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
+                    PROJECT TASK
+                  </div>
+                  <h2 className="text-[14.5px] font-medium text-[var(--text)] leading-snug truncate">
+                    {taskTitle || 'No active task submitted yet. Type your task below to start execution.'}
+                  </h2>
                 </div>
-                <h2 className="master-task-text text-[14.5px] font-medium text-[var(--text)] leading-snug truncate">
-                  {taskTitle || 'Submit a prompt on Home or click "Start Project" to launch master task execution.'}
-                </h2>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    onClick={() => window.open('http://localhost:8000/preview', '_blank')}
+                    className="flex items-center gap-1.5 px-3 font-medium text-[12.5px] border border-[var(--border)] hover:border-[var(--accent-edge)]"
+                    title="Open generated website in a separate new browser page"
+                  >
+                    <ExternalLink size={13} className="text-[var(--accent)]" />
+                    <span>Open Preview (New Tab)</span>
+                  </Button>
+
+                  <Button
+                    variant="primary"
+                    size="md"
+                    disabled={runStatus === 'planning' || runStatus === 'executing'}
+                    onClick={() => {
+                      const taskToRun = taskInput.trim() || taskTitle.trim() || 'help me to build a simple home page'
+                      executeTask(taskToRun, currentWorkspace, selectedModel.id)
+                    }}
+                    className="flex items-center gap-1.5 px-4 font-semibold text-[13px] shadow-sm"
+                  >
+                    {runStatus === 'planning' || runStatus === 'executing' ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" />
+                        <span>Running Task…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play size={14} fill="currentColor" />
+                        <span>Start Project</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
 
-              <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-[var(--dim)] flex-shrink-0">
-                {subtasks.length > 0 ? `${subtasks.length} Subtasks Decomposed` : 'Awaiting Task'}
-              </span>
+              {/* Task Input Field */}
+              {runStatus !== 'executing' && runStatus !== 'planning' && (
+                <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-soft)]">
+                  <input
+                    type="text"
+                    value={taskInput}
+                    onChange={(e) => setTaskInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && taskInput.trim()) {
+                        executeTask(taskInput.trim(), currentWorkspace, selectedModel.id)
+                      }
+                    }}
+                    placeholder="Type a task prompt here (e.g. help me to build a simple home page)..."
+                    className="flex-1 h-8 px-3 rounded-[var(--r-control)] bg-[var(--bg-inset)] border border-[var(--border)] text-[12.5px] text-[var(--text)] placeholder:text-[var(--faint)] outline-none focus:border-[var(--accent)]"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!taskInput.trim()}
+                    onClick={() => executeTask(taskInput.trim(), currentWorkspace, selectedModel.id)}
+                  >
+                    Run Task
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Parallel Agent DAG Visualizer */}
@@ -133,12 +206,44 @@ export default function ProjectOverviewPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Zap size={15} className="text-[var(--accent)]" />
-                  <h3 className="text-[13px] font-semibold text-[var(--text)]">Parallel Multi-Agent Execution DAG</h3>
+                  <h3 className="text-[13px] font-semibold text-[var(--text)]">Agent Workflow & Progress</h3>
                 </div>
-                <span className="font-mono text-[11px] text-[var(--faint)]">Click a node to inspect details</span>
+                <span className="font-mono text-[11px] text-[var(--faint)]">Click an agent node to view output</span>
               </div>
 
-              {runStatus === 'planning' ? (
+              {/* Live Execution Progress Card */}
+              {(runStatus === 'planning' || runStatus === 'executing') && (
+                <div className="p-4 rounded-[var(--radius)] border border-[var(--accent-edge)] bg-[var(--panel-2)] shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--accent)]" />
+                      </span>
+                      <span className="font-semibold text-[13px] text-[var(--text)]">
+                        {runStatus === 'planning' ? 'Planning & Decomposing Task…' : 'AI Agents Active in Backend'}
+                      </span>
+                    </div>
+                    <span className="flex items-center gap-1.5 text-micro font-mono text-[var(--accent)]">
+                      <Loader2 size={12} className="animate-spin" />
+                      <span>Live Stream Active</span>
+                    </span>
+                  </div>
+
+                  <div className="w-full bg-[var(--panel-3)] h-1.5 rounded-full overflow-hidden relative">
+                    <div className="bg-[var(--accent)] h-full rounded-full animate-pulse w-3/4 transition-all duration-500" />
+                  </div>
+
+                  {logs.length > 0 && (
+                    <div className="flex items-center gap-2 text-micro font-mono text-[var(--dim)] bg-[var(--bg-inset)] px-3 py-1.5 rounded border border-[var(--border-soft)] truncate">
+                      <span className="text-[var(--faint)]">[{logs[logs.length - 1].timestamp}]</span>
+                      <span className="text-[var(--text)] truncate">{logs[logs.length - 1].message}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {runStatus === 'planning' && groupNumbers.length === 0 ? (
                 <div className="p-8 text-center text-[var(--dim)] space-y-2 border border-[var(--border-soft)] rounded bg-[var(--panel-2)]">
                   <Loader2 size={24} className="animate-spin text-[var(--accent)] mx-auto" />
                   <p className="text-[13px] font-medium text-[var(--text)]">Decomposing Master Task</p>

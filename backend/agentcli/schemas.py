@@ -116,6 +116,7 @@ class RunRequest(BaseModel):
     """POST /run request body."""
     task: str
     workspace: str
+    model: Optional[str] = None
     plan_file: Optional[str] = None  # FR-8: manual plan mode
     subtasks: Optional[list[dict]] = None  # User-confirmed subtasks from plan review UI
 
