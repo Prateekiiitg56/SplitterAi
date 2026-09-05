@@ -18,19 +18,22 @@ DEFAULT_MODEL_CHAINS: dict[AgentRole, list[str]] = {
     AgentRole.planner: [
         "gemini/gemini-3.5-flash",
         "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
     ],
     AgentRole.coder: [
         "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
-        "xai/grok-2-beta",
         "gemini/gemini-3.5-flash",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     ],
     AgentRole.auditor: [
-        "xai/grok-2-beta",
         "gemini/gemini-3.5-flash",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
     ],
     AgentRole.tester: [
         "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
-        "xai/grok-2-beta",
+        "gemini/gemini-3.5-flash",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     ],
 }
 

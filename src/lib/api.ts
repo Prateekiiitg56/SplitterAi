@@ -136,6 +136,38 @@ export async function fetchFiles(workspace: string): Promise<any[]> {
   return res.json()
 }
 
+export async function uploadWorkspace(file: File): Promise<{ workspace: string; fileCount: number }> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${API_BASE}/workspaces/upload`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to upload workspace zip' }))
+    throw new Error(err.detail || 'Upload workspace failed')
+  }
+
+  return res.json()
+}
+
+export async function importN8nWorkflow(json: object): Promise<PlanResult> {
+  const res = await fetch(`${API_BASE}/workflows/import-n8n`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(json),
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to import n8n workflow' }))
+    throw new Error(err.detail || 'Import n8n workflow failed')
+  }
+
+  return res.json()
+}
+
 export async function sendChatMessage(
   role: string,
   message: string,
@@ -147,7 +179,10 @@ export async function sendChatMessage(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ role, message, model, history }),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to send chat message`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to send chat message' }))
+    throw new Error(err.detail || 'Failed to send chat message')
+  }
   return res.json()
 }
 

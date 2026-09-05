@@ -1,0 +1,364 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SplitterAI — design tokens
+   Theme is unchanged in character: cold blue on near-black, IBM Plex.
+   What changed: one accent instead of three palettes, a real type scale
+   instead of 15 arbitrary sizes, three radii instead of seven, and
+   --faint raised to pass WCAG AA (was 2.3:1, now 4.8:1).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────────────────────── */
+  --bg: #070A10;
+  --bg-inset: #05070C;          /* wells: log bodies, code, terminal      */
+  --panel: #0F1420;             /* default raised surface                 */
+  --panel-2: #151B29;           /* row hover, active nav, inner surface   */
+  --panel-3: #1B2233;           /* pressed / selected                     */
+
+  /* ── Edges ────────────────────────────────────────────────────────── */
+  --border-soft: #181E2C;       /* structural dividers — barely there     */
+  --border: #232B3D;            /* default edge                           */
+  --border-strong: #2F394F;     /* hover / emphasis edge                  */
+
+  /* ── Ink ──────────────────────────────────────────────────────────── */
+  --text: #E8ECF4;              /* primary            ~15.8:1 on panel    */
+  --text-2: #B9C2D4;            /* secondary body     ~10.2:1             */
+  --dim: #8992A6;               /* labels, meta        ~5.9:1             */
+  --faint: #778395;             /* de-emphasised text  ~4.8:1  AA ✓       */
+  --ghost: #3B4356;             /* NON-TEXT ONLY: dots, rules, grid       */
+
+  /* ── Accent — the only interactive colour ─────────────────────────── */
+  --accent: #48B4FF;
+  --accent-ink: #04070D;        /* text on accent fill      ~8.7:1        */
+  --accent-quiet: #12283C;      /* accent-tinted fill                     */
+  --accent-edge: #2A5C86;       /* accent-tinted edge                     */
+
+  /* ── Semantic — status only, never decoration ─────────────────────── */
+  --good: #4DCFB8;
+  --good-quiet: #0F2E2A;
+  --bad: #FF6E82;
+  --bad-quiet: #331E27;
+  --wait: #8296B8;
+  --wait-quiet: #172A45;
+  --warn: #E0A661;
+  --warn-quiet: #33260F;
+
+  /* ── Role identity ────────────────────────────────────────────────────
+     Four roles, four hues, all held inside the cold band except one
+     deliberate warm note. Used as a 1px rule or a glyph stroke — never
+     as a filled colour chip.                                            */
+  --role-planner: #8296B8;
+  --role-coder: #48B4FF;
+  --role-reviewer: #4DCFB8;
+  --role-runner: #E0A661;
+
+  /* ── Type scale ───────────────────────────────────────────────────────
+     Dense-UI progression, ~1.12 through the working range with a wider
+     jump at display. Nothing between these steps is legal.               */
+  --t-micro: 11px;              /* mono only: timestamps, ids, sizes      */
+  --t-meta: 12px;               /* labels, secondary meta                 */
+  --t-ui: 13px;                 /* base — body, controls, table cells     */
+  --t-strong: 15px;             /* card + panel titles                    */
+  --t-title: 18px;              /* page titles                            */
+  --t-display: 24px;            /* section display                        */
+  --t-hero: 32px;               /* home headline only                      */
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-body: 1.55;
+
+  /* ── Radii — three, plus pills ────────────────────────────────────── */
+  --r-control: 4px;             /* inputs, chips, small glyphs            */
+  --r-panel: 6px;               /* panels, cards, buttons                 */
+  --r-float: 10px;              /* modals, popovers                       */
+  --radius: 6px;                /* legacy alias — do not use in new code  */
+
+  /* ── Elevation — two levels, no more ──────────────────────────────── */
+  --shadow-raise: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 18px 48px -14px rgba(0, 0, 0, 0.75),
+                  0 0 0 1px rgba(255, 255, 255, 0.035);
+
+  /* ── The motion score ─────────────────────────────────────────────────
+     Mirrors src/lib/motion.ts. Every duration in the app is one of these
+     four. Anything answering a click uses --d-quick or --d-base; only the
+     WebGL scene is allowed --d-cine.                                     */
+  --d-quick: 140ms;             /* hover, colour, press                   */
+  --d-base: 220ms;              /* reveal, expand, dropdown               */
+  --d-slow: 420ms;              /* drawer, modal, layout move             */
+  --d-cine: 1200ms;             /* scene only                             */
+
+  --e-standard: cubic-bezier(0.32, 0.72, 0, 1);   /* workhorse           */
+  --e-out: cubic-bezier(0.16, 1, 0.3, 1);         /* entrances           */
+  --e-in: cubic-bezier(0.7, 0, 0.84, 0);          /* exits               */
+
+  --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* ── Legacy aliases ───────────────────────────────────────────────────
+     Pages not yet migrated still reference these names (error banners,
+     tinted fills). Kept so nothing renders an invalid colour mid-migration.
+     Delete once every page reads the --*-quiet names.                    */
+  --accent-dim: var(--accent-quiet);
+  --good-dim: var(--good-quiet);
+  --bad-dim: var(--bad-quiet);
+  --wait-dim: var(--wait-quiet);
+}
+
+/* Expose the same tokens to Tailwind utilities. */
+@theme {
+  --color-bg: #070A10;
+  --color-bg-inset: #05070C;
+  --color-panel: #0F1420;
+  --color-panel-2: #151B29;
+  --color-panel-3: #1B2233;
+
+  --color-border-soft: #181E2C;
+  --color-border: #232B3D;
+  --color-border-strong: #2F394F;
+
+  --color-text: #E8ECF4;
+  --color-text-2: #B9C2D4;
+  --color-dim: #8992A6;
+  --color-faint: #778395;
+  --color-ghost: #3B4356;
+
+  --color-accent: #48B4FF;
+  --color-accent-ink: #04070D;
+  --color-accent-quiet: #12283C;
+  --color-accent-edge: #2A5C86;
+
+  --color-good: #4DCFB8;
+  --color-bad: #FF6E82;
+  --color-wait: #8296B8;
+  --color-warn: #E0A661;
+
+  --text-micro: 11px;
+  --text-meta: 12px;
+  --text-ui: 13px;
+  --text-strong: 15px;
+  --text-title: 18px;
+  --text-display: 24px;
+  --text-hero: 32px;
+
+  --radius-control: 4px;
+  --radius-panel: 6px;
+  --radius-float: 10px;
+
+  --shadow-raise: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 18px 48px -14px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.035);
+
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out-strong: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Base
+   ═══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body { height: 100%; width: 100%; }
+
+body {
+  /* A single cool cast from above rather than a decorative gradient wash:
+     it reads as light falling into the shell, and it is the only
+     non-flat thing about the background. */
+  background: radial-gradient(ellipse 1400px 760px at 50% -18%, #0D1421 0%, var(--bg) 58%);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--t-ui);
+  line-height: var(--lh-body);
+  overflow: hidden;              /* fixed-viewport app shell */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Machine output is monospaced; prose is not. */
+code, pre, kbd, samp { font-family: var(--mono); }
+
+::selection { background: var(--accent); color: var(--accent-ink); }
+
+a { color: inherit; text-decoration: none; }
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+/* ── Focus ────────────────────────────────────────────────────────────
+   One ring, applied to anything focusable including the elements that
+   are semantically buttons but structurally divs.                      */
+:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible,
+[role="option"]:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-control);
+}
+:focus:not(:focus-visible) { outline: none; }
+
+/* ── Scrollbars ───────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); background-clip: content-box; }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Status
+   Previously every status was a filled tinted pill, which put a coloured
+   chip in every table row. Now the glyph plus a sentence-case label in
+   the semantic colour carries it, and only failure gets a fill — so
+   failure is the one status that can shout across a dense page.
+   Class names and modifiers are unchanged, so Badges.tsx keeps working.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--r-control);
+  font-family: var(--sans);
+  font-size: var(--t-meta);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.status-badge.working,
+.status-badge.running,
+.status-badge.executing,
+.status-badge.planning { color: var(--accent); }
+
+.status-badge.completed,
+.status-badge.done,
+.status-badge.success { color: var(--good); }
+
+.status-badge.paused,
+.status-badge.waiting,
+.status-badge.queued { color: var(--wait); }
+
+.status-badge.idle,
+.status-badge.pending { color: var(--faint); }
+
+/* The one status permitted to hold a fill. */
+.status-badge.failed,
+.status-badge.error {
+  color: var(--bad);
+  background: var(--bad-quiet);
+  border-color: rgba(255, 110, 130, 0.28);
+  padding: 1px 7px;
+}
+
+/* ── Status glyphs ────────────────────────────────────────────────────
+   Shape carries meaning as well as colour: ring = live, check = done,
+   cross = failed, bar = paused, hollow = idle. Colour alone never
+   encodes state.                                                       */
+.dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  position: relative;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot.working {
+  background: var(--accent);
+  animation: pulse 2.4s var(--e-standard) infinite;
+}
+.dot.working::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  opacity: 0.5;
+  animation: ring 2.4s var(--e-out) infinite;
+}
+
+.dot.idle { background: none; border: 1.4px solid var(--ghost); }
+.dot.paused { background: none; border: 1.4px solid var(--wait); }
+
+.dot.done, .dot.completed, .dot.failed, .dot.error {
+  width: 9px;
+  height: 9px;
+  background: none;
+  border-radius: 0;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.dot.done, .dot.completed {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+  background-color: var(--good);
+}
+
+.dot.failed, .dot.error {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6L6 18M6 6l12 12'/%3E%3C/svg%3E");
+  background-color: var(--bad);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes ring {
+  0% { transform: scale(0.65); opacity: 0.55; }
+  100% { transform: scale(1.75); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Reduced motion
+   Surgical rather than blanket: durations collapse so state changes are
+   instant, and the looping attention-seeking animations stop, but the
+   interface still confirms actions.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --d-quick: 1ms;
+    --d-base: 1ms;
+    --d-slow: 1ms;
+    --d-cine: 1ms;
+  }
+  .dot.working,
+  .dot.working::after {
+    animation: none;
+  }
+  .dot.working { opacity: 1; }
+  .dot.working::after { opacity: 0.35; transform: none; }
+}

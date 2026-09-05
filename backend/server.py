@@ -15,7 +15,7 @@ from typing import Any
 import httpx
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
 from agentcli.config import ExecutionConfig
@@ -26,6 +26,7 @@ from agentcli.schemas import (
     AgentRole,
     HealthResponse,
     LogEntry,
+    Plan,
     RunRequest,
     RunResult,
     RunStatus,
@@ -38,12 +39,11 @@ from agentcli.integrations_store import (
     update_integration_roles,
 )
 
-# Load .env
+# Load .env — single source of truth is the project-root .env (see .env.example),
+# loaded explicitly so behavior doesn't depend on the server's working directory.
 import os
-load_dotenv()
 root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
-if os.path.exists(root_env):
-    load_dotenv(root_env, override=True)
+load_dotenv(root_env)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -253,6 +253,7 @@ async def chat_with_agent(payload: dict, x_api_key: str | None = Header(None, al
     import datetime
     ts = datetime.datetime.now().strftime("%I:%M:%S %p")
 
+    model_chain: list[str] = []
     try:
         from agentcli.schemas import AgentRole as SchemaAgentRole
         from agentcli.config import ExecutionConfig
@@ -303,6 +304,13 @@ async def chat_with_agent(payload: dict, x_api_key: str | None = Header(None, al
             "model": res.get("model"),
         }
     except Exception as err:
+        logger.error(
+            "Chat handler failed for role='%s' with model_chain=%s: %s",
+            role_str,
+            model_chain,
+            err,
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=f"LLM Provider Error ({role_str}): {str(err)}")
 
 
@@ -416,6 +424,61 @@ async def get_files(workspace: str = ".", x_api_key: str | None = Header(None, a
     except Exception as e:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/workspaces/upload")
+async def upload_workspace(
+    file: UploadFile = File(...),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    token: str | None = Query(None),
+):
+    """Upload and extract a project .zip file into a new server workspace."""
+    verify_shared_secret(x_api_key, token)
+
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip files are allowed for project import.")
+
+    zip_bytes = await file.read()
+    if len(zip_bytes) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Uploaded file exceeds 50MB limit.")
+
+    try:
+        from agentcli.workspace_import import extract_zip_to_workspace
+
+        ws_path, file_count = extract_zip_to_workspace(zip_bytes)
+        return {"workspace": str(ws_path), "fileCount": file_count}
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as err:
+        logger.error(f"Workspace upload failed: {err}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to import workspace: {str(err)}")
+
+
+@app.post("/workflows/import-n8n")
+async def import_n8n_workflow(
+    payload: dict,
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    token: str | None = Query(None),
+):
+    """Import an n8n workflow export JSON and return a decomposed Plan."""
+    verify_shared_secret(x_api_key, token)
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid request body. Expected JSON object.")
+
+    try:
+        from agentcli.n8n_import import parse_n8n_workflow
+
+        plan = parse_n8n_workflow(payload)
+        task_name = payload.get("name", "n8n Workflow Import")
+        return {
+            "task": task_name,
+            "subtasks": [st.model_dump() for st in plan.subtasks],
+        }
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as err:
+        logger.error(f"n8n import failed: {err}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to parse n8n workflow: {str(err)}")
 
 
 # ── Integrations Endpoint (Server-Side Credential Storage & Handshake) ────────

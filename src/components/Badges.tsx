@@ -34,7 +34,7 @@ export function AgentIcon({ role, size = 16, className = "" }: { role: AgentRole
 }
 
 export function AgentBadge({ role }: { role: AgentRole }) {
-  const labels: Record<AgentRole, string> = { planner: 'Planner', coder: 'Coder', auditor: 'Auditor', tester: 'Tester' }
+  const labels: Record<AgentRole, string> = { planner: 'Planner', coder: 'Coder', auditor: 'Auditor', tester: 'Tester', unassigned: 'Unassigned' }
   return (
     <span className="inline-flex items-center gap-2">
       <span className="w-6 h-6 rounded-md bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] flex items-center justify-center flex-shrink-0">

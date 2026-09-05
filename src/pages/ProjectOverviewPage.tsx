@@ -16,7 +16,7 @@ export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId?: string }>()
   const location = useLocation()
 
-  const { subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask } = useApp()
+  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask } = useApp()
   const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
 
   const [selectedAgentRole, setSelectedAgentRole] = useState<AgentRole>('coder')
@@ -24,9 +24,9 @@ export default function ProjectOverviewPage() {
   useEffect(() => {
     const passedTask = location.state?.task
     if (passedTask && passedTask !== taskTitle && runStatus === 'idle') {
-      executeTask(passedTask)
+      executeTask(passedTask, currentWorkspace)
     }
-  }, [location.state, taskTitle, runStatus, executeTask])
+  }, [location.state, taskTitle, runStatus, executeTask, currentWorkspace])
 
   const groupedSubtasks = subtasks.reduce((acc, st) => {
     const groupNum = st.group || 1
@@ -45,11 +45,7 @@ export default function ProjectOverviewPage() {
         <PageHeader
           icon={<Cpu size={15} />}
           title={taskTitle || 'Overview'}
-          meta={
-            projectId === 'default'
-              ? 'SplitterAI workspace'
-              : String(projectId ?? '')
-          }
+          meta={currentWorkspace}
           actions={
             <>
               <div className="flex items-center gap-2">
@@ -202,7 +198,7 @@ export default function ProjectOverviewPage() {
 
           {/* Right Panel: File Explorer */}
           <div className="ov-files col-start-2 row-start-1 row-span-2 min-h-0 border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)] overflow-hidden">
-            <FileExplorer workspace={DEFAULT_WORKSPACE} />
+            <FileExplorer workspace={currentWorkspace} />
           </div>
 
           {/* Bottom Panel: Terminal */}

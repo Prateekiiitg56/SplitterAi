@@ -16,6 +16,7 @@ class AgentRole(str, Enum):
     coder = "coder"
     auditor = "auditor"
     tester = "tester"
+    unassigned = "unassigned"
 
 
 class SubtaskStatus(str, Enum):

@@ -18,7 +18,7 @@ export function AgentPage() {
 
   const navigate = useNavigate()
   const { selectedRole, setSelectedRole } = useUI()
-  const { logs: globalLogs, subtasks, runStatus, taskTitle } = useApp()
+  const { currentWorkspace, logs: globalLogs, subtasks, runStatus, taskTitle } = useApp()
 
   useEffect(() => {
     if (effectiveRole && effectiveRole !== selectedRole) {
@@ -27,7 +27,7 @@ export function AgentPage() {
   }, [effectiveRole, selectedRole, setSelectedRole])
 
   const { agentData, loading, error } = useAgentDetail(selectedRole)
-  const { fileTree: workspaceFiles } = useWorkspaceFiles(DEFAULT_WORKSPACE)
+  const { fileTree: workspaceFiles } = useWorkspaceFiles(currentWorkspace)
 
   const logEndRef = useRef<HTMLDivElement>(null)
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)

@@ -525,29 +525,44 @@ export function AIAssistantInterface() {
           </Button>
         }
       >
-        <div className="grid grid-cols-2 gap-2">
-          {ROLES.map((r) => {
-            const isAlreadyIn = sessionAgents.includes(r)
-            const meta = ROLE_META[r]
-            return (
-              <button
-                key={r}
-                type="button"
-                disabled={isAlreadyIn}
-                onClick={() => handleAddAgentToSession(r)}
-                className={cx(
-                  'flex flex-col items-center gap-1.5 rounded-[var(--r-control)] border p-3',
-                  'text-meta font-medium capitalize transition-colors duration-[var(--d-quick)] ease-standard',
-                  isAlreadyIn
-                    ? 'border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--faint)] opacity-50 cursor-not-allowed'
-                    : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text)] hover:border-[var(--accent-edge)]',
-                )}
-              >
-                <AgentIcon role={r} size={16} />
-                <span>{meta.label}</span>
-              </button>
-            )
-          })}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            {ROLES.map((r) => {
+              const isAlreadyIn = sessionAgents.includes(r)
+              const meta = ROLE_META[r]
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  disabled={isAlreadyIn}
+                  onClick={() => handleAddAgentToSession(r)}
+                  className={cx(
+                    'flex flex-col items-center gap-1.5 rounded-[var(--r-control)] border p-3',
+                    'text-meta font-medium capitalize transition-colors duration-[var(--d-quick)] ease-standard',
+                    isAlreadyIn
+                      ? 'border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--faint)] opacity-50 cursor-not-allowed'
+                      : 'border-[var(--border)] bg-[var(--panel-2)] text-[var(--text)] hover:border-[var(--accent-edge)]',
+                  )}
+                >
+                  <AgentIcon role={r} size={16} />
+                  <span>{meta.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="pt-2 border-t border-[var(--border-soft)] text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddAgentModal(false)
+                navigate('/projects/default/agents')
+              }}
+              className="text-[12px] text-[var(--accent)] hover:underline font-medium cursor-pointer"
+            >
+              Need per-agent tasks and custom ordering? Open the full builder →
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

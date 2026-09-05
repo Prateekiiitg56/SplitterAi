@@ -6,7 +6,7 @@
 
 /* ── Domain Role & Status Enums ────────────────────────────────── */
 
-export type AgentRole = 'planner' | 'coder' | 'auditor' | 'tester'
+export type AgentRole = 'planner' | 'coder' | 'auditor' | 'tester' | 'unassigned'
 export type SubtaskStatus = 'pending' | 'running' | 'success' | 'error' | 'queued' | 'working' | 'completed' | 'failed' | 'stopped'
 export type RunStatus = 'idle' | 'planning' | 'executing' | 'done' | 'error'
 export type AgentStatus = 'idle' | 'queued' | 'working' | 'paused' | 'completed' | 'failed' | 'stopped'

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, CheckSquare, Users, FolderTree, Terminal, GitBranch } from 'lucide-react'
-import { DEFAULT_WORKSPACE } from '../config'
+import { useApp } from '../context/AppContext'
 import { cx } from '../lib/cx'
 
 /**
@@ -24,6 +24,7 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
   const { projectId = 'default' } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const { currentWorkspace } = useApp()
 
   const tabs = [
     { id: `/projects/${projectId}`, label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -48,9 +49,9 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
           </h1>
           <span
             className="font-mono text-micro text-[var(--faint)] truncate max-w-[220px] tabular-nums"
-            title={DEFAULT_WORKSPACE}
+            title={currentWorkspace}
           >
-            {projectId === 'default' ? 'SplitterAI workspace' : projectId}
+            {projectId === 'default' ? currentWorkspace : projectId}
           </span>
         </div>
 

@@ -1,9 +1,12 @@
-import React, { createContext, useContext } from 'react'
+import React, { createContext, useContext, useState } from 'react'
 import { useSessions } from '../hooks/useSessions'
 import { useAgentRunner } from '../hooks/useAgentRunner'
+import { DEFAULT_WORKSPACE } from '../config'
 import type { Subtask, LogEntry, RunStatus, SessionEntry } from '../types'
 
 interface AppContextType {
+  currentWorkspace: string
+  setCurrentWorkspace: (workspace: string) => void
   sessions: SessionEntry[]
   sessionsLoading: boolean
   sessionsError: string | null
@@ -23,6 +26,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [currentWorkspace, setCurrentWorkspace] = useState<string>(DEFAULT_WORKSPACE)
   const { sessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions } = useSessions()
   const {
     subtasks,
@@ -40,6 +44,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider
       value={{
+        currentWorkspace,
+        setCurrentWorkspace,
         sessions,
         sessionsLoading,
         sessionsError,
