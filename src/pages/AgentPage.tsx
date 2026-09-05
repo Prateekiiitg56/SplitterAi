@@ -1,9 +1,11 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
-import { ArrowLeft, FileText, ChevronRight, RefreshCw, X } from 'lucide-react'
+import { ArrowLeft, FileText, ChevronRight, RefreshCw } from 'lucide-react'
 import { ROLE_META } from '../data'
 import type { AgentRole, LogEntry, AgentStatus } from '../types'
 import { AgentIcon, StatusBadge } from '../components/Badges'
+import { Modal } from '../components/primitives/Modal'
+import { Button } from '../components/primitives/Button'
 import { useAgentDetail } from '../hooks/useAgentDetail'
 import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
 import { useUI } from '../context/UIContext'
@@ -158,8 +160,8 @@ export function AgentPage() {
                 <div className="space-y-1">
                   {workspaceFiles.slice(0, 15).map((f) => (
                     <div
-                      key={f.path}
-                      onClick={() => setSelectedFilePath(f.path)}
+                      key={f.path || f.name}
+                      onClick={() => setSelectedFilePath(f.path || null)}
                       className="file-row flex items-center gap-2 py-1.5 px-2 rounded hover:bg-[var(--panel-2)] cursor-pointer text-[var(--dim)] transition-colors"
                     >
                       <FileText size={12} className="text-[var(--faint)] flex-shrink-0" />
@@ -174,35 +176,23 @@ export function AgentPage() {
         </div>
       </div>
 
-      {/* Code Inspector Drawer */}
-      {selectedFilePath && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[var(--radius)] p-5 max-w-[600px] w-full space-y-3 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-2">
-              <h3 className="text-[14px] font-mono text-[var(--text)] font-semibold flex items-center gap-2">
-                <FileText size={14} className="text-[var(--accent)]" />
-                <span>{selectedFilePath}</span>
-              </h3>
-              <button onClick={() => setSelectedFilePath(null)} className="text-[var(--faint)] hover:text-[var(--text)]">
-                <X size={15} />
-              </button>
-            </div>
-
-            <div className="p-3 bg-[var(--bg)] border border-[var(--border-soft)] rounded font-mono text-[11.5px] text-[var(--text)] max-h-[300px] overflow-y-auto">
-              <code>// Inspected file context: {selectedFilePath}</code>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                onClick={() => setSelectedFilePath(null)}
-                className="px-3.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-[12px] text-[var(--text)]"
-              >
-                Close
-              </button>
-            </div>
-          </div>
+      {/* Code Inspector */}
+      <Modal
+        open={!!selectedFilePath}
+        onClose={() => setSelectedFilePath(null)}
+        title="File inspector"
+        description={selectedFilePath ? <span className="font-mono">{selectedFilePath}</span> : undefined}
+        width={600}
+        footer={
+          <Button variant="ghost" size="md" onClick={() => setSelectedFilePath(null)}>
+            Close
+          </Button>
+        }
+      >
+        <div className="p-3 bg-[var(--bg-inset)] border border-[var(--border-soft)] rounded-control font-mono text-[11.5px] text-[var(--text)] max-h-[300px] overflow-y-auto">
+          <code>// Inspected file context: {selectedFilePath}</code>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }

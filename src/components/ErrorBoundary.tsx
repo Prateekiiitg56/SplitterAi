@@ -38,24 +38,24 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[#0B0C10] text-white font-sans text-center min-h-[400px]">
-          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-8 max-w-[500px] w-full space-y-4 shadow-xl">
-            <div className="w-12 h-12 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center mx-auto">
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[var(--bg)] text-[var(--text)] font-sans text-center min-h-[400px]">
+          <div className="rounded-panel border border-[var(--bad-quiet)] bg-[var(--bad-dim)] p-8 max-w-[500px] w-full space-y-4 shadow-[var(--shadow-float)]">
+            <div className="w-12 h-12 rounded-control bg-[var(--bad-dim)] text-[var(--bad)] flex items-center justify-center mx-auto border border-[var(--bad-quiet)]">
               <AlertTriangle size={24} />
             </div>
 
-            <h2 className="text-[18px] font-bold text-white">
+            <h2 className="text-[18px] font-bold text-[var(--text)]">
               {this.props.fallbackTitle || 'Something went wrong loading this page'}
             </h2>
 
-            <p className="text-[12.5px] text-neutral-300 font-mono leading-relaxed bg-[#101218] p-3 rounded-xl border border-white/10 text-left overflow-x-auto">
+            <p className="text-[12.5px] text-[var(--text-2)] font-mono leading-relaxed bg-[var(--bg-inset)] p-3 rounded-control border border-[var(--border)] text-left overflow-x-auto">
               {this.state.error?.message || 'An unexpected error occurred during rendering.'}
             </p>
 
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 onClick={this.handleGoHome}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-neutral-200 text-[13px] font-semibold transition-colors cursor-pointer border border-white/10"
+                className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--panel-2)] hover:bg-[var(--panel-3)] text-[var(--text-2)] text-[13px] font-semibold transition-colors cursor-pointer border border-[var(--border)]"
               >
                 <Home size={14} />
                 <span>Back to Home</span>
@@ -63,7 +63,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
               <button
                 onClick={this.handleReset}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#6E56CF] hover:bg-[#5E46BF] text-white text-[13px] font-semibold transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-[13px] font-semibold transition-colors cursor-pointer"
               >
                 <RefreshCw size={14} />
                 <span>Retry</span>

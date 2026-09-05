@@ -4,7 +4,10 @@ import { useApp } from '../context/AppContext'
 import { ROLE_META, AVAILABLE_MODELS } from '../data'
 import type { AgentRole, AgentStatus, ModelOption } from '../types'
 import { AgentIcon, StatusBadge } from '../components/Badges'
-import { Search, Plus, X } from 'lucide-react'
+import { Search, Plus } from 'lucide-react'
+import { Modal } from '../components/primitives/Modal'
+import { Button } from '../components/primitives/Button'
+import { TextAreaField, SelectField } from '../components/primitives/Field'
 
 export default function AgentsOverviewPage() {
   const navigate = useNavigate()
@@ -185,7 +188,7 @@ export default function AgentsOverviewPage() {
               <div
                 key={agent.role}
                 onClick={() => navigate(`/agents/${agent.role}`)}
-                className="agent-card border border-[var(--border-soft)] rounded-[var(--radius)] p-3.5 bg-[var(--panel)] flex flex-col gap-3 hover:border-[#2A3B52] hover:shadow-[0_6px_20px_rgba(0,0,0,0.28)] cursor-pointer transition-all"
+                className="agent-card border border-[var(--border-soft)] rounded-[var(--radius)] p-3.5 bg-[var(--panel)] flex flex-col gap-3 hover:border-[var(--border-strong)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.28)] cursor-pointer transition-all"
               >
                 {/* Agent Card Top */}
                 <div className="agent-card-top flex items-center justify-between">

@@ -209,7 +209,7 @@ export default function IntegrationsPage() {
             <div className="int-card border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
               <div>
                 <div className="int-card-top flex items-center gap-2.5 mb-2">
-                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-indigo-400">
+                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-[var(--accent)]">
                     <GitBranch size={15} />
                   </div>
                   <div>
@@ -237,7 +237,7 @@ export default function IntegrationsPage() {
             <div className="int-card border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
               <div>
                 <div className="int-card-top flex items-center gap-2.5 mb-2">
-                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-purple-400">
+                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-[var(--accent)]">
                     <Server size={15} />
                   </div>
                   <div>
@@ -265,7 +265,7 @@ export default function IntegrationsPage() {
             <div className="int-card border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
               <div>
                 <div className="int-card-top flex items-center gap-2.5 mb-2">
-                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-blue-400">
+                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-[var(--accent)]">
                     <Database size={15} />
                   </div>
                   <div>

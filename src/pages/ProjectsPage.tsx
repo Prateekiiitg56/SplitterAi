@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { Search, Plus, Trash2, Edit2, X } from 'lucide-react'
+import { Search, Plus, Trash2, Edit2 } from 'lucide-react'
 import type { SessionEntry } from '../types'
 import { StatusBadge } from '../components/Badges'
+import { Modal } from '../components/primitives/Modal'
+import { Button } from '../components/primitives/Button'
+import { TextField } from '../components/primitives/Field'
 
 export default function ProjectsPage() {
   const navigate = useNavigate()
@@ -22,15 +25,16 @@ export default function ProjectsPage() {
       (s.task || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.workspace || '').toLowerCase().includes(searchTerm.toLowerCase())
 
+    const stStr = (s.status as string) || ''
     const matchesStatus =
       statusFilter === 'all'
         ? true
         : statusFilter === 'completed'
-        ? s.status === 'done' || s.status === 'success' || s.status === 'completed'
+        ? stStr === 'done' || stStr === 'success' || stStr === 'completed'
         : statusFilter === 'working'
-        ? s.status === 'working' || s.status === 'running' || s.status === 'planning'
+        ? stStr === 'working' || stStr === 'running' || stStr === 'planning' || stStr === 'executing'
         : statusFilter === 'failed'
-        ? s.status === 'error' || s.status === 'failed'
+        ? stStr === 'error' || stStr === 'failed'
         : true
 
     return matchesSearch && matchesStatus
@@ -132,7 +136,8 @@ export default function ProjectsPage() {
             {filtered.map((s) => {
               const projName = s.task || s.workspace.split(/[/\\]/).pop() || 'Untitled Project'
               const projPath = s.workspace || '~/dev/splitter-ai'
-              const agentCount = s.subtask_count || 4
+              const agentCount = s.subtaskCount || 4
+              const createdAt = s.createdAt
 
               return (
                 <div
@@ -154,7 +159,7 @@ export default function ProjectsPage() {
                   </div>
 
                   <div className="tmeta text-[var(--dim)] font-mono text-[11.5px]">
-                    {s.created_at ? new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
+                    {createdAt ? new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -185,40 +190,34 @@ export default function ProjectsPage() {
       </div>
 
       {/* Rename Modal */}
-      {editingSession && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[var(--radius)] p-5 max-w-[400px] w-full space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-2">
-              <h3 className="text-[14.5px] font-semibold text-[var(--text)]">Rename Project</h3>
-              <button onClick={() => setEditingSession(null)} className="text-[var(--faint)] hover:text-[var(--text)]">
-                <X size={15} />
-              </button>
-            </div>
-
-            <input
-              type="text"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-[13px] text-[var(--text)] outline-none focus:border-[var(--accent)] font-sans"
-            />
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setEditingSession(null)}
-                className="px-3 py-1.5 rounded border border-[var(--border)] text-[12px] text-[var(--dim)] hover:text-[var(--text)]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveRename}
-                className="px-4 py-1.5 rounded bg-[var(--accent)] text-[var(--bg)] font-semibold text-[12px]"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!editingSession}
+        onClose={() => setEditingSession(null)}
+        title="Rename project"
+        width={400}
+        footer={
+          <>
+            <Button variant="ghost" size="md" onClick={() => setEditingSession(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="md" onClick={saveRename} disabled={!renameValue.trim()}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <TextField
+          label="Project name"
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              saveRename()
+            }
+          }}
+        />
+      </Modal>
     </div>
   )
 }

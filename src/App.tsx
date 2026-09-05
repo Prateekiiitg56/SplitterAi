@@ -1,7 +1,5 @@
-import React from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
-import Background3D from './components/Background3D'
 import AgentPage from './pages/AgentPage'
 import AgentsOverviewPage from './pages/AgentsOverviewPage'
 import IntegrationsPage from './pages/IntegrationsPage'

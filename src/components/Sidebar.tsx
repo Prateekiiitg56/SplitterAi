@@ -1,5 +1,15 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  Home,
+  FolderKanban,
+  Bot,
+  Blocks,
+  GitBranch,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 import { StatusDot } from './Badges'
+import { cx } from '../lib/cx'
 import type { SessionEntry } from '../types'
 
 interface SidebarProps {
@@ -12,153 +22,197 @@ interface SidebarProps {
   onToggleCollapse?: () => void
 }
 
+const NAV = [
+  { id: '/', label: 'Home', icon: Home },
+  { id: '/projects', label: 'Projects', icon: FolderKanban },
+  { id: '/agents', label: 'Agents', icon: Bot },
+  { id: '/integrations', label: 'Integrations', icon: Blocks },
+  { id: '/flow', label: 'Flow', icon: GitBranch },
+]
+
 export default function Sidebar({
+  collapsed = false,
   sessions = [],
   selectedSession,
   onSelectSession,
   currentPath,
+  onToggleCollapse,
 }: SidebarProps) {
-  let navigate = (path: string) => { window.location.href = path }
-  try {
-    const nav = useNavigate()
-    if (typeof nav === 'function') navigate = nav
-  } catch { /* fallback */ }
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  const mainNav = [
-    {
-      id: '/',
-      label: 'Home',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5 flex-shrink-0">
-          <path d="M4 11l8-7 8 7M6 10v9a1 1 0 001 1h4v-6h2v6h4a1 1 0 001-1v-9" />
-        </svg>
-      ),
-    },
-    {
-      id: '/projects',
-      label: 'Projects',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5 flex-shrink-0">
-          <rect x="3" y="6" width="18" height="14" rx="2" /><path d="M3 6l3-3h5l2 3" />
-        </svg>
-      ),
-    },
-    {
-      id: '/agents',
-      label: 'Agents',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5 flex-shrink-0">
-          <circle cx="8" cy="8" r="3" /><circle cx="17" cy="8" r="3" /><path d="M2 20c0-3 2.5-5 6-5s6 2 6 5M12 20c0-3 2.5-5 6-5" />
-        </svg>
-      ),
-    },
-    {
-      id: '/integrations',
-      label: 'Integrations',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5 flex-shrink-0">
-          <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
-        </svg>
-      ),
-    },
-    {
-      id: '/flow',
-      label: 'Flow',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-3.5 h-3.5 flex-shrink-0">
-          <circle cx="5" cy="6" r="2.3" /><circle cx="5" cy="18" r="2.3" /><circle cx="19" cy="12" r="2.3" /><path d="M7 6h5a3 3 0 013 3v0M7 18h5a3 3 0 003-3v0M17 12h-2" />
-        </svg>
-      ),
-    },
-  ]
+  const isActive = (id: string) =>
+    id === '/' ? location.pathname === '/' : location.pathname.startsWith(id)
 
   return (
-    <aside className="w-[212px] min-w-[212px] bg-[var(--panel)] border-r border-[var(--border-soft)] flex flex-col p-4 select-none text-[var(--text)] font-sans h-full">
-      
+    <aside
+      className={cx(
+        'h-full flex flex-col select-none bg-[var(--bg)]',
+        'border-r border-[var(--border-soft)] transition-[width] duration-[var(--d-base)] ease-standard',
+        collapsed ? 'w-16 min-w-16' : 'w-[212px] min-w-[212px]',
+      )}
+      aria-label="Primary"
+    >
       {/* Brand */}
-      <div className="brand flex items-center gap-2.5 pb-5 px-2">
-        <div className="brand-mark w-5 h-5 rounded-md border border-[var(--border)] flex items-center justify-center text-[var(--accent)] flex-shrink-0">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+      <div
+        className={cx(
+          'flex items-center gap-2.5 h-14 px-4 flex-shrink-0 border-b border-[var(--border-soft)]',
+          collapsed && 'justify-center px-0',
+        )}
+      >
+        <span
+          className="w-6 h-6 rounded-[var(--r-control)] border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
             <circle cx="12" cy="5" r="2.4" /><circle cx="5" cy="19" r="2.4" /><circle cx="19" cy="19" r="2.4" /><path d="M12 7.4V12M12 12L6.3 17M12 12l5.7 5" />
           </svg>
-        </div>
-        <div className="brand-name font-semibold text-[13.5px] tracking-tight text-[var(--text)]">
-          SplitterAI
-        </div>
-      </div>
-
-      {/* Navigation Group */}
-      <div className="nav-group mb-5">
-        <div className="nav-label font-mono text-[10px] text-[var(--faint)] tracking-wider px-2.5 pb-2 uppercase font-bold">
-          WORKSPACE
-        </div>
-
-        {mainNav.map((item) => {
-          const isActive = item.id === '/' ? currentPath === '/' : currentPath.startsWith(item.id)
-          return (
-            <button
-              key={item.id}
-              onClick={() => navigate(item.id)}
-              className={`nav-item flex items-center gap-2.5 px-2.5 py-1.5 rounded-md font-medium text-[12.5px] transition-colors cursor-pointer w-full text-left mb-0.5 ${
-                isActive
-                  ? 'bg-[var(--panel-2)] text-[var(--text)] font-semibold'
-                  : 'text-[var(--dim)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]'
-              }`}
-            >
-              <span className={isActive ? 'text-[var(--accent)]' : 'text-[var(--faint)]'}>
-                {item.icon}
-              </span>
-              <span>{item.label}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Active Sessions */}
-      <div className="nav-label font-mono text-[10px] text-[var(--faint)] tracking-wider px-2.5 pb-2 uppercase font-bold">
-        ACTIVE SESSIONS
-      </div>
-
-      <div className="sessions-list flex-1 overflow-y-auto space-y-0.5">
-        {sessions.length === 0 ? (
-          <div className="px-2.5 py-1.5 font-mono text-[11px] text-[var(--faint)] italic">
-            No active session runs
-          </div>
-        ) : (
-          sessions.map((s) => {
-            const isSelected = selectedSession === s.id
-            const statusStr = (s.status || 'idle').toLowerCase()
-
-            return (
-              <button
-                key={s.id}
-                onClick={() => {
-                  onSelectSession(s.id)
-                  navigate(`/projects/${s.id || 'default'}`)
-                }}
-                className={`session-item flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] transition-colors cursor-pointer w-full text-left truncate ${
-                  isSelected
-                    ? 'bg-[var(--panel-2)] text-[var(--text)] font-semibold'
-                    : 'text-[var(--dim)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]'
-                }`}
-              >
-                <StatusDot status={statusStr} />
-                <span className="truncate">{s.task || s.workspace.split(/[/\\]/).pop() || 'Untitled Session'}</span>
-              </button>
-            )
-          })
+        </span>
+        {!collapsed && (
+          <span className="font-semibold text-[13.5px] tracking-tight text-[var(--text)]">
+            Splitter
+          </span>
         )}
       </div>
 
-      {/* Sidebar Footer */}
-      <div className="sidebar-foot border-t border-[var(--border-soft)] pt-3 mt-2 flex items-center gap-2.5">
-        <div className="avatar w-5.5 h-5.5 rounded-full bg-[var(--panel-2)] border border-[var(--border)] flex items-center justify-center font-mono text-[10px] text-[var(--dim)] font-bold flex-shrink-0">
-          P
+      {/* Nav */}
+      <nav
+        className={cx('flex-1 overflow-y-auto py-4', !collapsed && 'px-3')}
+        aria-label="Workspace"
+      >
+        {!collapsed && (
+          <p className="px-2 pb-2 text-meta font-medium text-[var(--faint)]">Workspace</p>
+        )}
+
+        <ul className="space-y-0.5">
+          {NAV.map(({ id, label, icon: Icon }) => {
+            const active = isActive(id)
+            return (
+              <li key={id}>
+                <button
+                  type="button"
+                  onClick={() => navigate(id)}
+                  title={collapsed ? label : undefined}
+                  aria-current={active ? 'page' : undefined}
+                  className={cx(
+                    'relative w-full flex items-center gap-2.5 rounded-[var(--r-control)]',
+                    'text-meta font-medium text-left transition-colors duration-[var(--d-quick)] ease-standard',
+                    collapsed ? 'justify-center h-9' : 'px-2 h-8',
+                    active
+                      ? 'bg-[var(--panel-2)] text-[var(--text)]'
+                      : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]',
+                  )}
+                >
+                  {/* Active indicator: the structure encodes which area you are in. */}
+                  {active && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-[var(--accent)]"
+                    />
+                  )}
+                  <Icon
+                    size={16}
+                    className={cx('flex-shrink-0', active ? 'text-[var(--accent)]' : 'text-[var(--faint)]')}
+                  />
+                  {!collapsed && <span className="truncate">{label}</span>}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+
+        {/* Active sessions */}
+        <div className={cx('mt-6', collapsed && 'px-0')}>
+          {!collapsed && (
+            <p className="px-2 pb-2 text-meta font-medium text-[var(--faint)]">Active sessions</p>
+          )}
+          <ul className="space-y-0.5">
+            {sessions.length === 0 ? (
+              <li className={cx('text-[11px] text-[var(--faint)]', collapsed ? 'hidden' : 'px-2 py-1.5')}>
+                No active runs
+              </li>
+            ) : (
+              sessions.map((s) => {
+                const selected = selectedSession === s.id
+                const statusStr = (s.status || 'idle').toLowerCase()
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectSession(s.id)
+                        navigate(`/projects/${s.id || 'default'}`)
+                      }}
+                      title={collapsed ? s.task || 'Session' : undefined}
+                      className={cx(
+                        'relative w-full flex items-center gap-2.5 rounded-[var(--r-control)]',
+                        'text-meta transition-colors duration-[var(--d-quick)] ease-standard',
+                        collapsed ? 'justify-center h-9' : 'px-2 h-8',
+                        selected
+                          ? 'bg-[var(--panel-2)] text-[var(--text)]'
+                          : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]',
+                      )}
+                    >
+                      {selected && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-[var(--accent)]"
+                        />
+                      )}
+                      <StatusDot status={statusStr} />
+                      {!collapsed && (
+                        <span className="truncate">
+                          {s.task || (s.workspace || '').split(/[/\\]/).pop() || 'Untitled session'}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )
+              })
+            )}
+          </ul>
         </div>
-        <div className="foot-meta min-w-0">
-          <div className="name font-medium text-[11px] text-[var(--text)] truncate">Developer Workspace</div>
-          <div className="status text-[10.5px] text-[var(--faint)]">Active</div>
-        </div>
+      </nav>
+
+      {/* Footer — the only thing here is the collapse toggle and the account. */}
+      <div
+        className={cx(
+          'flex items-center gap-2.5 border-t border-[var(--border-soft)] flex-shrink-0',
+          collapsed ? 'justify-center h-12 px-0' : 'h-12 px-3',
+        )}
+      >
+        {!collapsed && (
+          <span
+            className="w-6 h-6 rounded-full bg-[var(--panel-2)] border border-[var(--border)] flex items-center justify-center font-mono text-[10px] text-[var(--dim)] font-bold flex-shrink-0"
+            aria-hidden="true"
+          >
+            P
+          </span>
+        )}
+        {!collapsed && (
+          <span className="min-w-0">
+            <span className="block text-[11.5px] font-medium text-[var(--text)] truncate">
+              Developer workspace
+            </span>
+            <span className="block text-[10.5px] text-[var(--faint)]">Active</span>
+          </span>
+        )}
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={cx(
+              'flex items-center justify-center rounded-[var(--r-control)]',
+              'text-[var(--faint)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
+              'transition-colors duration-[var(--d-quick)] ease-standard',
+              'w-6 h-6 flex-shrink-0',
+              !collapsed && 'ml-auto',
+            )}
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        )}
       </div>
     </aside>
   )

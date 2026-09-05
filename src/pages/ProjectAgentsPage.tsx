@@ -16,13 +16,13 @@ export default function ProjectAgentsPage() {
 
   return (
     <ProjectTabShell>
-      <div className="flex-1 overflow-y-auto p-8 text-white space-y-6">
+      <div className="flex-1 overflow-y-auto p-8 text-[var(--text)] space-y-6">
         <div>
-          <h2 className="text-[20px] font-bold text-white tracking-tight flex items-center gap-2.5">
-            <Users size={20} className="text-[#9D8CFC]" />
+          <h2 className="text-[20px] font-bold text-[var(--text)] tracking-tight flex items-center gap-2.5">
+            <Users size={20} className="text-[var(--accent)]" />
             <span>Assigned Project Agents</span>
           </h2>
-          <p className="text-[13px] text-neutral-400 mt-0.5">
+          <p className="text-[13px] text-[var(--dim)] mt-0.5">
             Worker agents configured for this workspace project.
           </p>
         </div>
@@ -33,28 +33,28 @@ export default function ProjectAgentsPage() {
             return (
               <div
                 key={a.role}
-                className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6 flex flex-col justify-between gap-5 hover:border-white/[0.14] transition-all"
+                className="rounded-panel border border-[var(--border-soft)] bg-[var(--panel)] p-6 flex flex-col justify-between gap-5 hover:border-[var(--border)] transition-all"
               >
                 <div className="flex items-start justify-between">
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center shadow-xs"
+                    className="w-10 h-10 rounded-control flex items-center justify-center shadow-xs"
                     style={{ backgroundColor: `${meta.color}22` }}
                   >
                     <a.icon size={20} style={{ color: meta.color }} />
                   </div>
-                  <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-400/10 text-emerald-400 border border-emerald-400/20">
+                  <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[var(--good-quiet)] text-[var(--good)] border border-[var(--good-quiet)]">
                     Ready
                   </span>
                 </div>
 
                 <div>
-                  <h3 className="text-[16px] font-bold text-white">{a.name}</h3>
-                  <p className="text-[13px] text-neutral-400 mt-1 leading-relaxed">{a.desc}</p>
+                  <h3 className="text-[16px] font-bold text-[var(--text)]">{a.name}</h3>
+                  <p className="text-[13px] text-[var(--dim)] mt-1 leading-relaxed">{a.desc}</p>
                 </div>
 
                 <button
                   onClick={() => navigate(`/agents/${a.role}`)}
-                  className="flex items-center justify-between pt-4 border-t border-white/[0.06] text-[13px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                  className="flex items-center justify-between pt-4 border-t border-[var(--border-soft)] text-[13px] font-semibold text-[var(--accent)] hover:brightness-110 transition-colors cursor-pointer"
                 >
                   <span>Open Agent Workspace</span>
                   <ArrowRight size={14} />

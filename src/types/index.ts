@@ -113,9 +113,14 @@ export interface FileNode {
   type: 'file' | 'dir' | 'folder'
   children?: FileNode[]
   size?: number | string
+  modifiedBy?: string
 }
 
 export type File = FileNode
+
+/* ── Re-exported API Types ───────────────────────────────────────── */
+export type { SubtaskResult, LogEvent } from '../lib/api'
+
 
 export interface QuotaInfo {
   provider: string

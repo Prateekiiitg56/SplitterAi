@@ -19,6 +19,8 @@ export type {
   MCPServer,
   ExecutionMode,
   ModelOption,
+  SubtaskResult,
+  LogEvent,
 } from './types'
 
 import type { AgentRole, SubtaskStatus, ModelOption } from './types'

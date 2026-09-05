@@ -11,7 +11,7 @@ export default function ProjectActivityPage() {
 
   return (
     <ProjectTabShell>
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-[#121723]">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-[var(--bg)]">
         <LogStream logs={filteredLogs} filter={logFilter} onClearFilter={() => setLogFilter(null)} />
       </div>
     </ProjectTabShell>
