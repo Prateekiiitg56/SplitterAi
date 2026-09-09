@@ -77,7 +77,7 @@ export default function ConsolePreview() {
     <div className="w-full max-w-[800px] mx-auto">
       {/* Browser chrome frame */}
       <div
-        className="rounded-[var(--r-float)] border border-[var(--border)] overflow-hidden shadow-[var(--shadow-float)]"
+        className="rounded-float border border-[var(--border)] overflow-hidden shadow-[var(--shadow-float)]"
         style={{ backgroundColor: 'var(--panel)' }}
       >
         {/* Title bar */}
@@ -112,7 +112,7 @@ export default function ConsolePreview() {
                   key={st.id}
                   className={cx(
                     'flex items-center gap-2 px-2 py-1.5 rounded-control',
-                    'transition-colors duration-300',
+                    'transition-colors duration-[var(--d-base)] ease-standard',
                     status === 'working' ? 'bg-[var(--panel-2)]' : '',
                   )}
                 >

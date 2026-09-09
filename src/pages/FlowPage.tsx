@@ -6,6 +6,8 @@ import { ROLE_META } from '../data'
 import { X, Layers, Upload, Play, AlertTriangle } from 'lucide-react'
 import type { AgentRole, Subtask } from '../types'
 import { importN8nWorkflow } from '../lib/api'
+import { PageHeader } from '../components/PageHeader'
+import { Button } from '../components/primitives/Button'
 
 interface FlowNodeData {
   id: string
@@ -261,55 +263,44 @@ export default function FlowPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
       
-      {/* Topbar */}
-      <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
-        <div className="topbar-left flex items-center gap-2.5">
-          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Agent Flow Canvas</h1>
-          <span className="topbar-crumb font-mono text-[11px] text-[var(--faint)]">({importedTaskTitle})</span>
-        </div>
-
-        <div className="topbar-right flex items-center gap-2.5">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <Upload size={13} className="text-[var(--accent)]" />
-            <span>Import n8n workflow</span>
-          </button>
-
-          <button
-            onClick={handleLaunchPlan}
-            disabled={unassignedCount > 0}
-            className={`font-semibold text-xs px-3.5 py-1.5 rounded-md border flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
-              unassignedCount > 0
-                ? 'opacity-50 cursor-not-allowed border-[var(--border-soft)] text-[var(--faint)] bg-[var(--panel-2)]'
-                : 'bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)] hover:brightness-110'
-            }`}
-          >
-            <Play size={13} />
-            <span>Confirm & launch plan</span>
-          </button>
-        </div>
-      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <PageHeader
+        title="Agent Flow Canvas"
+        meta={`(${importedTaskTitle})`}
+        actions={
+          <>
+            <Button variant="ghost" size="sm" icon={<Upload size={13} />} onClick={() => fileInputRef.current?.click()}>
+              Import n8n workflow
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Play size={13} />}
+              disabled={unassignedCount > 0}
+              onClick={handleLaunchPlan}
+            >
+              Confirm & launch plan
+            </Button>
+          </>
+        }
+      />
 
       {/* Error or Warning Banners */}
       {importError && (
-        <div className="mx-5 mt-3 p-3 rounded border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px] flex items-center justify-between flex-shrink-0">
+        <div className="mx-5 mt-3 p-3 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
           <span>⚠️ <strong>Import Error:</strong> {importError}</span>
           <button onClick={() => setImportError(null)} className="font-bold hover:underline">✕</button>
         </div>
       )}
 
       {unassignedCount > 0 && !importError && (
-        <div className="mx-5 mt-3 p-2.5 rounded border border-[var(--warning)] bg-[var(--warning-dim)] text-[var(--warning)] text-[12px] flex items-center gap-2 flex-shrink-0">
+        <div className="mx-5 mt-3 p-2.5 rounded border border-[var(--warn)] bg-[var(--warn-quiet)] text-[var(--warn)] text-meta flex items-center gap-2 flex-shrink-0">
           <AlertTriangle size={14} className="flex-shrink-0" />
           <span>
             <strong>Role Required:</strong> {unassignedCount} node(s) have role <code>"unassigned"</code>. Click a node to assign its role before launching.
@@ -351,7 +342,7 @@ export default function FlowPage() {
                 onPointerUp={(e) => handlePointerUp(node.id, e)}
                 className={`flow-node absolute w-[184px] border rounded-[8px] bg-[var(--panel)] p-3 cursor-grab select-none shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-colors ${
                   isUnassigned
-                    ? 'border-[var(--warning)] bg-[var(--panel)]'
+                    ? 'border-[var(--warn)] bg-[var(--panel)]'
                     : isSelected
                     ? 'border-[var(--accent)] shadow-[0_0_0_1px_var(--accent)]'
                     : 'border-[var(--border-soft)] hover:border-[var(--border)]'
@@ -364,20 +355,20 @@ export default function FlowPage() {
                 {/* Node Top */}
                 <div className="flow-node-top flex items-center gap-2 mb-2">
                   <div className={`flow-node-avatar w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 ${
-                    isUnassigned ? 'border-[var(--warning)] text-[var(--warning)]' : 'border-[var(--border)] text-[var(--accent)]'
+                    isUnassigned ? 'border-[var(--warn)] text-[var(--warn)]' : 'border-[var(--border)] text-[var(--accent)]'
                   }`}>
                     <AgentIcon role={node.agentRole === 'unassigned' ? 'planner' : node.agentRole} size={12} />
                   </div>
                   <div className="min-w-0">
-                    <div className="flow-node-name font-medium text-[12px] text-[var(--text)] truncate">{node.title}</div>
-                    <div className={`flow-node-role font-mono text-[10px] truncate ${isUnassigned ? 'text-[var(--warning)] font-bold' : 'text-[var(--faint)]'}`}>
+                    <div className="flow-node-name font-medium text-meta text-[var(--text)] truncate">{node.title}</div>
+                    <div className={`flow-node-role font-mono text-micro truncate ${isUnassigned ? 'text-[var(--warn)] font-bold' : 'text-[var(--faint)]'}`}>
                       {node.role}
                     </div>
                   </div>
                 </div>
 
                 {/* Node Task */}
-                <div className="flow-node-task text-[10.5px] text-[var(--dim)] line-clamp-2 leading-relaxed mb-2">
+                <div className="flow-node-task text-micro text-[var(--dim)] line-clamp-2 leading-relaxed mb-2">
                   {node.task}
                 </div>
 
@@ -389,7 +380,7 @@ export default function FlowPage() {
 
         {/* Slide-out Detail Drawer (Editable) */}
         <div
-          className={`flow-drawer absolute top-3.5 right-3.5 bottom-3.5 w-[320px] bg-[var(--panel)] border border-[var(--border-soft)] rounded-[var(--radius)] flex flex-col overflow-hidden shadow-2xl transition-transform duration-200 z-20 ${
+          className={`flow-drawer absolute top-3.5 right-3.5 bottom-3.5 w-[320px] bg-[var(--panel)] border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden shadow-2xl transition-transform duration-[var(--d-slow)] ease-standard z-20 ${
             selectedNode ? 'translate-x-0' : 'translate-x-[120%]'
           }`}
         >
@@ -397,8 +388,8 @@ export default function FlowPage() {
             <>
               <div className="flow-drawer-head flex items-center justify-between p-3.5 border-b border-[var(--border-soft)]">
                 <div>
-                  <h3 className="flow-drawer-title text-[14px] font-semibold text-[var(--text)]">{selectedNode.title}</h3>
-                  <div className="flow-drawer-role font-mono text-[10.5px] text-[var(--faint)]">Group {selectedNode.group}</div>
+                  <h3 className="flow-drawer-title text-strong font-semibold text-[var(--text)]">{selectedNode.title}</h3>
+                  <div className="flow-drawer-role font-mono text-micro text-[var(--faint)]">Group {selectedNode.group}</div>
                 </div>
                 <button onClick={() => setSelectedNodeId(null)} className="text-[var(--faint)] hover:text-[var(--text)] cursor-pointer">
                   <X size={15} />
@@ -408,7 +399,7 @@ export default function FlowPage() {
               <div className="flow-drawer-body p-4 overflow-y-auto flex-1 space-y-4">
                 {/* Editable Agent Role */}
                 <div>
-                  <label className="flow-drawer-section-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
+                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
                     ASSIGNED AGENT ROLE
                   </label>
                   <select
@@ -427,8 +418,8 @@ export default function FlowPage() {
                         },
                       }))
                     }}
-                    className={`w-full bg-[var(--bg-inset)] border rounded px-2.5 py-1.5 font-mono text-[12px] cursor-pointer focus:outline-none ${
-                      selectedNode.agentRole === 'unassigned' ? 'border-[var(--warning)] text-[var(--warning)] font-bold' : 'border-[var(--border)] text-[var(--text)]'
+                    className={`w-full bg-[var(--bg-inset)] border rounded px-2.5 py-1.5 font-mono text-meta cursor-pointer focus:outline-none ${
+                      selectedNode.agentRole === 'unassigned' ? 'border-[var(--warn)] text-[var(--warn)] font-bold' : 'border-[var(--border)] text-[var(--text)]'
                     }`}
                   >
                     <option value="unassigned">⚠️ unassigned (role required)</option>
@@ -441,7 +432,7 @@ export default function FlowPage() {
 
                 {/* Editable Instruction Task */}
                 <div>
-                  <label className="flow-drawer-section-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
+                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
                     SUBTASK INSTRUCTION
                   </label>
                   <textarea
@@ -457,35 +448,35 @@ export default function FlowPage() {
                       }))
                     }}
                     rows={4}
-                    className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded p-2 text-[12px] text-[var(--text)] font-sans focus:outline-none focus:border-[var(--accent)] resize-none"
+                    className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded p-2 text-meta text-[var(--text)] font-sans focus:outline-none focus:border-[var(--accent)] resize-none"
                   />
                 </div>
 
                 <div>
-                  <div className="flow-drawer-section-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
+                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
                     STATUS & PROGRESS
                   </div>
                   <div className="flex items-center justify-between mb-2">
                     <StatusBadge status={selectedNode.status} />
-                    <span className="font-mono text-[11px] text-[var(--dim)]">{selectedNode.progress}%</span>
+                    <span className="font-mono text-micro text-[var(--dim)]">{selectedNode.progress}%</span>
                   </div>
 
                   <div className="progress-track h-[3px] rounded-full bg-[var(--border-soft)] overflow-hidden">
                     <div
-                      className="progress-fill h-full rounded-full transition-all duration-300"
+                      className="progress-fill h-full rounded-full transition-all duration-[var(--d-base)] ease-standard"
                       style={{ width: `${selectedNode.progress}%`, backgroundColor: selectedNode.color }}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <div className="flow-drawer-section-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
+                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
                     REAL-TIME ACTIVITY
                   </div>
                   <div className="space-y-1">
                     {selectedNode.activity.map((act, i) => (
-                      <div key={i} className="activity-item flex gap-2.5 text-[11.5px] py-1.5 border-b border-[var(--border-soft)] last:border-b-0">
-                        <div className="activity-time font-mono text-[10.5px] text-[var(--faint)] whitespace-nowrap">{act[0]}</div>
+                      <div key={i} className="activity-item flex gap-2.5 text-micro py-1.5 border-b border-[var(--border-soft)] last:border-b-0">
+                        <div className="activity-time font-mono text-micro text-[var(--faint)] whitespace-nowrap">{act[0]}</div>
                         <div className="activity-text text-[var(--dim)] leading-relaxed" dangerouslySetInnerHTML={{ __html: act[1] }} />
                       </div>
                     ))}

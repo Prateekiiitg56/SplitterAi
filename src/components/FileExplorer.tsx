@@ -18,6 +18,7 @@ import {
 import { DEFAULT_WORKSPACE } from '../config'
 import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
 import type { FileNode } from '../types'
+import { EmptyState } from './primitives/EmptyState'
 
 interface FileExplorerProps {
   workspace?: string
@@ -106,11 +107,11 @@ function TreeNode({
           ) : (
             <Folder size={14} className="text-[var(--dim)] flex-shrink-0" />
           )}
-          <span className="text-[12px] font-mono font-medium truncate text-[var(--text)] flex-1 text-left">
+          <span className="text-meta font-mono font-medium truncate text-[var(--text)] flex-1 text-left">
             {node.name}
           </span>
           {node.children && (
-            <span className="text-[10px] font-mono text-[var(--faint)] pr-2">{node.children.length}</span>
+            <span className="text-micro font-mono text-[var(--faint)] pr-2">{node.children.length}</span>
           )}
         </button>
 
@@ -154,7 +155,7 @@ function TreeNode({
       >
         {getFileIcon(node.name)}
 
-        <span className="text-[11.5px] font-mono truncate flex-1 text-left">{node.name}</span>
+        <span className="text-meta font-mono truncate flex-1 text-left">{node.name}</span>
 
         {/* Modified in run indicator dot */}
         {isModified && (
@@ -165,12 +166,12 @@ function TreeNode({
         )}
 
         {node.size && (
-          <span className="text-[10px] font-mono text-[var(--faint)] flex-shrink-0 group-hover:hidden">
+          <span className="text-micro font-mono text-[var(--faint)] flex-shrink-0 group-hover:hidden">
             {typeof node.size === 'number' ? `${node.size}B` : node.size}
           </span>
         )}
 
-        <span className="hidden group-hover:flex items-center gap-1 text-[10px] text-[var(--accent)] font-mono flex-shrink-0">
+        <span className="hidden group-hover:flex items-center gap-1 text-micro text-[var(--accent)] font-mono flex-shrink-0">
           <Eye size={10} /> Preview
         </span>
       </button>
@@ -200,28 +201,28 @@ export default function FileExplorer({
       <div className="flex items-center justify-between h-10 px-3.5 border-b border-[var(--border)] flex-shrink-0 bg-[var(--panel-2)]">
         <div className="flex items-center gap-2">
           <Lock size={12} className="text-[var(--accent)]" />
-          <span className="text-[11px] font-mono font-bold tracking-wide text-[var(--text)] uppercase">
+          <span className="text-micro font-mono font-bold tracking-wide text-[var(--text)] uppercase">
             Sandboxed Root
           </span>
         </div>
-        <span className="text-[10px] font-mono text-[var(--faint)] truncate max-w-[120px]" title={workspace}>
+        <span className="text-micro font-mono text-[var(--faint)] truncate max-w-[120px]" title={workspace}>
           {workspace.split(/[/\\]/).pop()}
         </span>
       </div>
 
       {/* Search Input */}
       <div className="p-2 border-b border-[var(--border)] flex-shrink-0 bg-[var(--bg)]">
-        <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[12px] focus-within:border-[var(--accent)] transition-colors">
+        <div className="flex items-center gap-2 px-2.5 py-1 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-meta focus-within:border-[var(--accent)] transition-colors">
           <Search size={13} className="text-[var(--faint)]" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Filter files in workspace..."
-            className="w-full bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-[11px]"
+            className="w-full bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-micro"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="text-[var(--faint)] hover:text-[var(--text)]">
+            <button onClick={() => setSearchQuery('')} className="text-[var(--faint)] hover:text-[var(--text)] cursor-pointer">
               <X size={12} />
             </button>
           )}
@@ -231,23 +232,21 @@ export default function FileExplorer({
       {/* Tree Content */}
       <div className="flex-1 overflow-y-auto p-2 font-mono">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 p-6 text-[var(--faint)] text-[11.5px]">
+          <div className="flex items-center justify-center gap-2 p-6 text-[var(--faint)] text-meta">
             <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
             <span>Scanning directory...</span>
           </div>
         ) : error ? (
-          <div className="p-3 text-[11px] text-[var(--bad)] space-y-1 bg-[rgba(239,68,68,0.05)] rounded border border-[var(--bad-quiet)]">
+          <div className="p-3 text-micro text-[var(--bad)] space-y-1 bg-[rgba(239,68,68,0.05)] rounded border border-[var(--bad-quiet)]">
             <p className="font-semibold">Failed to load workspace</p>
-            <p className="text-[var(--faint)] text-[10px]">{error}</p>
+            <p className="text-[var(--faint)] text-micro">{error}</p>
           </div>
         ) : fileTree.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--faint)] gap-2">
-            <FolderSearch size={24} className="opacity-40" />
-            <p className="text-xs font-semibold text-[var(--text)]">Empty Workspace</p>
-            <p className="text-[11px] text-[var(--faint)] leading-relaxed max-w-[180px]">
-              Files modified by agent execution will appear here.
-            </p>
-          </div>
+          <EmptyState
+            icon={<FolderSearch size={24} />}
+            title="Empty Workspace"
+            detail="Files created or modified by agent workers appear here in real time."
+          />
         ) : (
           fileTree.map(node => (
             <TreeNode
@@ -274,14 +273,14 @@ export default function FileExplorer({
             </div>
             <button
               onClick={() => setPreviewOpen(false)}
-              className="text-[var(--faint)] hover:text-[var(--text)] p-1 rounded hover:bg-[var(--panel)]"
+              className="text-[var(--faint)] hover:text-[var(--text)] p-1 rounded hover:bg-[var(--panel)] cursor-pointer"
             >
               <X size={14} />
             </button>
           </div>
 
-          <div className="flex-1 p-3 overflow-y-auto bg-[var(--bg-inset)] font-mono text-[11px]">
-            <div className="text-[10px] text-[var(--faint)] uppercase tracking-wider mb-2 flex items-center gap-1">
+          <div className="flex-1 p-3 overflow-y-auto bg-[var(--bg-inset)] font-mono text-meta">
+            <div className="text-micro text-[var(--faint)] uppercase tracking-wider mb-2 flex items-center gap-1">
               <FileCheck size={11} className="text-[var(--accent)]" /> Read-only Sandbox Preview
             </div>
             <div className="p-3 rounded bg-[var(--panel)] border border-[var(--border)] text-[var(--text-2)] whitespace-pre-wrap leading-relaxed">

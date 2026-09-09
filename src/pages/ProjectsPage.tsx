@@ -7,7 +7,10 @@ import { StatusBadge } from '../components/Badges'
 import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
 import { TextField } from '../components/primitives/Field'
+import { EmptyState } from '../components/primitives/EmptyState'
+import { Panel } from '../components/primitives/Panel'
 import { uploadWorkspace } from '../lib/api'
+import { PageHeader } from '../components/PageHeader'
 
 export default function ProjectsPage() {
   const navigate = useNavigate()
@@ -95,35 +98,29 @@ export default function ProjectsPage() {
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
       
-      {/* Generic Topbar */}
-      <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
-        <div className="topbar-left flex items-center gap-2.5">
-          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Projects</h1>
-          <span className="topbar-crumb font-mono text-[11.5px] text-[var(--faint)]">/ workspace</span>
-        </div>
-
-        <div className="topbar-right flex items-center gap-2">
-          <button
-            onClick={() => {
-              setSelectedZipFile(null)
-              setUploadError(null)
-              setIsImportModalOpen(true)
-            }}
-            className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all flex items-center gap-1.5 cursor-pointer"
-          >
-            <Upload size={13} className="text-[var(--accent)]" />
-            <span>Import project</span>
-          </button>
-
-          <button
-            onClick={() => navigate('/console')}
-            className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs px-3.5 py-1.5 rounded-md border border-[var(--accent)] hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <Plus size={13} />
-            <span>New project</span>
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Projects"
+        meta="/ workspace"
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Upload size={13} />}
+              onClick={() => {
+                setSelectedZipFile(null)
+                setUploadError(null)
+                setIsImportModalOpen(true)
+              }}
+            >
+              Import project
+            </Button>
+            <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => navigate('/')}>
+              New project
+            </Button>
+          </>
+        }
+      />
 
       {/* Page Body */}
       <div className="page-body flex-1 overflow-y-auto p-6">
@@ -136,31 +133,31 @@ export default function ProjectsPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search projects…"
-              className="bg-transparent border-none outline-none text-[var(--text)] text-[12px] w-full placeholder:text-[var(--faint)] font-sans"
+              className="bg-transparent border-none outline-none text-[var(--text)] text-meta w-full placeholder:text-[var(--faint)] font-sans"
             />
           </div>
 
           <button
             onClick={() => setStatusFilter('all')}
-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             All
           </button>
           <button
             onClick={() => setStatusFilter('working')}
-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Working
           </button>
           <button
             onClick={() => setStatusFilter('completed')}
-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'completed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'completed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Completed
           </button>
           <button
             onClick={() => setStatusFilter('failed')}
-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Failed
           </button>
@@ -168,43 +165,48 @@ export default function ProjectsPage() {
 
         {/* Global Loading / Error State */}
         {sessionsLoading ? (
-          <div className="p-8 text-center text-[var(--dim)] font-mono text-[12px]">Loading workspace projects...</div>
+          <div className="p-8 flex items-center justify-center gap-2 text-[var(--dim)] font-mono text-meta">
+            <Loader2 size={14} className="animate-spin" />
+            <span>Loading workspace projects…</span>
+          </div>
         ) : sessionsError ? (
-          <div className="p-4 rounded-md border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px] flex items-center justify-between">
+          <div className="p-4 rounded-md border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between">
             <span>⚠️ {sessionsError}</span>
-            <button onClick={() => refetchSessions()} className="underline font-bold">Retry</button>
+            <button onClick={() => refetchSessions()} className="underline font-bold hover:text-[var(--text)] transition-colors">Retry</button>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="border border-[var(--border-soft)] rounded-[var(--radius)] p-12 text-center text-[var(--dim)] space-y-3 bg-[var(--panel)]">
-            <p className="text-[14px] font-semibold text-[var(--text)]">No projects found</p>
-            <p className="text-[12px] text-[var(--faint)] font-mono">Import an existing repository or create a new project from Home.</p>
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <button
-                onClick={() => {
-                  setSelectedZipFile(null)
-                  setUploadError(null)
-                  setIsImportModalOpen(true)
-                }}
-                className="btn-secondary inline-flex items-center gap-1.5 text-[var(--text)] font-medium text-[12px] px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer"
-              >
-                <Upload size={13} />
-                <span>Import Project (.zip)</span>
-              </button>
-              <button
-                onClick={() => navigate('/console')}
-                className="btn-primary inline-flex items-center gap-1.5 text-[var(--accent)] font-medium text-[12px] px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer"
-              >
-                <Plus size={13} />
-                <span>Create Project</span>
-              </button>
-            </div>
-          </div>
+          <Panel>
+            <EmptyState
+              icon={<FileArchive size={32} />}
+              title="No projects found"
+              detail="Import an existing repository or create a new project from Home."
+              action={
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Upload size={13} />}
+                    onClick={() => {
+                      setSelectedZipFile(null)
+                      setUploadError(null)
+                      setIsImportModalOpen(true)
+                    }}
+                  >
+                    Import project (.zip)
+                  </Button>
+                  <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => navigate('/')}>
+                    Create project
+                  </Button>
+                </>
+              }
+            />
+          </Panel>
         ) : (
           /* Projects Table */
-          <div className="table border border-[var(--border-soft)] rounded-[var(--radius)] overflow-hidden bg-[var(--panel)]">
+          <div className="table border border-[var(--border-soft)] rounded-panel overflow-hidden bg-[var(--panel)]">
             
             {/* Table Head */}
-            <div className="trow head grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-2.5 border-b border-[var(--border-soft)] text-[var(--faint)] font-mono text-[10px] tracking-wider uppercase font-bold">
+            <div className="trow head grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-2.5 border-b border-[var(--border-soft)] text-[var(--faint)] font-mono text-micro tracking-wider uppercase font-bold">
               <div>PROJECT</div>
               <div>STATUS</div>
               <div>AGENTS</div>
@@ -223,22 +225,22 @@ export default function ProjectsPage() {
                 <div
                   key={s.id}
                   onClick={() => navigate(`/projects/${s.id || 'default'}`)}
-                  className="trow grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-3 border-b border-[var(--border-soft)] text-[12.5px] hover:bg-[var(--panel-2)] cursor-pointer transition-colors last:border-b-0"
+                  className="trow grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-3 border-b border-[var(--border-soft)] text-meta hover:bg-[var(--panel-2)] cursor-pointer transition-colors last:border-b-0"
                 >
                   <div>
                     <div className="tproj-name font-medium text-[var(--text)]">{projName}</div>
-                    <div className="tproj-path text-[var(--faint)] font-mono text-[10.5px] mt-0.5">{projPath}</div>
+                    <div className="tproj-path text-[var(--faint)] font-mono text-micro mt-0.5">{projPath}</div>
                   </div>
 
                   <div>
                     <StatusBadge status={s.status || 'working'} />
                   </div>
 
-                  <div className="tmeta text-[var(--dim)] font-mono text-[11.5px]">
+                  <div className="tmeta text-[var(--dim)] font-mono text-micro">
                     {agentCount} agents
                   </div>
 
-                  <div className="tmeta text-[var(--dim)] font-mono text-[11.5px]">
+                  <div className="tmeta text-[var(--dim)] font-mono text-micro">
                     {createdAt ? new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
                   </div>
 
@@ -336,7 +338,7 @@ export default function ProjectsPage() {
         }
       >
         <div className="space-y-4">
-          <p className="text-[12px] text-[var(--dim)] leading-relaxed">
+          <p className="text-meta text-[var(--dim)] leading-relaxed">
             Upload a <strong>.zip</strong> archive of your repository. It will be safely extracted into a sandboxed server workspace.
           </p>
 
@@ -360,11 +362,11 @@ export default function ProjectsPage() {
               handleFileSelect(e.dataTransfer.files?.[0])
             }}
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-[var(--radius)] p-6 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2.5 ${
+            className={`border-2 border-dashed rounded-panel p-6 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2.5 ${
               isDragOver
-                ? 'border-[var(--accent)] bg-[var(--accent-dim)]'
+                ? 'border-[var(--accent)] bg-[var(--accent-quiet)]'
                 : selectedZipFile
-                ? 'border-[var(--good)] bg-[var(--good-dim)]'
+                ? 'border-[var(--good)] bg-[var(--good-quiet)]'
                 : 'border-[var(--border-soft)] hover:border-[var(--border)] bg-[var(--panel-2)]'
             }`}
           >
@@ -372,26 +374,26 @@ export default function ProjectsPage() {
               <>
                 <FileArchive size={28} className="text-[var(--good)]" />
                 <div>
-                  <p className="text-[13px] font-medium text-[var(--text)]">{selectedZipFile.name}</p>
-                  <p className="text-[11px] font-mono text-[var(--faint)]">
+                  <p className="text-ui font-medium text-[var(--text)]">{selectedZipFile.name}</p>
+                  <p className="text-micro font-mono text-[var(--faint)]">
                     {(selectedZipFile.size / (1024 * 1024)).toFixed(2)} MB
                   </p>
                 </div>
-                <span className="text-[11px] text-[var(--accent)] underline mt-1">Click or drop another file to replace</span>
+                <span className="text-micro text-[var(--accent)] underline mt-1">Click or drop another file to replace</span>
               </>
             ) : (
               <>
                 <Upload size={28} className="text-[var(--faint)]" />
                 <div>
-                  <p className="text-[13px] font-medium text-[var(--text)]">Drag & drop your .zip file here</p>
-                  <p className="text-[11px] font-mono text-[var(--faint)]">Supports single .zip archives up to 50MB</p>
+                  <p className="text-ui font-medium text-[var(--text)]">Drag & drop your .zip file here</p>
+                  <p className="text-micro font-mono text-[var(--faint)]">Supports single .zip archives up to 50MB</p>
                 </div>
               </>
             )}
           </div>
 
           {uploadError && (
-            <div className="p-3 rounded border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px]">
+            <div className="p-3 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta">
               ⚠️ {uploadError}
             </div>
           )}

@@ -15,7 +15,8 @@ import {
   X
 } from 'lucide-react'
 import type { Subtask, RunStatus } from '../types'
-import { RoleBadge, StatusBadge } from './Badges'
+import { AgentBadge, AgentIcon, RoleBadge, StatusBadge, StatusIcon } from './Badges'
+import { EmptyState } from './primitives/EmptyState'
 
 interface PlanViewProps {
   subtasks: Subtask[]
@@ -75,25 +76,25 @@ export default function PlanView({
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--accent)]">
+              <span className="text-micro font-mono font-bold uppercase tracking-wider text-[var(--accent)]">
                 ACTIVE AGENT PLAN
               </span>
               <span className="text-[var(--faint)]">·</span>
               <StatusBadge status={runStatus} />
             </div>
-            <h1 className="text-base md:text-lg font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
+            <h1 className="text-title font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
               {task || 'No active task run'}
             </h1>
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0 self-start md:self-auto">
             <div className="px-3 py-1.5 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-right">
-              <p className="text-[10px] font-mono text-[var(--faint)] uppercase">PARALLEL NODES</p>
-              <p className="text-xs font-mono font-bold text-[var(--text)]">{subtasks.length} Subtasks</p>
+              <p className="text-micro font-mono text-[var(--faint)] uppercase">PARALLEL NODES</p>
+              <p className="text-ui font-mono font-bold text-[var(--text)]">{subtasks.length} Subtasks</p>
             </div>
             <div className="px-3 py-1.5 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-right">
-              <p className="text-[10px] font-mono text-[var(--faint)] uppercase">LANES</p>
-              <p className="text-xs font-mono font-bold text-[var(--accent)]">{groupNums.length} Groups</p>
+              <p className="text-micro font-mono text-[var(--faint)] uppercase">LANES</p>
+              <p className="text-ui font-mono font-bold text-[var(--accent)]">{groupNums.length} Groups</p>
             </div>
           </div>
         </div>
@@ -104,10 +105,13 @@ export default function PlanView({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Activity size={18} className="text-[var(--accent)]" />
-            <h2 className="text-sm md:text-base font-bold text-[var(--text)]">Execution DAG Workflow Graph</h2>
+            <h2 className="text-strong font-bold text-[var(--text)]">Execution DAG Workflow Graph</h2>
+            <span className="text-micro font-mono px-2.5 py-0.5 rounded-control bg-[var(--accent-quiet)] text-[var(--accent)] border border-[var(--accent-edge)] font-semibold">
+              Parallel Execution DAG
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-[var(--dim)] hidden sm:inline">
+            <span className="text-micro font-mono text-[var(--dim)] hidden sm:inline">
               Hover nodes to trace dependency flow
             </span>
           </div>
@@ -134,8 +138,8 @@ export default function PlanView({
                 <Layers size={22} />
               </div>
               <div className="text-center font-mono">
-                <p className="text-xs font-bold text-[var(--text)]">Planner</p>
-                <p className="text-[10px] text-[var(--faint)]">Root Dispatcher</p>
+                <p className="text-ui font-bold text-[var(--text)]">Planner</p>
+                <p className="text-micro text-[var(--faint)]">Root Dispatcher</p>
               </div>
             </div>
 
@@ -151,10 +155,10 @@ export default function PlanView({
                   <div key={groupNum} className="flex items-center gap-8 flex-shrink-0">
                     <div className="flex flex-col gap-3.5 p-3 rounded-panel bg-[var(--panel-2)]/40 border border-[var(--border)] min-w-[200px]">
                       <div className="flex items-center justify-between border-b border-[var(--border)] pb-2 px-1">
-                        <span className="text-[10.5px] font-mono font-bold text-[var(--accent)] uppercase tracking-wider">
+                        <span className="text-micro font-mono font-bold text-[var(--accent)] uppercase tracking-wider">
                           Group {groupNum}
                         </span>
-                        <span className="text-[10px] font-mono text-[var(--faint)]">
+                        <span className="text-micro font-mono text-[var(--faint)]">
                           {groupSubtasks.length > 1 ? 'Parallel' : 'Seq'}
                         </span>
                       </div>
@@ -187,13 +191,13 @@ export default function PlanView({
                                 <StatusBadge status={st.status} compact />
                               </div>
 
-                              <p className="text-xs font-semibold text-[var(--text)] line-clamp-2 leading-snug">
+                              <p className="text-meta font-semibold text-[var(--text)] line-clamp-2 leading-snug">
                                 {st.instruction}
                               </p>
 
-                              <div className="mt-2 pt-1.5 border-t border-[var(--border-soft)] flex items-center justify-between text-[10px] font-mono text-[var(--faint)]">
+                              <div className="mt-2 pt-1.5 border-t border-[var(--border-soft)] flex items-center justify-between text-micro font-mono text-[var(--faint)]">
                                 <span>{st.model?.split('-')[0] || 'model'}</span>
-                                <span className="uppercase text-[9px] px-1 rounded bg-[var(--bg-inset)]">
+                                <span className="uppercase text-micro px-1 rounded bg-[var(--bg-inset)]">
                                   #{st.id}
                                 </span>
                               </div>
@@ -212,16 +216,11 @@ export default function PlanView({
                 )
               })
             ) : (
-              /* Skeleton Node Shimmer Placeholder */
-              <div className="flex items-center gap-6 animate-pulse">
-                {[1, 2].map((g) => (
-                  <div key={g} className="p-4 rounded-panel bg-[var(--panel-2)] border border-[var(--border)] space-y-3 w-[200px]">
-                    <div className="h-4 bg-[var(--border)] rounded w-2/3" />
-                    <div className="h-16 bg-[var(--bg-inset)] rounded" />
-                    <div className="h-16 bg-[var(--bg-inset)] rounded" />
-                  </div>
-                ))}
-              </div>
+              <EmptyState
+                icon={<Layers size={28} />}
+                title="No active execution graph"
+                detail="Submit a task from the Home prompt to decompose subtasks."
+              />
             )}
           </div>
 
@@ -229,17 +228,17 @@ export default function PlanView({
           <div className="absolute bottom-3 right-3 flex items-center gap-1 p-1 rounded-full bg-[var(--panel)] border border-[var(--border)] shadow-md z-10">
             <button
               onClick={() => setZoomLevel((z) => Math.max(70, z - 10))}
-              className="p-1.5 rounded-full hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)]"
+              className="p-1.5 rounded-full hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] cursor-pointer"
               title="Zoom out"
             >
               <ZoomOut size={13} />
             </button>
-            <span className="text-[10.5px] font-mono px-1 min-w-[34px] text-center text-[var(--text-2)]">
+            <span className="text-micro font-mono px-1 min-w-[34px] text-center text-[var(--text-2)]">
               {zoomLevel}%
             </span>
             <button
               onClick={() => setZoomLevel((z) => Math.min(130, z + 10))}
-              className="p-1.5 rounded-full hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)]"
+              className="p-1.5 rounded-full hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] cursor-pointer"
               title="Zoom in"
             >
               <ZoomIn size={13} />
@@ -250,12 +249,12 @@ export default function PlanView({
 
       {/* ── 3. DETAILED SUBTASK BREAKDOWN & CARDS ─────────────────── */}
       <div className="rounded-panel border border-[var(--border)] bg-[var(--panel)] p-5 shadow-sm space-y-4">
-        <h2 className="text-sm md:text-base font-bold text-[var(--text)]">Subtask Execution Breakdown</h2>
+        <h2 className="text-strong font-bold text-[var(--text)]">Subtask Execution Breakdown</h2>
 
         {runStatus === 'planning' && (
           <div className="flex items-center gap-3 p-4 rounded-control border border-[var(--border)] bg-[var(--bg-inset)]">
             <Loader2 size={16} className="animate-spin text-[var(--accent)]" />
-            <span className="text-xs font-mono text-[var(--text-2)]">
+            <span className="text-ui font-mono text-[var(--text-2)]">
               Decomposing task prompt into parallel execution DAG…
             </span>
           </div>
@@ -274,11 +273,11 @@ export default function PlanView({
                 >
                   <div className="flex items-center gap-2.5">
                     {isGroupExpanded ? <ChevronDown size={14} className="text-[var(--dim)]" /> : <ChevronRight size={14} className="text-[var(--dim)]" />}
-                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+                    <span className="text-meta font-bold uppercase tracking-wider text-[var(--text)]">
                       Group {groupNum}
                     </span>
-                    <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-full bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--dim)]">
-                      {groupSubtasks.length} workers
+                    <span className="text-micro font-mono px-2.5 py-0.5 rounded-full bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--dim)]">
+                      {groupSubtasks.length > 1 ? `${groupSubtasks.length} parallel workers` : '1 worker'}
                     </span>
                   </div>
                 </button>
@@ -291,10 +290,10 @@ export default function PlanView({
                           <div className="flex items-start gap-3 min-w-0 flex-1">
                             <RoleBadge role={st.role} size="md" className="mt-0.5" />
                             <div>
-                              <p className="text-xs md:text-sm text-[var(--text)] font-semibold leading-snug">
+                              <p className="text-ui text-[var(--text)] font-semibold leading-snug">
                                 {st.instruction}
                               </p>
-                              <div className="flex items-center gap-3 mt-1 text-[11px] font-mono text-[var(--dim)]">
+                              <div className="flex items-center gap-3 mt-1 text-micro font-mono text-[var(--dim)]">
                                 <span>Model: {st.model}</span>
                                 <span>·</span>
                                 <span>Group {st.group}</span>
@@ -306,7 +305,7 @@ export default function PlanView({
                             <StatusBadge status={st.status} />
                             <button
                               onClick={() => setActiveDetailSubtask(st)}
-                              className="px-2.5 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--accent)] text-xs font-mono text-[var(--accent)] transition-colors"
+                              className="px-2.5 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--accent)] text-micro font-mono text-[var(--accent)] transition-colors cursor-pointer"
                             >
                               Inspect Output
                             </button>
@@ -314,7 +313,7 @@ export default function PlanView({
                         </div>
 
                         {st.output && (
-                          <div className="mt-3 p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] font-mono text-xs text-[var(--text-2)] whitespace-pre-wrap max-h-36 overflow-y-auto">
+                          <div className="mt-3 p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] font-mono text-micro text-[var(--text-2)] whitespace-pre-wrap max-h-36 overflow-y-auto">
                             {st.output}
                           </div>
                         )}

@@ -97,7 +97,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
 
   if (collapsed) {
     return (
-      <div className="h-8 flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel-2)] px-4 flex items-center justify-between text-[11px] font-mono text-[var(--dim)] select-none z-20">
+      <div className="h-8 flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel-2)] px-4 flex items-center justify-between text-micro font-mono text-[var(--dim)] select-none z-20">
         <div className="flex items-center gap-2">
           <Terminal size={13} className="text-[var(--accent)]" />
           <span className="font-medium text-[var(--text)]">Terminal collapsed</span>
@@ -117,13 +117,13 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
   const heightClass = maximized ? 'h-[480px]' : 'h-[240px]'
 
   return (
-    <div className={`flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel)] flex flex-col font-mono text-[var(--text)] select-none transition-all duration-300 z-20 ${heightClass}`}>
+    <div className={`flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel)] flex flex-col font-mono text-[var(--text)] select-none transition-all duration-[var(--d-base)] ease-standard z-20 ${heightClass}`}>
       {/* ── Terminal header bar ─────────────────────────────── */}
-      <div className="flex items-center justify-between h-9 px-4 border-b border-[var(--border-soft)] bg-[var(--panel-2)] text-[11.5px] flex-shrink-0">
+      <div className="flex items-center justify-between h-9 px-4 border-b border-[var(--border-soft)] bg-[var(--panel-2)] text-micro flex-shrink-0">
 
         {/* Tabs */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 font-sans font-medium text-[var(--text)] text-[12px] pr-2 border-r border-[var(--border-soft)]">
+          <div className="flex items-center gap-1.5 font-sans font-medium text-[var(--text)] text-meta pr-2 border-r border-[var(--border-soft)]">
             <Terminal size={14} className="text-[var(--accent)]" />
             <span>Terminal Logs</span>
           </div>
@@ -136,7 +136,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 aria-pressed={isAct}
-                className={`px-2.5 py-0.5 rounded-[var(--r-control)] text-[11px] font-medium transition-colors cursor-pointer ${
+                className={`px-2.5 py-0.5 rounded-control text-micro font-medium transition-colors cursor-pointer ${
                   isAct
                     ? 'bg-[var(--accent-quiet)] text-[var(--text)] border border-[var(--accent-edge)] font-semibold'
                     : 'text-[var(--dim)] hover:text-[var(--text)] hover:bg-[var(--panel-3)]'
@@ -189,7 +189,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
       </div>
 
       {/* ── Command input bar ───────────────────────────── */}
-      <div className="px-3 py-1.5 border-b border-[var(--border-soft)] bg-[var(--panel-2)] flex items-center gap-2 text-[12px] flex-shrink-0">
+      <div className="px-3 py-1.5 border-b border-[var(--border-soft)] bg-[var(--panel-2)] flex items-center gap-2 text-meta flex-shrink-0">
         <span className="text-[var(--good)] font-bold">$</span>
         <input
           type="text"
@@ -200,12 +200,12 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
           }}
           placeholder="Execute sandboxed command (e.g. pytest, python script.py, ls)..."
           aria-label="Sandboxed command input"
-          className="flex-1 bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-[12px]"
+          className="flex-1 bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-meta"
         />
         <button
           onClick={handleRunCommand}
           disabled={!commandInput.trim()}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-control bg-[var(--accent)] hover:brightness-110 disabled:opacity-40 disabled:hover:brightness-100 text-[var(--accent-ink)] text-[11px] font-semibold transition-[filter] cursor-pointer disabled:cursor-not-allowed"
+          className="flex items-center gap-1 px-2.5 py-1 rounded-control bg-[var(--accent)] hover:brightness-110 disabled:opacity-40 disabled:hover:brightness-100 text-[var(--accent-ink)] text-micro font-semibold transition-[filter] cursor-pointer disabled:cursor-not-allowed"
         >
           <span>Run</span>
           <CornerDownLeft size={11} />
@@ -213,9 +213,9 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
       </div>
 
       {/* ── Terminal output render stream ─────────────────────── */}
-      <div className="flex-1 overflow-y-auto font-mono text-[12px] p-2 bg-[var(--bg-inset)] select-text">
+      <div className="flex-1 overflow-y-auto font-mono text-meta p-2 bg-[var(--bg-inset)] select-text">
         {filteredLogs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-[11.5px] p-4 text-center">
+          <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-micro p-4 text-center">
             <span>Terminal ready — type a command above or run an agent task.</span>
           </div>
         ) : (
@@ -237,8 +237,8 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
                     : 'hover:bg-[var(--panel-2)] text-[var(--text-2)]'
                 }`}
               >
-                <span className="w-[58px] flex-shrink-0 text-[var(--faint)] text-[10.5px] select-none">{log.timestamp}</span>
-                <span className="w-[55px] flex-shrink-0 text-[9.5px] font-bold uppercase text-[var(--faint)] select-none">
+                <span className="w-[58px] flex-shrink-0 text-[var(--faint)] text-micro select-none">{log.timestamp}</span>
+                <span className="w-[55px] flex-shrink-0 text-micro font-bold uppercase text-[var(--faint)] select-none">
                   {typeLabel[log.type] ?? log.type}
                 </span>
                 <span className="flex-1 min-w-0 break-words">{log.message}</span>

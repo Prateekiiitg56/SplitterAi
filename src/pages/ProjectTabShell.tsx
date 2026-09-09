@@ -69,7 +69,7 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
                 onClick={() => navigate(tab.id)}
                 aria-current={isActive ? 'page' : undefined}
                 className={cx(
-                  'relative flex items-center gap-1.5 h-7 px-2.5 rounded-[var(--r-control)]',
+                  'relative flex items-center gap-1.5 h-7 px-2.5 rounded-control',
                   'text-meta font-medium whitespace-nowrap',
                   'transition-colors duration-[var(--d-quick)] ease-standard',
                   isActive

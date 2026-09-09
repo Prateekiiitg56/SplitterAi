@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { hasWebGL } from '../lib/quality'
+import { hasWebGL, prefersReducedMotion } from '../lib/quality'
 
 /**
  * DagBackground — halo-framed node graph.
@@ -27,7 +27,7 @@ const COLORS = {
   line: 0x3b5278,
 }
 
-function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
+function createScene(canvas: HTMLCanvasElement, width: number, height: number, reducedMotion: boolean) {
   const isMobile = width < 768
   const NODE_COUNT = isMobile ? 12 : 24
 
@@ -203,6 +203,7 @@ function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
   }
 
   function start() {
+    if (reducedMotion) return
     if (!running) {
       running = true
       animId = requestAnimationFrame(animate)
@@ -229,7 +230,13 @@ function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
     scene.clear()
   }
 
-  animId = requestAnimationFrame(animate)
+  // Start — a single static, deliberately composed frame when the user
+  // prefers reduced motion, otherwise the drifting animation loop.
+  if (reducedMotion) {
+    renderer.render(scene, camera)
+  } else {
+    animId = requestAnimationFrame(animate)
+  }
 
   return { start, stop, resize, dispose }
 }
@@ -247,7 +254,7 @@ export default function DagBackground() {
     const rect = host.getBoundingClientRect()
     let dag: ReturnType<typeof createScene>
     try {
-      dag = createScene(canvas, rect.width, rect.height)
+      dag = createScene(canvas, rect.width, rect.height, prefersReducedMotion())
     } catch {
       return
     }

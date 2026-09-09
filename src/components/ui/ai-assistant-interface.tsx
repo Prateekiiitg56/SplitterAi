@@ -185,7 +185,7 @@ export function AIAssistantInterface() {
           <motion.div variants={score.revealChild} className="mb-6">
             <span
               aria-hidden="true"
-              className="w-10 h-10 rounded-[var(--r-control)] border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] shadow-[var(--shadow-raise)]"
+              className="w-10 h-10 rounded-control border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] shadow-[var(--shadow-raise)]"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
                 <circle cx="12" cy="5" r="2.4" /><circle cx="5" cy="19" r="2.4" /><circle cx="19" cy="19" r="2.4" /><path d="M12 7.4V12M12 12L6.3 17M12 12l5.7 5" />
@@ -196,14 +196,14 @@ export function AIAssistantInterface() {
           {/* Headline */}
           <motion.h1
             variants={score.revealChild}
-            className="text-[26px] leading-[1.2] font-semibold tracking-tight text-center mb-2.5"
+            className="text-display leading-[1.2] font-semibold tracking-tight text-center mb-2.5"
           >
             Split the work. Run it in parallel.
           </motion.h1>
 
           <motion.p
             variants={score.revealChild}
-            className="text-[13.5px] leading-[1.55] text-[var(--dim)] text-center max-w-[440px] mb-8"
+            className="text-ui leading-[1.55] text-[var(--dim)] text-center max-w-[440px] mb-8"
           >
             Talk to one agent like a normal chat, or bring more into the room when a task is ready
             to be divided and run at once.
@@ -212,7 +212,7 @@ export function AIAssistantInterface() {
           {/* Composer card */}
           <motion.section
             variants={score.revealChild}
-            className="w-full max-w-[560px] border border-[var(--border)] rounded-[var(--r-float)] shadow-[var(--shadow-float)] overflow-hidden"
+            className="w-full max-w-[560px] border border-[var(--border)] rounded-float shadow-[var(--shadow-float)] overflow-hidden"
             style={{ backgroundColor: 'rgba(15, 20, 32, 0.82)' }}
           >
             {/* Picker bar */}
@@ -241,7 +241,7 @@ export function AIAssistantInterface() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -2 }}
                         transition={score.transition.base}
-                        className="absolute left-0 top-full mt-1.5 w-[200px] rounded-[var(--r-float)] border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
+                        className="absolute left-0 top-full mt-1.5 w-[200px] rounded-float border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
                       >
                         {ROLES.map((r) => {
                           const meta = ROLE_META[r]
@@ -255,7 +255,7 @@ export function AIAssistantInterface() {
                                 setAgentDropdownOpen(false)
                               }}
                               className={cx(
-                                'flex items-center justify-between w-full h-7 px-2 rounded-[var(--r-control)]',
+                                'flex items-center justify-between w-full h-7 px-2 rounded-control',
                                 'text-meta text-left transition-colors duration-[var(--d-quick)] ease-standard',
                                 isSel
                                   ? 'bg-[var(--panel-3)] text-[var(--text)]'
@@ -298,7 +298,7 @@ export function AIAssistantInterface() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -2 }}
                         transition={score.transition.base}
-                        className="absolute left-0 top-full mt-1.5 w-[260px] rounded-[var(--r-float)] border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
+                        className="absolute left-0 top-full mt-1.5 w-[260px] rounded-float border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
                       >
                         {AVAILABLE_MODELS.map((m) => {
                           const isSel = selectedModel.id === m.id
@@ -311,7 +311,7 @@ export function AIAssistantInterface() {
                                 setModelDropdownOpen(false)
                               }}
                               className={cx(
-                                'flex items-center justify-between w-full px-2 py-1.5 rounded-[var(--r-control)]',
+                                'flex items-center justify-between w-full px-2 py-1.5 rounded-control',
                                 'text-meta text-left transition-colors duration-[var(--d-quick)] ease-standard',
                                 isSel
                                   ? 'bg-[var(--panel-3)] text-[var(--text)]'
@@ -393,7 +393,7 @@ export function AIAssistantInterface() {
                         )}
                         <div
                           className={cx(
-                            'max-w-[85%] px-3 py-2 rounded-[var(--r-control)] text-ui leading-[1.5]',
+                            'max-w-[85%] px-3 py-2 rounded-control text-ui leading-[1.5]',
                             msg.sender === 'user'
                               ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-medium'
                               : 'bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)]',
@@ -527,7 +527,7 @@ export function AIAssistantInterface() {
               {draftPlan.subtasks.map((st, idx) => (
                 <div
                   key={st.id}
-                  className="flex items-center justify-between gap-3 px-2.5 py-2 rounded-[var(--r-control)] bg-[var(--panel-2)] border border-[var(--border-soft)]"
+                  className="flex items-center justify-between gap-3 px-2.5 py-2 rounded-control bg-[var(--panel-2)] border border-[var(--border-soft)]"
                 >
                   <span className="truncate flex-1 text-meta text-[var(--text)]">
                     <span className="font-mono text-micro text-[var(--faint)] mr-2 tabular-nums">{idx + 1}</span>
@@ -582,7 +582,7 @@ export function AIAssistantInterface() {
                     }
                   }}
                   className={cx(
-                    'flex flex-col items-center justify-between gap-1.5 rounded-[var(--r-control)] border p-3 cursor-pointer',
+                    'flex flex-col items-center justify-between gap-1.5 rounded-control border p-3 cursor-pointer',
                     'text-meta font-medium capitalize transition-all duration-[var(--d-quick)] ease-standard',
                     isAlreadyIn
                       ? 'border-[var(--accent-edge)] bg-[var(--panel-3)] text-[var(--text)]'
@@ -614,7 +614,7 @@ export function AIAssistantInterface() {
                 setShowAddAgentModal(false)
                 navigate('/projects/default/agents')
               }}
-              className="text-[12px] text-[var(--accent)] hover:underline font-medium cursor-pointer"
+              className="text-meta text-[var(--accent)] hover:underline font-medium cursor-pointer"
             >
               Need per-agent tasks and custom ordering? Open the full builder →
             </button>

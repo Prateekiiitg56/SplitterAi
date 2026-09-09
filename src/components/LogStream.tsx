@@ -35,21 +35,21 @@ function ToolCallDetails({ toolName, details }: { toolName: string; details?: st
   const isLong = details.length > 120 || details.includes('\n')
 
   return (
-    <div className="mt-1 ml-4 border-l-2 border-[var(--accent)] pl-2 text-[11px] font-mono text-[var(--dim)]">
+    <div className="mt-1 ml-4 border-l-2 border-[var(--accent)] pl-2 text-micro font-mono text-[var(--dim)]">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-[var(--accent)] font-semibold hover:underline"
+        className="flex items-center gap-1 text-[var(--accent)] font-semibold hover:underline cursor-pointer"
       >
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         <span>tool: {toolName}</span>
       </button>
       {expanded ? (
-        <pre className="mt-1 p-2 rounded bg-[var(--panel)] border border-[var(--border)] overflow-x-auto text-[10.5px] whitespace-pre-wrap text-[var(--text-2)]">
+        <pre className="mt-1 p-2 rounded bg-[var(--panel)] border border-[var(--border)] overflow-x-auto text-micro whitespace-pre-wrap text-[var(--text-2)]">
           {details}
         </pre>
       ) : isLong ? (
         <div className="text-[var(--faint)] truncate max-w-xl cursor-pointer" onClick={() => setExpanded(true)}>
-          {details.slice(0, 80)}... <span className="text-[var(--accent)] text-[10px]">(click to view)</span>
+          {details.slice(0, 80)}... <span className="text-[var(--accent)] text-micro">(click to view)</span>
         </div>
       ) : (
         <div className="text-[var(--text-2)]">{details}</div>
@@ -134,16 +134,26 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
         <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 border-b border-[var(--border)] bg-[var(--panel-2)] flex-shrink-0 select-none">
           <div className="flex items-center gap-2">
             <Terminal size={14} className="text-[var(--accent)]" />
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
+            <span className="text-micro font-bold uppercase tracking-wider text-[var(--text)]">
               Execution Stream
             </span>
-            <span className="text-[10.5px] font-mono text-[var(--faint)] bg-[var(--bg-inset)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+            <span className="text-micro font-mono text-[var(--faint)] bg-[var(--bg-inset)] px-1.5 py-0.5 rounded border border-[var(--border)]">
               {filteredLogs.length} / {logs.length}
             </span>
           </div>
 
           {/* Role Filter Chips & Search Input */}
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            {filter && (
+              <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-[var(--accent-edge)] bg-[var(--accent-quiet)] text-[var(--accent)] text-micro font-semibold">
+                <Filter size={10} />
+                <span>{filter}</span>
+                <button onClick={onClearFilter} className="cursor-pointer hover:opacity-70">
+                  <X size={10} />
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center gap-1 bg-[var(--bg-inset)] p-0.5 rounded border border-[var(--border)]">
               {['planner', 'coder', 'auditor', 'tester'].map(role => {
                 const active = roleFilter === role
@@ -151,7 +161,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
                   <button
                     key={role}
                     onClick={() => setRoleFilter(active ? null : role)}
-                    className={`px-1.5 py-0.5 text-[10px] font-semibold rounded uppercase transition-colors ${
+                    className={`px-1.5 py-0.5 text-micro font-semibold rounded uppercase transition-colors cursor-pointer ${
                       active
                         ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
                         : 'text-[var(--dim)] hover:text-[var(--text)]'
@@ -170,12 +180,12 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
                 placeholder="Filter logs..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="h-6 pl-6 pr-2 text-[11px] bg-[var(--bg-inset)] text-[var(--text)] border border-[var(--border)] rounded focus:border-[var(--accent)] outline-none w-32 focus:w-44 transition-all"
+                className="h-6 pl-6 pr-2 text-micro bg-[var(--bg-inset)] text-[var(--text)] border border-[var(--border)] rounded focus:border-[var(--accent)] outline-none w-32 focus:w-44 transition-all"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--faint)] hover:text-[var(--text)]"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--faint)] hover:text-[var(--text)] cursor-pointer"
                 >
                   <X size={10} />
                 </button>
@@ -188,7 +198,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
                   setRoleFilter(null)
                   onClearFilter?.()
                 }}
-                className="text-[10px] text-[var(--accent)] hover:underline flex items-center gap-0.5"
+                className="text-micro text-[var(--accent)] hover:underline flex items-center gap-0.5 cursor-pointer"
               >
                 <X size={10} /> Clear
               </button>
@@ -196,7 +206,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
 
             <button
               onClick={copyAllLogs}
-              className="flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--border-strong)] text-[var(--dim)] hover:text-[var(--text)] text-[11px] transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--dim)] hover:text-[var(--text)] text-micro cursor-pointer transition-colors"
               title="Copy visible logs"
             >
               {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
@@ -212,10 +222,10 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
           className="flex-1 overflow-y-auto min-h-0 bg-[#040810] divide-y divide-[rgba(255,255,255,0.03)]"
         >
           {filteredLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-xs p-6 text-center">
+            <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-micro p-6 text-center">
               <Terminal size={24} className="mb-2 opacity-30" />
               <span>No matching log entries found</span>
-              {searchQuery && <span className="text-[11px] text-[var(--dim)] mt-1">Query: "{searchQuery}"</span>}
+              {searchQuery && <span className="text-micro text-[var(--dim)] mt-1">Query: "{searchQuery}"</span>}
             </div>
           ) : (
             filteredLogs.map(log => {

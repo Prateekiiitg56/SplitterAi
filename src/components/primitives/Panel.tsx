@@ -5,7 +5,7 @@ import { cx } from '../../lib/cx'
  * Panel — the app's single raised surface.
  *
  * This replaces roughly sixteen hand-rolled copies of
- * `border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)]`
+ * `border border-[var(--border-soft)] rounded-panel bg-[var(--panel)]`
  * plus eight legacy `rounded-2xl border-white/[0.08]` glass cards that
  * belonged to an older visual system.
  */

@@ -64,7 +64,7 @@ export default function Sidebar({
         )}
       >
         <span
-          className="w-6 h-6 rounded-[var(--r-control)] border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"
+          className="w-6 h-6 rounded-control border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"
           aria-hidden="true"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
@@ -72,7 +72,7 @@ export default function Sidebar({
           </svg>
         </span>
         {!collapsed && (
-          <span className="font-semibold text-[13.5px] tracking-tight text-[var(--text)]">
+          <span className="font-semibold text-ui tracking-tight text-[var(--text)]">
             Splitter
           </span>
         )}
@@ -98,7 +98,7 @@ export default function Sidebar({
                   title={collapsed ? label : undefined}
                   aria-current={active ? 'page' : undefined}
                   className={cx(
-                    'relative w-full flex items-center gap-2.5 rounded-[var(--r-control)]',
+                    'relative w-full flex items-center gap-2.5 rounded-control',
                     'text-meta font-medium text-left transition-colors duration-[var(--d-quick)] ease-standard',
                     collapsed ? 'justify-center h-9' : 'px-2 h-8',
                     active
@@ -131,7 +131,7 @@ export default function Sidebar({
           )}
           <ul className="space-y-0.5">
             {sessions.length === 0 ? (
-              <li className={cx('text-[11px] text-[var(--faint)]', collapsed ? 'hidden' : 'px-2 py-1.5')}>
+              <li className={cx('text-micro text-[var(--faint)]', collapsed ? 'hidden' : 'px-2 py-1.5')}>
                 No active runs
               </li>
             ) : (
@@ -148,7 +148,7 @@ export default function Sidebar({
                       }}
                       title={collapsed ? s.task || 'Session' : undefined}
                       className={cx(
-                        'relative w-full flex items-center gap-2.5 rounded-[var(--r-control)]',
+                        'relative w-full flex items-center gap-2.5 rounded-control',
                         'text-meta transition-colors duration-[var(--d-quick)] ease-standard',
                         collapsed ? 'justify-center h-9' : 'px-2 h-8',
                         selected
@@ -187,7 +187,7 @@ export default function Sidebar({
         {!collapsed && (
           <span
             className={cx(
-              'w-6 h-6 rounded-full border flex items-center justify-center font-mono text-[10px] font-bold flex-shrink-0 relative',
+              'w-6 h-6 rounded-full border flex items-center justify-center font-mono text-micro font-bold flex-shrink-0 relative',
               isOnline
                 ? 'bg-[var(--good-quiet)] border-[var(--good)] text-[var(--good)]'
                 : 'bg-[var(--bad-quiet)] border-[var(--bad)] text-[var(--bad)]',
@@ -204,10 +204,10 @@ export default function Sidebar({
         )}
         {!collapsed && (
           <span className="min-w-0">
-            <span className="block text-[11.5px] font-medium text-[var(--text)] truncate">
+            <span className="block text-micro font-medium text-[var(--text)] truncate">
               Developer workspace
             </span>
-            <span className={cx('block text-[10.5px] font-mono', isOnline ? 'text-[var(--good)]' : 'text-[var(--bad)]')}>
+            <span className={cx('block text-micro font-mono', isOnline ? 'text-[var(--good)]' : 'text-[var(--bad)]')}>
               {isOnline ? 'Server :8000' : 'Server offline'}
             </span>
           </span>
@@ -218,7 +218,7 @@ export default function Sidebar({
             onClick={onToggleCollapse}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className={cx(
-              'flex items-center justify-center rounded-[var(--r-control)]',
+              'flex items-center justify-center rounded-control',
               'text-[var(--faint)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
               'transition-colors duration-[var(--d-quick)] ease-standard',
               'w-6 h-6 flex-shrink-0',

@@ -35,6 +35,8 @@ export function AgentIcon({ role, size = 16, className = "" }: { role: AgentRole
   }
 }
 
+
+
 export function StatusDot({ status }: { status: AgentStatus | SubtaskStatus | string }) {
   const s = (status || '').toLowerCase()
   let dotClass = 'idle'
