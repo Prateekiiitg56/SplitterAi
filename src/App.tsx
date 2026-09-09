@@ -15,6 +15,7 @@ import { UIProvider, useUI } from './context/UIContext'
 import { DEFAULT_WORKSPACE } from './config'
 
 import FlowPage from './pages/FlowPage'
+import Landing from './pages/Landing'
 import ErrorBoundary from './components/ErrorBoundary'
 
 function Layout() {
@@ -65,12 +66,23 @@ function Layout() {
   )
 }
 
+function AppRoutes() {
+  const location = useLocation()
+
+  // Landing page renders standalone — no sidebar, no providers needed
+  if (location.pathname === '/welcome') {
+    return <Landing />
+  }
+
+  return <Layout />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AppProvider>
         <UIProvider>
-          <Layout />
+          <AppRoutes />
         </UIProvider>
       </AppProvider>
     </BrowserRouter>
