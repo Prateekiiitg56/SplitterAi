@@ -14,6 +14,13 @@ from pathlib import Path
 from typing import Optional
 
 from .schemas import RunResult, RunStatus, SessionEntry
+from .db_supabase import (
+    supabase_save_session,
+    supabase_load_session,
+    supabase_reset_session,
+    supabase_list_sessions,
+    is_supabase_enabled,
+)
 
 
 def _get_db_path() -> Path:
@@ -67,7 +74,6 @@ def _get_connection() -> sqlite3.Connection:
     return conn
 
 
-
 # ── Public API ────────────────────────────────────────────────────
 
 def save_session(
@@ -77,7 +83,8 @@ def save_session(
     messages: list[dict] | None = None,
     subtask_count: int = 0,
 ) -> None:
-    """Save or update a workspace session."""
+    """Save or update a workspace session (SQLite + Supabase when configured)."""
+    # 1. Save to local SQLite
     conn = _get_connection()
     try:
         messages_json = json.dumps(messages or [])
@@ -98,9 +105,24 @@ def save_session(
     finally:
         conn.close()
 
+    # 2. Sync to Supabase if configured
+    if is_supabase_enabled():
+        supabase_save_session(
+            workspace=workspace,
+            task=task,
+            status_str=status.value,
+            messages=messages,
+            subtask_count=subtask_count,
+        )
+
 
 def load_session(workspace: str) -> Optional[dict]:
-    """Load a session by workspace path."""
+    """Load a session by workspace path (Supabase first if available, else SQLite)."""
+    if is_supabase_enabled():
+        sp_data = supabase_load_session(workspace)
+        if sp_data:
+            return sp_data
+
     conn = _get_connection()
     try:
         row = conn.execute(
@@ -125,18 +147,40 @@ def load_session(workspace: str) -> Optional[dict]:
 
 
 def reset_session(workspace: str) -> bool:
-    """FR-21: Delete a workspace session."""
+    """FR-21: Delete a workspace session from SQLite and Supabase."""
+    sp_deleted = False
+    if is_supabase_enabled():
+        sp_deleted = supabase_reset_session(workspace)
+
     conn = _get_connection()
     try:
         cursor = conn.execute("DELETE FROM sessions WHERE workspace = ?", (workspace,))
         conn.commit()
-        return cursor.rowcount > 0
+        return (cursor.rowcount > 0) or sp_deleted
     finally:
         conn.close()
 
 
 def list_sessions(limit: int = 20) -> list[SessionEntry]:
     """List recent sessions, newest first."""
+    if is_supabase_enabled():
+        sp_list = supabase_list_sessions(limit)
+        if sp_list is not None and len(sp_list) > 0:
+            entries = []
+            for item in sp_list:
+                st_val = item.get("status", "idle")
+                entries.append(
+                    SessionEntry(
+                        workspace=item.get("workspace", ""),
+                        task=item.get("task", ""),
+                        status=RunStatus(st_val) if st_val in RunStatus.__members__ else RunStatus.idle,
+                        subtask_count=item.get("subtask_count", 0),
+                        created_at=item.get("created_at", ""),
+                        updated_at=item.get("updated_at", 0.0),
+                    )
+                )
+            return entries
+
     conn = _get_connection()
     try:
         rows = conn.execute(
@@ -168,3 +212,4 @@ def save_run_result(workspace: str, task: str, result: RunResult) -> None:
         messages=[st.model_dump() for st in result.subtasks],
         subtask_count=len(result.subtasks),
     )
+

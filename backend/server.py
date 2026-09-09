@@ -39,6 +39,8 @@ from agentcli.integrations_store import (
     delete_integration as db_delete_integration,
     update_integration_roles,
 )
+from agentcli.db_supabase import is_supabase_enabled
+
 
 # Load .env — single source of truth is the project-root .env (see .env.example),
 # loaded explicitly so behavior doesn't depend on the server's working directory.
@@ -197,7 +199,8 @@ def make_event_emitter():
 @app.get("/health", response_model=HealthResponse)
 async def health():
     """Health check endpoint."""
-    return HealthResponse()
+    return HealthResponse(supabase_enabled=is_supabase_enabled())
+
 
 
 @app.get("/preview")

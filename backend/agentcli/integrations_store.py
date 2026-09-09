@@ -12,6 +12,15 @@ from pathlib import Path
 from typing import Optional
 
 
+from .db_supabase import (
+    supabase_save_integration,
+    supabase_load_all_integrations,
+    supabase_delete_integration,
+    supabase_update_integration_roles,
+    is_supabase_enabled,
+)
+
+
 def _get_db_path() -> Path:
     """Get the SQLite database path (~/.agentcli/sessions.db)."""
     base = Path.home() / ".agentcli"
@@ -67,7 +76,6 @@ def _get_connection() -> sqlite3.Connection:
     return conn
 
 
-
 def _row_to_dict(row: tuple) -> dict:
     """Convert a DB row to an integration dict matching the API shape."""
     return {
@@ -86,7 +94,8 @@ def _row_to_dict(row: tuple) -> dict:
 # ── Public API ────────────────────────────────────────────────────
 
 def save_integration(integration: dict) -> None:
-    """Insert or update an integration."""
+    """Insert or update an integration (SQLite + Supabase when configured)."""
+    # 1. Save to local SQLite
     conn = _get_connection()
     try:
         conn.execute("""
@@ -116,9 +125,18 @@ def save_integration(integration: dict) -> None:
     finally:
         conn.close()
 
+    # 2. Sync to Supabase if enabled
+    if is_supabase_enabled():
+        supabase_save_integration(integration)
+
 
 def load_all_integrations() -> dict[str, dict]:
-    """Load all integrations as a {id: integration_dict} mapping."""
+    """Load all integrations as a {id: integration_dict} mapping (Supabase first if available)."""
+    if is_supabase_enabled():
+        sp_integrations = supabase_load_all_integrations()
+        if sp_integrations is not None:
+            return sp_integrations
+
     conn = _get_connection()
     try:
         rows = conn.execute(
@@ -130,18 +148,26 @@ def load_all_integrations() -> dict[str, dict]:
 
 
 def delete_integration(integration_id: str) -> bool:
-    """Delete an integration by ID. Returns True if it existed."""
+    """Delete an integration by ID from SQLite and Supabase."""
+    sp_deleted = False
+    if is_supabase_enabled():
+        sp_deleted = supabase_delete_integration(integration_id)
+
     conn = _get_connection()
     try:
         cursor = conn.execute("DELETE FROM integrations WHERE id = ?", (integration_id,))
         conn.commit()
-        return cursor.rowcount > 0
+        return (cursor.rowcount > 0) or sp_deleted
     finally:
         conn.close()
 
 
 def update_integration_roles(integration_id: str, allowed_roles: list[str]) -> Optional[dict]:
     """Update allowed roles for an integration. Returns updated dict or None."""
+    sp_updated = None
+    if is_supabase_enabled():
+        sp_updated = supabase_update_integration_roles(integration_id, allowed_roles)
+
     conn = _get_connection()
     try:
         conn.execute(
@@ -153,6 +179,9 @@ def update_integration_roles(integration_id: str, allowed_roles: list[str]) -> O
             "SELECT id, type, name, status, connected_at, config_json, scopes_json, allowed_roles_json, last_error FROM integrations WHERE id = ?",
             (integration_id,),
         ).fetchone()
-        return _row_to_dict(row) if row else None
+        
+        sqlite_res = _row_to_dict(row) if row else None
+        return sp_updated or sqlite_res
     finally:
         conn.close()
+

@@ -125,6 +125,8 @@ class HealthResponse(BaseModel):
     """GET /health response."""
     status: str = "ok"
     version: str = "0.1.0"
+    supabase_enabled: bool = False
+
 
 
 class AgentStatusResponse(BaseModel):
