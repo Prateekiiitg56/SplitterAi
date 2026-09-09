@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
-import Sidebar from './components/Sidebar'
+import { useState } from 'react'
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import AgentPage from './pages/AgentPage'
 import AgentsOverviewPage from './pages/AgentsOverviewPage'
 import IntegrationsPage from './pages/IntegrationsPage'
@@ -12,56 +12,92 @@ import ProjectActivityPage from './pages/ProjectActivityPage'
 import { AIAssistantInterface } from './components/ui/ai-assistant-interface'
 import { AppProvider, useApp } from './context/AppContext'
 import { UIProvider, useUI } from './context/UIContext'
-import { DEFAULT_WORKSPACE } from './config'
 
 import FlowPage from './pages/FlowPage'
 import Landing from './pages/Landing'
 import ErrorBoundary from './components/ErrorBoundary'
+import TopBar from './components/TopBar'
+import DownloadAppModal from './components/DownloadAppModal'
 
+import { AnimatedTopDock } from './shaders/animated-top-dock/AnimatedTopDock'
+import './shaders/threeui.css'
+
+/**
+ * Layout — the main app shell.
+ */
 function Layout() {
   const location = useLocation()
-  const { sessions } = useApp()
-  const { sidebarCollapsed, toggleSidebar, selectedSessionId, setSelectedSessionId } = useUI()
+  const navigate = useNavigate()
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false)
+  const { selectedSessionId, setSelectedSessionId } = useUI()
+
+  const getActiveId = () => {
+    const path = location.pathname
+    if (path.startsWith('/projects')) return 'projects'
+    if (path.startsWith('/agents') || path.startsWith('/agent')) return 'agents'
+    if (path === '/flow') return 'flow'
+    if (path === '/integrations') return 'integrations'
+    return 'console'
+  }
+
+  const activeId = getActiveId()
+
+  const isConsole = location.pathname === '/console'
 
   return (
-    <div className="flex items-center justify-center h-screen w-screen bg-[var(--bg)] p-0 overflow-hidden relative">
-      <div className="app flex flex-1 h-full w-full bg-[var(--bg)] overflow-hidden relative z-10">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          sessions={sessions}
-          selectedSession={selectedSessionId}
-          onSelectSession={setSelectedSessionId}
-          onToggleCollapse={toggleSidebar}
-          workspace={DEFAULT_WORKSPACE}
-          currentPath={location.pathname}
+    <div className="flex items-center justify-center h-screen w-screen bg-[#08090d] p-0 overflow-hidden relative">
+      {/* Full-page ThreeUI AnimatedTopDock Glass particle field background & interactive sidebar rail */}
+      <div className={`fixed inset-0 z-20 pointer-events-none transition-opacity duration-300 ${isConsole ? 'opacity-85' : 'opacity-18'}`}>
+        <AnimatedTopDock
+          variant="glass"
+          particles={22}
+          thickness={0.115}
+          dispersion={0.05}
+          specular={0.85}
+          rim={0.5}
+          drift={1.0}
+          proximity={44}
+          heightGrowth={20}
+          drop={11.0}
+          activeId={activeId}
+          onItemSelect={(id) => navigate(`/${id}`)}
+          onGetAppClick={() => setDownloadModalOpen(true)}
+          className="w-full h-full"
         />
-
-        <ErrorBoundary key={location.pathname}>
-          <Routes>
-            {/* Home Route */}
-            <Route path="/" element={<AIAssistantInterface />} />
-
-            {/* Projects & Runs Routes */}
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/projects/:projectId" element={<ProjectOverviewPage />} />
-            <Route path="/projects/:projectId/flow" element={<FlowPage />} />
-            <Route path="/projects/:projectId/tasks" element={<ProjectTasksPage />} />
-            <Route path="/projects/:projectId/agents" element={<ProjectAgentsPage />} />
-            <Route path="/projects/:projectId/files" element={<ProjectFilesPage />} />
-            <Route path="/projects/:projectId/activity" element={<ProjectActivityPage />} />
-
-            {/* Agents Management Routes */}
-            <Route path="/agents" element={<AgentsOverviewPage />} />
-            <Route path="/agents/:agentId" element={<AgentPage />} />
-            <Route path="/agent/:role" element={<AgentPage />} /> {/* Backwards compatibility */}
-
-            {/* Flow & Integrations */}
-            <Route path="/flow" element={<FlowPage />} />
-            <Route path="/integrations" element={<IntegrationsPage />} />
-            <Route path="/run" element={<ProjectOverviewPage />} /> {/* Backwards compatibility */}
-          </Routes>
-        </ErrorBoundary>
       </div>
+
+      <div className="app flex flex-col flex-1 h-full w-full overflow-hidden relative z-10">
+        <TopBar />
+        <div className="flex-1 overflow-hidden relative bg-[#08090d]/88 backdrop-blur-[1px]">
+          <ErrorBoundary key={location.pathname}>
+            <Routes>
+              {/* Console / Home */}
+              <Route path="/console" element={<AIAssistantInterface />} />
+
+              {/* Projects & Runs */}
+              <Route path="/projects" element={<ProjectsPage />} />
+              <Route path="/projects/:projectId" element={<ProjectOverviewPage />} />
+              <Route path="/projects/:projectId/flow" element={<FlowPage />} />
+              <Route path="/projects/:projectId/tasks" element={<ProjectTasksPage />} />
+              <Route path="/projects/:projectId/agents" element={<ProjectAgentsPage />} />
+              <Route path="/projects/:projectId/files" element={<ProjectFilesPage />} />
+              <Route path="/projects/:projectId/activity" element={<ProjectActivityPage />} />
+
+              {/* Agents */}
+              <Route path="/agents" element={<AgentsOverviewPage />} />
+              <Route path="/agents/:agentId" element={<AgentPage />} />
+              <Route path="/agent/:role" element={<AgentPage />} />
+
+              {/* Flow & Integrations */}
+              <Route path="/flow" element={<FlowPage />} />
+              <Route path="/integrations" element={<IntegrationsPage />} />
+              <Route path="/run" element={<ProjectOverviewPage />} />
+            </Routes>
+          </ErrorBoundary>
+        </div>
+      </div>
+
+      <DownloadAppModal isOpen={downloadModalOpen} onClose={() => setDownloadModalOpen(false)} />
     </div>
   )
 }
@@ -69,8 +105,8 @@ function Layout() {
 function AppRoutes() {
   const location = useLocation()
 
-  // Landing page renders standalone — no sidebar, no providers needed
-  if (location.pathname === '/welcome') {
+  // Landing page is the root — standalone, no TopBar shell
+  if (location.pathname === '/' || location.pathname === '/welcome') {
     return <Landing />
   }
 

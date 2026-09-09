@@ -114,6 +114,7 @@ export interface FileNode {
   children?: FileNode[]
   size?: number | string
   modifiedBy?: string
+  content?: string
 }
 
 export type File = FileNode

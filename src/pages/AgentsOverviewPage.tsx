@@ -124,13 +124,13 @@ export default function AgentsOverviewPage() {
       {/* Topbar */}
       <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
         <div className="topbar-left flex items-center gap-2.5">
-          <span className="topbar-title font-semibold text-[14px]">Agents</span>
+          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Agents</h1>
         </div>
 
         <div className="topbar-right">
           <button
             onClick={() => setShowLaunchModal(true)}
-            className="btn-primary text-[var(--accent)] font-medium text-[12px] px-3 py-1.5 rounded-md border border-[var(--border)] flex items-center gap-1.5 hover:border-[var(--accent)] transition-colors cursor-pointer"
+            className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs px-3.5 py-1.5 rounded-md border border-[var(--accent)] hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <Plus size={13} />
             <span>Launch agent</span>
@@ -155,25 +155,25 @@ export default function AgentsOverviewPage() {
 
           <button
             onClick={() => setStatusFilter('all')}
-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             All
           </button>
           <button
             onClick={() => setStatusFilter('working')}
-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Working
           </button>
           <button
             onClick={() => setStatusFilter('idle')}
-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'idle' ? 'border-[var(--border)] text-[var(--text)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'idle' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Idle
           </button>
           <button
             onClick={() => setStatusFilter('failed')}
-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Failed
           </button>
@@ -188,7 +188,7 @@ export default function AgentsOverviewPage() {
               <div
                 key={agent.role}
                 onClick={() => navigate(`/agents/${agent.role}`)}
-                className="agent-card border border-[var(--border-soft)] rounded-[var(--radius)] p-3.5 bg-[var(--panel)] flex flex-col gap-3 hover:border-[var(--border-strong)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.28)] cursor-pointer transition-all"
+                className="agent-card border border-[var(--border)] rounded-lg p-4 bg-[var(--panel)] shadow-sm flex flex-col gap-3 hover:border-[var(--border-strong)] hover:shadow-md cursor-pointer transition-all"
               >
                 {/* Agent Card Top */}
                 <div className="agent-card-top flex items-center justify-between">

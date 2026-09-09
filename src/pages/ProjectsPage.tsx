@@ -98,7 +98,7 @@ export default function ProjectsPage() {
       {/* Generic Topbar */}
       <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
         <div className="topbar-left flex items-center gap-2.5">
-          <span className="topbar-title font-semibold text-[14px]">Projects</span>
+          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Projects</h1>
           <span className="topbar-crumb font-mono text-[11.5px] text-[var(--faint)]">/ workspace</span>
         </div>
 
@@ -109,15 +109,15 @@ export default function ProjectsPage() {
               setUploadError(null)
               setIsImportModalOpen(true)
             }}
-            className="btn-secondary text-[var(--dim)] hover:text-[var(--text)] font-medium text-[12px] px-3 py-1.5 rounded-md border border-[var(--border-soft)] hover:border-[var(--border)] flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all flex items-center gap-1.5 cursor-pointer"
           >
-            <Upload size={13} />
+            <Upload size={13} className="text-[var(--accent)]" />
             <span>Import project</span>
           </button>
 
           <button
-            onClick={() => navigate('/')}
-            className="btn-primary text-[var(--accent)] font-medium text-[12px] px-3 py-1.5 rounded-md border border-[var(--border)] flex items-center gap-1.5 hover:border-[var(--accent)] transition-colors cursor-pointer"
+            onClick={() => navigate('/console')}
+            className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs px-3.5 py-1.5 rounded-md border border-[var(--accent)] hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <Plus size={13} />
             <span>New project</span>
@@ -141,10 +141,28 @@ export default function ProjectsPage() {
           </div>
 
           <button
-            onClick={() => setStatusFilter(statusFilter === 'all' ? 'working' : statusFilter === 'working' ? 'completed' : statusFilter === 'completed' ? 'failed' : 'all')}
-            className="chip-filter border border-[var(--border-soft)] text-[var(--dim)] hover:text-[var(--text)] hover:border-[var(--border)] text-[11.5px] px-2.5 py-1.5 rounded-md font-mono capitalize transition-colors cursor-pointer"
+            onClick={() => setStatusFilter('all')}
+            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
-            Status: {statusFilter} ▾
+            All
+          </button>
+          <button
+            onClick={() => setStatusFilter('working')}
+            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+          >
+            Working
+          </button>
+          <button
+            onClick={() => setStatusFilter('completed')}
+            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'completed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+          >
+            Completed
+          </button>
+          <button
+            onClick={() => setStatusFilter('failed')}
+            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+          >
+            Failed
           </button>
         </div>
 
@@ -173,7 +191,7 @@ export default function ProjectsPage() {
                 <span>Import Project (.zip)</span>
               </button>
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/console')}
                 className="btn-primary inline-flex items-center gap-1.5 text-[var(--accent)] font-medium text-[12px] px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer"
               >
                 <Plus size={13} />

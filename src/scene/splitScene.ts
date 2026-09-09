@@ -1,30 +1,7 @@
 import * as THREE from 'three'
 import { settingsFor, stepDown, type QualitySettings, type Tier } from '../lib/quality'
 
-/**
- * THE SPLIT
- *
- * The shot: a bundle of lanes fans out from a convergence point just off
- * the top of frame, runs parallel through the visible middle, and
- * reconverges just off the bottom. Luminous pulses travel down each lane
- * at slightly different rates.
- *
- * That is the product — one instruction divided across parallel agents and
- * rejoined — rather than decoration that happens to be three-dimensional.
- * It replaces a rotating additive point cloud, which is the single most
- * recognisable "generated landing page" backdrop there is.
- *
- * Composition notes:
- *  - Both convergence points sit outside the viewport. What you see is the
- *    parallel middle, which is the part that means something.
- *  - No lane runs down the centre. The minimum lateral magnitude is tuned
- *    so the central column stays empty for the headline and input — the
- *    negative space is shaped by the composition, not left to chance.
- *  - Depth is carried by a per-fragment depth fade rather than a fog pass
- *    or a depth-of-field pass. Cheaper, and precisely controllable.
- *  - No bloom, no additive blending, no glow sprites. The pulse reads as
- *    light because it is brighter than its lane, not because it smears.
- */
+export type CanvasVariant = 'console' | 'idle-tree'
 
 const VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -41,11 +18,11 @@ const VERTEX = /* glsl */ `
 const FRAGMENT = /* glsl */ `
   precision highp float;
 
-  uniform vec3  uLane;    // resting colour of the lane
-  uniform vec3  uPulse;   // colour of the travelling head
-  uniform float uTime;    // seconds
-  uniform float uSpeed;   // laps per second
-  uniform float uPhase;   // 0..1 offset so lanes don't march in lockstep
+  uniform vec3  uLane;
+  uniform vec3  uPulse;
+  uniform float uTime;
+  uniform float uSpeed;
+  uniform float uPhase;
   uniform float uNear;
   uniform float uFar;
 
@@ -53,21 +30,15 @@ const FRAGMENT = /* glsl */ `
   varying float vDepth;
 
   void main() {
-    // vUv.x runs along the tube's length.
     float along = vUv.x;
-
-    // Taper both ends so a lane dissolves instead of stopping dead.
     float ends = smoothstep(0.0, 0.20, along) * (1.0 - smoothstep(0.80, 1.0, along));
-
     float head = fract(uTime * uSpeed + uPhase);
 
-    // Wrap the distance to the head into -0.5..0.5 so the pulse crosses
-    // the seam without a visible jump.
     float d = along - head;
     d -= floor(d + 0.5);
 
-    float core = exp(-abs(d) * 26.0);            // tight bright head
-    float tail = exp(-max(-d, 0.0) * 7.0) * 0.34; // longer wake behind it
+    float core = exp(-abs(d) * 26.0);
+    float tail = exp(-max(-d, 0.0) * 7.0) * 0.34;
     float pulse = clamp(core + tail, 0.0, 1.0);
 
     float depth = 1.0 - smoothstep(uNear, uFar, vDepth);
@@ -79,22 +50,16 @@ const FRAGMENT = /* glsl */ `
   }
 `
 
-/** World-space geometry of the shot. */
 const SHOT = {
-  /** Half the vertical span. Convergence points sit at ±H, off-frame. */
   height: 3.2,
-  /** Lateral control magnitude. Widest point lands near 0.75 × this. */
   spread: 3.5,
-  /** Depth range the lanes are distributed through. */
   depth: 1.9,
-  /** Smallest lateral magnitude, as a fraction. Keeps the centre clear. */
   minMagnitude: 0.72,
   radius: 0.012,
   cameraZ: 7.4,
   fov: 42,
 }
 
-/** A still, well-composed frame. Used for reduced motion and the low tier. */
 const STILL_TIME = 2.35
 
 interface Lane {
@@ -110,6 +75,10 @@ export class SplitScene {
   private group = new THREE.Group()
   private lanes: Lane[] = []
 
+  // Tree variant elements
+  private treeMesh: THREE.LineSegments | null = null
+  private motesMesh: THREE.Points | null = null
+
   private quality: QualitySettings
   private clock = new THREE.Clock()
   private time = STILL_TIME
@@ -118,7 +87,6 @@ export class SplitScene {
   private pointer = { x: 0, y: 0 }
   private eye = { x: 0, y: 0 }
 
-  /** Rolling mean frame time, for stepping quality down under load. */
   private meanDt = 1 / 60
   private slowFrames = 0
   private running = false
@@ -127,6 +95,8 @@ export class SplitScene {
   constructor(
     private canvas: HTMLCanvasElement,
     tier: Tier,
+    private variant: CanvasVariant = 'console',
+    private speedMultiplier = 1.0,
   ) {
     this.quality = settingsFor(tier)
 
@@ -137,11 +107,6 @@ export class SplitScene {
       powerPreference: 'default',
     })
     this.renderer.setClearAlpha(0)
-
-    // Linear output space, deliberately. Nothing here is textured or
-    // PBR-lit, so there is no colour pipeline to honour — and this way the
-    // hex values authored below are exactly what reaches the screen,
-    // rather than being converted twice.
     this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace
 
     this.camera = new THREE.PerspectiveCamera(SHOT.fov, 1, 0.1, 40)
@@ -149,19 +114,21 @@ export class SplitScene {
     this.camera.lookAt(0, 0, 0)
 
     this.scene.add(this.group)
-    this.build()
+    if (this.variant === 'idle-tree') {
+      this.buildTree()
+    } else {
+      this.buildLanes()
+    }
   }
 
-  /* ── Geometry ───────────────────────────────────────────────────────── */
+  /* ── Console Lanes Variant ────────────────────────────────────────────── */
 
-  private build() {
+  private buildLanes() {
     const { lanes: count, tubularSegments, radialSegments } = this.quality
     const lane = new THREE.Color('#2A4560')
     const pulse = new THREE.Color('#7FCBFF')
 
     for (let i = 0; i < count; i++) {
-      // Alternate sides and step outward, so no lane sits on the centre
-      // line and the bundle reads as pairs rather than a comb.
       const side = i % 2 === 0 ? -1 : 1
       const rank = Math.floor(i / 2)
       const ranks = Math.max(1, Math.ceil(count / 2) - 1)
@@ -169,8 +136,6 @@ export class SplitScene {
         SHOT.minMagnitude + (1 - SHOT.minMagnitude) * (ranks === 0 ? 1 : rank / ranks)
 
       const x = side * magnitude * SHOT.spread
-      // Spread through depth so the bundle has volume; the nearest lane is
-      // slightly in front of the notional plane, the rest recede.
       const z = (i / Math.max(1, count - 1) - 0.72) * SHOT.depth
 
       const curve = new THREE.CubicBezierCurve3(
@@ -198,9 +163,7 @@ export class SplitScene {
           uLane: { value: lane.clone() },
           uPulse: { value: pulse.clone() },
           uTime: { value: this.time },
-          // Rates are close but not equal, and not integer multiples of
-          // each other, so the lanes never resynchronise into a pattern.
-          uSpeed: { value: 0.108 + i * 0.0121 },
+          uSpeed: { value: (0.108 + i * 0.0121) * this.speedMultiplier },
           uPhase: { value: (i * 0.37) % 1 },
           uNear: { value: SHOT.cameraZ - 1.2 },
           uFar: { value: SHOT.cameraZ + SHOT.depth + 2.4 },
@@ -214,33 +177,119 @@ export class SplitScene {
     }
   }
 
-  private teardownLanes() {
+  /* ── Generative Idle-Tree Variant ──────────────────────────────────────── */
+
+  private buildTree() {
+    const positions: number[] = []
+    const colors: number[] = []
+
+    const trunkColor = new THREE.Color('#8b4513') // Sienna
+    const tipColor = new THREE.Color('#38bdf8')   // Golden/cyan tips
+
+    const addBranch = (
+      x0: number, y0: number, z0: number,
+      angle: number, length: number, depth: number, maxDepth: number
+    ) => {
+      if (depth > maxDepth) return
+
+      const x1 = x0 + Math.sin(angle) * length
+      const y1 = y0 + Math.cos(angle) * length
+      const z1 = z0 + (Math.random() - 0.5) * length * 0.3
+
+      positions.push(x0, y0, z0, x1, y1, z1)
+
+      const t0 = depth / maxDepth
+      const t1 = (depth + 1) / maxDepth
+
+      const c0 = trunkColor.clone().lerp(tipColor, t0)
+      const c1 = trunkColor.clone().lerp(tipColor, t1)
+
+      colors.push(c0.r, c0.g, c0.b, c1.r, c1.g, c1.b)
+
+      const branchCount = 2 + Math.floor(Math.random() * 2)
+      for (let b = 0; b < branchCount; b++) {
+        const deltaAngle = (Math.random() - 0.5) * 0.75
+        addBranch(x1, y1, z1, angle + deltaAngle, length * 0.72, depth + 1, maxDepth)
+      }
+    }
+
+    addBranch(0, -2.5, 0, 0, 1.2, 0, 6)
+
+    const treeGeom = new THREE.BufferGeometry()
+    treeGeom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    treeGeom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+
+    const treeMat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      linewidth: 1.5,
+    })
+
+    this.treeMesh = new THREE.LineSegments(treeGeom, treeMat)
+    this.group.add(this.treeMesh)
+
+    // Ambient floating motes
+    const moteCount = 60
+    const motePos: number[] = []
+    for (let m = 0; m < moteCount; m++) {
+      motePos.push(
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 6,
+        (Math.random() - 0.5) * 3
+      )
+    }
+    const motesGeom = new THREE.BufferGeometry()
+    motesGeom.setAttribute('position', new THREE.Float32BufferAttribute(motePos, 3))
+    const motesMat = new THREE.PointsMaterial({
+      color: 0x38bdf8,
+      size: 0.04,
+      transparent: true,
+      opacity: 0.5,
+    })
+    this.motesMesh = new THREE.Points(motesGeom, motesMat)
+    this.group.add(this.motesMesh)
+  }
+
+  private teardown() {
     for (const lane of this.lanes) {
       this.group.remove(lane.mesh)
       lane.geometry.dispose()
       lane.material.dispose()
     }
     this.lanes = []
+
+    if (this.treeMesh) {
+      this.group.remove(this.treeMesh)
+      this.treeMesh.geometry.dispose()
+      ;(this.treeMesh.material as THREE.Material).dispose()
+      this.treeMesh = null
+    }
+
+    if (this.motesMesh) {
+      this.group.remove(this.motesMesh)
+      this.motesMesh.geometry.dispose()
+      ;(this.motesMesh.material as THREE.Material).dispose()
+      this.motesMesh = null
+    }
   }
 
   /* ── Runtime ────────────────────────────────────────────────────────── */
 
   resize(width: number, height: number) {
     if (this.disposed || width === 0 || height === 0) return
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.quality.dpr))
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     this.renderer.setSize(width, height, false)
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     if (!this.running) this.renderOnce()
   }
 
-  /** Normalised pointer, -0.5..0.5 on both axes. */
   setPointer(x: number, y: number) {
     this.pointer.x = x
     this.pointer.y = y
   }
 
-  /** One frame at the still composition, then nothing. */
   renderOnce() {
     if (this.disposed) return
     for (const lane of this.lanes) lane.material.uniforms.uTime.value = this.time
@@ -269,15 +318,11 @@ export class SplitScene {
     if (!this.running || this.disposed) return
     this.frame = requestAnimationFrame(this.loop)
 
-    // Clamp so a backgrounded tab returning does not jump the pulses.
     const dt = Math.min(this.clock.getDelta(), 1 / 20)
-    this.time += dt
+    this.time += dt * this.speedMultiplier
 
     this.watchPerformance(dt)
 
-    // Exponential damping toward the pointer target, framed in dt so the
-    // feel is identical at 60 and 144Hz. Amplitude is deliberately tiny —
-    // a couple of degrees reads as alive, more reads as seasick.
     const k = 1 - Math.exp(-2.6 * dt)
     this.eye.x += (this.pointer.x * 1.15 - this.eye.x) * k
     this.eye.y += (-this.pointer.y * 0.7 - this.eye.y) * k
@@ -285,19 +330,18 @@ export class SplitScene {
     this.camera.position.set(this.eye.x, this.eye.y, SHOT.cameraZ)
     this.camera.lookAt(0, 0, 0)
 
-    for (const lane of this.lanes) lane.material.uniforms.uTime.value = this.time
+    if (this.variant === 'idle-tree' && this.treeMesh) {
+      this.treeMesh.rotation.y = Math.sin(this.time * 0.5) * 0.08 + this.eye.x * 0.2
+      this.treeMesh.rotation.z = Math.cos(this.time * 0.3) * 0.03
+    } else {
+      for (const lane of this.lanes) lane.material.uniforms.uTime.value = this.time
+    }
 
     this.renderer.render(this.scene, this.camera)
   }
 
-  /**
-   * Steps quality down if frames genuinely slip, rather than trusting the
-   * up-front device guess. Only ever downward — hunting between tiers is
-   * more visible than sitting one tier low.
-   */
   private watchPerformance(dt: number) {
     this.meanDt += (dt - this.meanDt) * 0.05
-
     if (this.meanDt > 1 / 45) {
       this.slowFrames += 1
     } else {
@@ -311,9 +355,10 @@ export class SplitScene {
     if (next === this.quality.tier) return
 
     this.quality = settingsFor(next)
-    this.teardownLanes()
-    this.build()
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.quality.dpr))
+    this.teardown()
+    if (this.variant === 'idle-tree') this.buildTree()
+    else this.buildLanes()
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     this.meanDt = 1 / 60
   }
 
@@ -321,7 +366,7 @@ export class SplitScene {
     this.disposed = true
     this.running = false
     cancelAnimationFrame(this.frame)
-    this.teardownLanes()
+    this.teardown()
     this.scene.remove(this.group)
     this.renderer.dispose()
   }

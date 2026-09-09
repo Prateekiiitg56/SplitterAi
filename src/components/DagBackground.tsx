@@ -3,12 +3,10 @@ import * as THREE from 'three'
 import { hasWebGL } from '../lib/quality'
 
 /**
- * DagBackground — the hero's slow-drifting particle/node graph.
+ * DagBackground — halo-framed node graph.
  *
- * A constellation of small nodes connected by thin lines, orbiting
- * slowly in 3D. Purely decorative: aria-hidden, pointer-events-none,
- * pauses on tab blur. Falls back to nothing if WebGL is unavailable
- * (the CSS gradient in the hero still works).
+ * Nodes are distributed in a wide framing halo around the viewport edges,
+ * keeping the hero copy region clear of clutter while framing the headline.
  */
 
 interface DagNode {
@@ -23,17 +21,15 @@ interface DagNode {
 }
 
 const COLORS = {
-  accent: 0x48B4FF,
-  good: 0x4DCFB8,
-  wait: 0x8296B8,
-  border: 0x232B3D,
-  ghost: 0x3B4356,
+  accent: 0x48b4ff,
+  good: 0x4dcfb8,
+  wait: 0x8296b8,
+  line: 0x3b5278,
 }
 
 function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
   const isMobile = width < 768
-  const NODE_COUNT = isMobile ? 16 : 38
-  const EDGE_PROBABILITY = 0.12
+  const NODE_COUNT = isMobile ? 12 : 24
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -47,77 +43,121 @@ function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
   const scene = new THREE.Scene()
 
   const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100)
-  camera.position.set(0, 0, 22)
+  camera.position.set(0, 0, 20)
   camera.lookAt(0, 0, 0)
 
-  // --- Nodes ---
-  const nodeColors = [COLORS.accent, COLORS.good, COLORS.wait, COLORS.accent, COLORS.good]
+  const nodeColors = [COLORS.accent, COLORS.good, COLORS.wait, COLORS.accent]
   const nodes: DagNode[] = []
-  const sphereGeom = new THREE.SphereGeometry(0.12, 8, 6)
+  const sphereGeom = new THREE.SphereGeometry(0.12, 10, 8)
   const nodeGroup = new THREE.Group()
 
+  // Distribute nodes in a wide halo arc framing the text block (leaving center x: -4.5..4.5, y: -2.5..2.5 clear)
   for (let i = 0; i < NODE_COUNT; i++) {
-    const colorIdx = i % nodeColors.length
-    const mat = new THREE.MeshBasicMaterial({ color: nodeColors[colorIdx], transparent: true, opacity: 0.7 })
+    const angle = (i / NODE_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.2
+    const rx = 9.2 + Math.random() * 3.2
+    const ry = 4.8 + Math.random() * 2.2
+
+    let x = Math.cos(angle) * rx
+    let y = Math.sin(angle) * ry
+    const z = (Math.random() - 0.5) * 3.0
+
+    // Ensure central text box is kept sparse
+    if (Math.abs(x) < 4.2 && Math.abs(y) < 2.5) {
+      x = x >= 0 ? 5.0 + Math.random() * 3 : -5.0 - Math.random() * 3
+    }
+
+    const color = nodeColors[i % nodeColors.length]
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.75,
+    })
     const mesh = new THREE.Mesh(sphereGeom, mat)
-    const x = (Math.random() - 0.5) * 18
-    const y = (Math.random() - 0.5) * 12
-    const z = (Math.random() - 0.5) * 6
     mesh.position.set(x, y, z)
     nodeGroup.add(mesh)
+
     nodes.push({
       position: mesh.position,
       basePosition: new THREE.Vector3(x, y, z),
       phaseX: Math.random() * Math.PI * 2,
       phaseY: Math.random() * Math.PI * 2,
       phaseZ: Math.random() * Math.PI * 2,
-      freqX: 0.1 + Math.random() * 0.15,
-      freqY: 0.08 + Math.random() * 0.12,
-      freqZ: 0.06 + Math.random() * 0.1,
+      freqX: 0.05 + Math.random() * 0.07,
+      freqY: 0.04 + Math.random() * 0.06,
+      freqZ: 0.03 + Math.random() * 0.05,
     })
   }
   scene.add(nodeGroup)
 
   // --- Edges ---
+  // Connect neighboring halo nodes while keeping line density low across center text block
   const edgePositions: number[] = []
+  let centerCrossingCount = 0
+
   for (let i = 0; i < nodes.length; i++) {
     for (let j = i + 1; j < nodes.length; j++) {
-      const dist = nodes[i].basePosition.distanceTo(nodes[j].basePosition)
-      if (dist < 6 && Math.random() < EDGE_PROBABILITY) {
+      const n1 = nodes[i]
+      const n2 = nodes[j]
+      const dist = n1.basePosition.distanceTo(n2.basePosition)
+
+      const midX = (n1.basePosition.x + n2.basePosition.x) / 2
+      const midY = (n1.basePosition.y + n2.basePosition.y) / 2
+      const passesNearCenter = Math.abs(midX) < 4.0 && Math.abs(midY) < 2.2
+
+      if (passesNearCenter) {
+        // Strict cap: max 2 faint lines across center text region
+        if (centerCrossingCount < 2 && dist < 11 && Math.random() < 0.12) {
+          centerCrossingCount++
+          edgePositions.push(
+            n1.position.x, n1.position.y, n1.position.z,
+            n2.position.x, n2.position.y, n2.position.z,
+          )
+        }
+      } else if (dist < 4.8 && Math.random() < 0.45) {
         edgePositions.push(
-          nodes[i].position.x, nodes[i].position.y, nodes[i].position.z,
-          nodes[j].position.x, nodes[j].position.y, nodes[j].position.z,
+          n1.position.x, n1.position.y, n1.position.z,
+          n2.position.x, n2.position.y, n2.position.z,
         )
       }
     }
   }
 
   const edgeGeom = new THREE.BufferGeometry()
-  const edgeAttr = new Float32Array(edgePositions.length > 0 ? edgePositions.length : 6)
+  const edgeAttr = new Float32Array(
+    edgePositions.length > 0 ? edgePositions.length : 6,
+  )
   if (edgePositions.length > 0) {
     edgeAttr.set(edgePositions)
   }
   edgeGeom.setAttribute('position', new THREE.BufferAttribute(edgeAttr, 3))
 
   const edgeMat = new THREE.LineBasicMaterial({
-    color: COLORS.ghost,
+    color: COLORS.line,
     transparent: true,
-    opacity: 0.3,
+    opacity: 0.5,
   })
   const edges = new THREE.LineSegments(edgeGeom, edgeMat)
   scene.add(edges)
 
-  // Store edge pairs for updates
+  // Store edge pairs for frame updates
   const edgePairs: [number, number][] = []
   for (let k = 0; k < edgePositions.length; k += 6) {
-    // Find which nodes these belong to by matching initial positions
-    let ni = -1, nj = -1
+    let ni = 0,
+      nj = 0
     for (let n = 0; n < nodes.length; n++) {
       const bp = nodes[n].basePosition
-      if (Math.abs(bp.x - edgePositions[k]) < 0.001 && Math.abs(bp.y - edgePositions[k + 1]) < 0.001) ni = n
-      if (Math.abs(bp.x - edgePositions[k + 3]) < 0.001 && Math.abs(bp.y - edgePositions[k + 4]) < 0.001) nj = n
+      if (
+        Math.abs(bp.x - edgePositions[k]) < 0.001 &&
+        Math.abs(bp.y - edgePositions[k + 1]) < 0.001
+      )
+        ni = n
+      if (
+        Math.abs(bp.x - edgePositions[k + 3]) < 0.001 &&
+        Math.abs(bp.y - edgePositions[k + 4]) < 0.001
+      )
+        nj = n
     }
-    edgePairs.push([ni >= 0 ? ni : 0, nj >= 0 ? nj : 0])
+    edgePairs.push([ni, nj])
   }
 
   let animId = 0
@@ -129,14 +169,17 @@ function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
 
     const t = time * 0.001
 
-    // Drift nodes
+    // Subtle drift
     for (const node of nodes) {
-      node.position.x = node.basePosition.x + Math.sin(t * node.freqX + node.phaseX) * 0.6
-      node.position.y = node.basePosition.y + Math.sin(t * node.freqY + node.phaseY) * 0.4
-      node.position.z = node.basePosition.z + Math.sin(t * node.freqZ + node.phaseZ) * 0.3
+      node.position.x =
+        node.basePosition.x + Math.sin(t * node.freqX + node.phaseX) * 0.35
+      node.position.y =
+        node.basePosition.y + Math.sin(t * node.freqY + node.phaseY) * 0.25
+      node.position.z =
+        node.basePosition.z + Math.sin(t * node.freqZ + node.phaseZ) * 0.18
     }
 
-    // Update edge positions
+    // Update edge line endpoints
     const posArr = edgeGeom.attributes.position as THREE.BufferAttribute
     for (let e = 0; e < edgePairs.length; e++) {
       const [ni, nj] = edgePairs[e]
@@ -150,9 +193,9 @@ function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
     }
     posArr.needsUpdate = true
 
-    // Slow orbit
-    nodeGroup.rotation.y = t * 0.03
-    nodeGroup.rotation.x = Math.sin(t * 0.02) * 0.08
+    // Ambient orbit
+    nodeGroup.rotation.y = t * 0.012
+    nodeGroup.rotation.x = Math.sin(t * 0.01) * 0.03
     edges.rotation.y = nodeGroup.rotation.y
     edges.rotation.x = nodeGroup.rotation.x
 
@@ -183,11 +226,9 @@ function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
     sphereGeom.dispose()
     edgeGeom.dispose()
     edgeMat.dispose()
-    nodes.forEach(() => {}) // meshes are disposed via scene
     scene.clear()
   }
 
-  // Start
   animId = requestAnimationFrame(animate)
 
   return { start, stop, resize, dispose }
@@ -235,16 +276,19 @@ export default function DagBackground() {
       ref={hostRef}
       aria-hidden="true"
       className="absolute inset-0 overflow-hidden pointer-events-none"
-      style={{ opacity: 0.35 }}
+      style={{ opacity: 0.55 }}
     >
-      {/* CSS fallback gradient — always present */}
+      {/* CSS radial backdrop gradient */}
       <div
         className="absolute inset-0"
         style={{
-          background: 'radial-gradient(ellipse 70% 50% at 50% 40%, rgba(72,180,255,0.06), transparent 70%)',
+          background:
+            'radial-gradient(ellipse 70% 50% at 50% 40%, rgba(72,180,255,0.06), transparent 70%)',
         }}
       />
-      {hasWebGL() && <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />}
+      {hasWebGL() && (
+        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+      )}
     </div>
   )
 }

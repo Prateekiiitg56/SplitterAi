@@ -19,7 +19,6 @@ import type { AgentRole, Subtask } from '../../types'
 import { sendChatMessage, planTask } from '../../lib/api'
 import { AgentIcon } from '../Badges'
 import { DEFAULT_WORKSPACE } from '../../config'
-import SplitCanvas from '../SplitCanvas'
 import { Modal } from '../primitives/Modal'
 import { Button } from '../primitives/Button'
 import { useScore } from '../../lib/motion'
@@ -173,9 +172,7 @@ export function AIAssistantInterface() {
   const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.coder
 
   return (
-    <div className="relative flex-1 flex flex-col min-h-0 bg-[var(--bg)] text-[var(--text)] font-sans overflow-hidden">
-      {/* The one earned 3D moment, behind everything. */}
-      <SplitCanvas />
+    <div className="relative flex-1 flex flex-col min-h-0 text-[var(--text)] font-sans overflow-y-auto bg-gradient-to-b from-[#08090d]/90 via-[#08090d]/40 to-transparent">
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center min-h-0 px-6 py-10 overflow-hidden">
         <motion.div

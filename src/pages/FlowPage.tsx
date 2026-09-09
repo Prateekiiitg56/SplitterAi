@@ -264,7 +264,7 @@ export default function FlowPage() {
       {/* Topbar */}
       <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
         <div className="topbar-left flex items-center gap-2.5">
-          <span className="topbar-title font-semibold text-[14px]">Agent Flow Canvas</span>
+          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Agent Flow Canvas</h1>
           <span className="topbar-crumb font-mono text-[11px] text-[var(--faint)]">({importedTaskTitle})</span>
         </div>
 
@@ -279,19 +279,19 @@ export default function FlowPage() {
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="btn-secondary text-[var(--dim)] hover:text-[var(--text)] text-[12px] px-3 py-1.5 rounded-md border border-[var(--border-soft)] hover:border-[var(--border)] flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
-            <Upload size={13} />
+            <Upload size={13} className="text-[var(--accent)]" />
             <span>Import n8n workflow</span>
           </button>
 
           <button
             onClick={handleLaunchPlan}
             disabled={unassignedCount > 0}
-            className={`btn-primary text-[12px] font-medium px-3.5 py-1.5 rounded-md border flex items-center gap-1.5 transition-colors cursor-pointer ${
+            className={`font-semibold text-xs px-3.5 py-1.5 rounded-md border flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
               unassignedCount > 0
                 ? 'opacity-50 cursor-not-allowed border-[var(--border-soft)] text-[var(--faint)] bg-[var(--panel-2)]'
-                : 'border-[var(--border)] text-[var(--accent)] hover:border-[var(--accent)]'
+                : 'bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)] hover:brightness-110'
             }`}
           >
             <Play size={13} />

@@ -13,11 +13,12 @@ import { cx } from '../../lib/cx'
  * reliable accessible name.
  */
 
-type Variant = 'primary' | 'ghost' | 'quiet' | 'danger'
+type Variant = 'primary' | 'ghost' | 'quiet' | 'danger' | 'warn'
 
 interface Base extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'className'> {
   variant?: Variant
   size?: 'sm' | 'md'
+  loading?: boolean
   className?: string
 }
 
@@ -46,10 +47,12 @@ const VARIANT: Record<Variant, string> = {
     'bg-transparent text-[var(--dim)] border border-transparent hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
   danger:
     'bg-[var(--bad-quiet)] text-[var(--bad)] border border-[rgba(255,110,130,0.28)] hover:border-[var(--bad)]',
+  warn:
+    'bg-[rgba(245,158,11,0.12)] text-[#fbbf24] border border-[rgba(245,158,11,0.3)] hover:border-[#fbbf24]',
 }
 
 export function Button(props: ButtonProps) {
-  const { variant = 'ghost', size = 'md', className, icon, label, children, ...rest } = props as
+  const { variant = 'ghost', size = 'md', loading = false, className, icon, label, children, disabled, ...rest } = props as
     & Base
     & { icon?: ReactNode; label?: string; children?: ReactNode }
 
@@ -60,6 +63,7 @@ export function Button(props: ButtonProps) {
       type="button"
       aria-label={iconOnly ? label : undefined}
       title={iconOnly ? label : undefined}
+      disabled={disabled || loading}
       className={cx(
         'inline-flex items-center justify-center gap-1.5 rounded-panel',
         'text-meta leading-none whitespace-nowrap select-none',
@@ -68,13 +72,20 @@ export function Button(props: ButtonProps) {
         'active:scale-[0.985]',
         'disabled:opacity-45 disabled:pointer-events-none',
         size === 'sm' ? 'h-6' : 'h-7',
-        iconOnly ? (size === 'sm' ? 'w-6' : 'w-7') : size === 'sm' ? 'px-2' : 'px-2.5',
+        iconOnly ? (size === 'sm' ? 'w-6 h-6' : 'w-7 h-7') : size === 'sm' ? 'px-2' : 'px-2.5',
         VARIANT[variant],
         className,
       )}
       {...rest}
     >
-      {icon ? <span className="flex-shrink-0 inline-flex">{icon}</span> : null}
+      {loading ? (
+        <svg className="animate-spin h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      ) : icon ? (
+        <span className="flex-shrink-0 inline-flex">{icon}</span>
+      ) : null}
       {children}
     </button>
   )

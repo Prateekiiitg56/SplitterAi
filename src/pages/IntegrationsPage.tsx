@@ -8,6 +8,7 @@ import {
   Database,
   Loader2,
   X,
+  AlertCircle,
 } from 'lucide-react'
 import { useIntegrations } from '../hooks/useIntegrations'
 import { StatusBadge } from '../components/Badges'
@@ -100,7 +101,7 @@ export default function IntegrationsPage() {
       {/* Topbar */}
       <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
         <div className="topbar-left flex items-center gap-2.5">
-          <span className="topbar-title font-semibold text-[14px]">Integrations</span>
+          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Integrations</h1>
         </div>
 
         <div className="topbar-right flex items-center gap-2">
@@ -109,9 +110,9 @@ export default function IntegrationsPage() {
               setFormError(null)
               setShowConnectGithubModal(true)
             }}
-            className="btn-ghost text-[12px] px-3 py-1.5 rounded-md border border-[var(--border)] text-[var(--dim)] hover:text-[var(--text)] hover:border-[var(--faint)] transition-colors cursor-pointer flex items-center gap-1.5"
+            className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
-            <GitBranch size={13} />
+            <GitBranch size={13} className="text-[var(--accent)]" />
             <span>Connect GitHub</span>
           </button>
 
@@ -120,7 +121,7 @@ export default function IntegrationsPage() {
               setFormError(null)
               setShowConnectMcpModal(true)
             }}
-            className="btn-primary text-[var(--accent)] font-medium text-[12px] px-3 py-1.5 rounded-md border border-[var(--border)] hover:border-[var(--accent)] transition-colors cursor-pointer flex items-center gap-1.5"
+            className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs px-3.5 py-1.5 rounded-md border border-[var(--accent)] hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <Plus size={13} />
             <span>Add MCP Server</span>
@@ -132,39 +133,40 @@ export default function IntegrationsPage() {
       <div className="page-body flex-1 overflow-y-auto p-6 space-y-6">
         
         {error && (
-          <div className="p-3.5 rounded border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px]">
-            ⚠️ <strong>Error:</strong> {error}
+          <div className="p-3 px-4 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-xs font-mono flex items-center gap-2.5 shadow-sm">
+            <AlertCircle size={15} className="text-red-400 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
         {/* Connected Section */}
         <div className="space-y-3">
-          <div className="section-sub font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold">
+          <div className="section-sub font-mono text-[11px] text-[var(--faint)] tracking-[0.1em] uppercase font-medium">
             CONNECTED INTEGRATIONS ({integrations.length})
           </div>
 
           {loading ? (
-            <div className="p-6 border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)] text-center text-[var(--dim)] font-mono text-[12px] flex items-center justify-center gap-2">
+            <div className="p-6 border border-[var(--border)] rounded-lg bg-[var(--panel)] text-center text-[var(--dim)] font-mono text-xs flex items-center justify-center gap-2 shadow-sm">
               <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
               <span>Loading workspace integrations...</span>
             </div>
           ) : integrations.length === 0 ? (
-            <div className="border border-[var(--border-soft)] rounded-[var(--radius)] p-8 text-center bg-[var(--panel)] space-y-2">
-              <p className="text-[13.5px] font-semibold text-[var(--text)]">No integrations connected</p>
-              <p className="text-[12px] text-[var(--faint)] font-mono">
+            <div className="border border-[var(--border)] rounded-lg p-8 text-center bg-[var(--panel)] space-y-2 shadow-sm">
+              <p className="text-sm font-semibold text-[var(--text)]">No integrations connected</p>
+              <p className="text-xs text-[var(--faint)] font-mono">
                 Connect GitHub or an MCP server to give agents more tools to work with during autonomous task execution.
               </p>
             </div>
           ) : (
             <div className="int-grid grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
               {integrations.map((item) => (
-                <div key={item.id} className="int-card border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+                <div key={item.id} className="int-card border border-[var(--border)] rounded-lg p-4 bg-[var(--panel)] shadow-sm flex flex-col justify-between gap-3">
                   <div className="int-card-top flex items-center gap-2.5">
-                    <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center flex-shrink-0 text-[var(--accent)]">
+                    <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center flex-shrink-0 text-[var(--accent)]">
                       {item.type === 'github' ? <GitBranch size={15} /> : <Server size={15} />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="int-name font-medium text-[12.5px] text-[var(--text)] truncate">{item.name}</div>
+                      <div className="int-name font-semibold text-[13px] text-[var(--text)] truncate">{item.name}</div>
                       <div className="int-meta text-[11px] text-[var(--faint)] font-mono truncate">
                         {item.config?.repo || item.config?.url || 'Connected'}
                       </div>
@@ -172,21 +174,21 @@ export default function IntegrationsPage() {
                     <StatusBadge status={item.status} />
                   </div>
 
-                  <div className="int-desc text-[12px] text-[var(--dim)] line-clamp-2 leading-relaxed">
+                  <div className="int-desc text-xs text-[var(--dim)]/80 line-clamp-2 leading-relaxed font-mono">
                     Allowed Agent Roles: {(item.allowedRoles || ['planner', 'coder', 'auditor', 'tester']).join(', ')}
                   </div>
 
-                  <div className="int-actions flex items-center gap-3 pt-2 border-t border-[var(--border-soft)] text-[11.5px]">
+                  <div className="int-actions flex items-center gap-3 pt-2.5 border-t border-[var(--border-soft)] text-xs">
                     <button
                       onClick={() => setReconfigureTarget(item)}
-                      className="text-[var(--dim)] hover:text-[var(--text)] cursor-pointer flex items-center gap-1"
+                      className="text-[var(--dim)] hover:text-[var(--text)] cursor-pointer flex items-center gap-1 transition-colors"
                     >
                       <Settings size={12} />
                       <span>Reconfigure</span>
                     </button>
                     <button
                       onClick={() => disconnect(item.id)}
-                      className="text-[var(--bad)] hover:underline cursor-pointer flex items-center gap-1 ml-auto"
+                      className="text-[var(--bad)] hover:underline cursor-pointer flex items-center gap-1 ml-auto transition-colors"
                     >
                       <Trash2 size={12} />
                       <span>Disconnect</span>
@@ -200,24 +202,24 @@ export default function IntegrationsPage() {
 
         {/* Catalog Section */}
         <div className="space-y-3">
-          <div className="section-sub font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold">
+          <div className="section-sub font-mono text-[11px] text-[var(--faint)] tracking-[0.1em] uppercase font-medium">
             AVAILABLE INTEGRATION CATALOG
           </div>
 
           <div className="int-grid grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
             {/* GitHub */}
-            <div className="int-card border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+            <div className="int-card border border-[var(--border)] rounded-lg p-4.5 bg-[var(--panel)] shadow-sm flex flex-col justify-between gap-3">
               <div>
-                <div className="int-card-top flex items-center gap-2.5 mb-2">
-                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-[var(--accent)]">
+                <div className="int-card-top flex items-center gap-2.5 mb-2.5">
+                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center text-[var(--accent)]">
                     <GitBranch size={15} />
                   </div>
                   <div>
-                    <div className="int-name font-medium text-[12.5px] text-[var(--text)]">GitHub Connector</div>
+                    <div className="int-name font-semibold text-[13px] text-[var(--text)]">GitHub Connector</div>
                     <div className="int-meta text-[11px] text-[var(--faint)] font-mono">Code & PRs</div>
                   </div>
                 </div>
-                <div className="int-desc text-[12px] text-[var(--dim)] leading-relaxed">
+                <div className="int-desc text-xs text-[var(--dim)]/80 leading-relaxed">
                   Grant agents scoped read/write access to repositories, branches, and PR workflows.
                 </div>
               </div>
@@ -227,25 +229,25 @@ export default function IntegrationsPage() {
                   setFormError(null)
                   setShowConnectGithubModal(true)
                 }}
-                className="btn-ghost text-[11.5px] py-1.5 border border-[var(--border)] rounded text-[var(--dim)] hover:text-[var(--text)] cursor-pointer w-full text-center"
+                className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs py-1.5 px-3 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all cursor-pointer w-full text-center"
               >
                 Configure GitHub
               </button>
             </div>
 
             {/* Custom MCP */}
-            <div className="int-card border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+            <div className="int-card border border-[var(--border)] rounded-lg p-4.5 bg-[var(--panel)] shadow-sm flex flex-col justify-between gap-3">
               <div>
-                <div className="int-card-top flex items-center gap-2.5 mb-2">
-                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-[var(--accent)]">
+                <div className="int-card-top flex items-center gap-2.5 mb-2.5">
+                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center text-[var(--accent)]">
                     <Server size={15} />
                   </div>
                   <div>
-                    <div className="int-name font-medium text-[12.5px] text-[var(--text)]">Custom MCP Server</div>
+                    <div className="int-name font-semibold text-[13px] text-[var(--text)]">Custom MCP Server</div>
                     <div className="int-meta text-[11px] text-[var(--faint)] font-mono">Model Context Protocol</div>
                   </div>
                 </div>
-                <div className="int-desc text-[12px] text-[var(--dim)] leading-relaxed">
+                <div className="int-desc text-xs text-[var(--dim)]/80 leading-relaxed">
                   Connect standard SSE/HTTP MCP server endpoints with automated validation.
                 </div>
               </div>
@@ -255,25 +257,25 @@ export default function IntegrationsPage() {
                   setFormError(null)
                   setShowConnectMcpModal(true)
                 }}
-                className="btn-primary text-[var(--accent)] text-[11.5px] py-1.5 border border-[var(--border)] hover:border-[var(--accent)] rounded cursor-pointer w-full text-center"
+                className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs py-1.5 px-3 rounded-md border border-[var(--accent)] hover:brightness-110 shadow-sm transition-all cursor-pointer w-full text-center"
               >
                 Add MCP Server
               </button>
             </div>
 
             {/* PostgreSQL */}
-            <div className="int-card border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+            <div className="int-card border border-[var(--border)] rounded-lg p-4.5 bg-[var(--panel)] shadow-sm flex flex-col justify-between gap-3">
               <div>
-                <div className="int-card-top flex items-center gap-2.5 mb-2">
-                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] flex items-center justify-center text-[var(--accent)]">
+                <div className="int-card-top flex items-center gap-2.5 mb-2.5">
+                  <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center text-[var(--accent)]">
                     <Database size={15} />
                   </div>
                   <div>
-                    <div className="int-name font-medium text-[12.5px] text-[var(--text)]">PostgreSQL DB MCP</div>
+                    <div className="int-name font-semibold text-[13px] text-[var(--text)]">PostgreSQL DB MCP</div>
                     <div className="int-meta text-[11px] text-[var(--faint)] font-mono">Database Tools</div>
                   </div>
                 </div>
-                <div className="int-desc text-[12px] text-[var(--dim)] leading-relaxed">
+                <div className="int-desc text-xs text-[var(--dim)]/80 leading-relaxed">
                   Relational DB schema inspection, SQL queries, and migration execution.
                 </div>
               </div>
@@ -284,7 +286,7 @@ export default function IntegrationsPage() {
                   setMcpUrl('http://localhost:5432/mcp')
                   setShowConnectMcpModal(true)
                 }}
-                className="btn-ghost text-[11.5px] py-1.5 border border-[var(--border)] rounded text-[var(--dim)] hover:text-[var(--text)] cursor-pointer w-full text-center"
+                className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs py-1.5 px-3 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all cursor-pointer w-full text-center"
               >
                 Connect Database
               </button>

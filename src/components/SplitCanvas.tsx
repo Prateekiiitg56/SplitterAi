@@ -1,29 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { SplitScene } from '../scene/splitScene'
+import { SplitScene, type CanvasVariant } from '../scene/splitScene'
 import { detectTier, hasWebGL } from '../lib/quality'
 
+interface SplitCanvasProps {
+  className?: string
+  variant?: CanvasVariant
+  speed?: number
+  opacity?: number
+}
+
 /**
- * SplitCanvas — the React surface for the one earned 3D moment.
- *
- * Rules this wrapper exists to enforce:
- *
- *  - It is decoration in the accessibility tree's eyes, so `aria-hidden`
- *    and `pointer-events-none`. The meaning it carries is also stated in
- *    the copy it sits behind; nothing here is the only way to learn
- *    anything.
- *  - It never runs when it cannot be seen. Off-screen (IntersectionObserver)
- *    and backgrounded (`visibilitychange`) both stop the loop, because a
- *    hidden rAF loop is just a battery drain.
- *  - Reduced motion is answered with a still, deliberately composed frame
- *    rather than a blank space — the tier resolves to `off`, which renders
- *    one frame and stops.
- *  - No WebGL means the CSS gradient fallback below stands alone, and no
- *    three.js work is attempted at all.
- *
- * Mounted once, high in the tree, and left alone: re-creating a WebGL
- * context on navigation is the classic way to leak them.
+ * SplitCanvas — React surface for Three.js background scene.
+ * Supports 'console' (default) and 'idle-tree' painterly branching variants.
  */
-export default function SplitCanvas({ className }: { className?: string }) {
+export default function SplitCanvas({
+  className,
+  variant = 'console',
+  speed = 1.0,
+  opacity = 1.0,
+}: SplitCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [supported] = useState(hasWebGL)
@@ -36,10 +31,8 @@ export default function SplitCanvas({ className }: { className?: string }) {
 
     let scene: SplitScene
     try {
-      scene = new SplitScene(canvas, detectTier())
+      scene = new SplitScene(canvas, detectTier(), variant, speed)
     } catch {
-      // A context can still fail after the probe said yes — a lost driver,
-      // a tab over the browser's context limit. Fall through to the CSS.
       return
     }
 
@@ -49,7 +42,6 @@ export default function SplitCanvas({ className }: { className?: string }) {
     }
     size()
 
-    /* Visible AND foregrounded, or the loop stays parked. */
     let onScreen = true
     const sync = () => {
       if (onScreen && document.visibilityState === 'visible') scene.start()
@@ -61,19 +53,17 @@ export default function SplitCanvas({ className }: { className?: string }) {
         onScreen = entry.isIntersecting
         sync()
       },
-      { threshold: 0 },
+      { threshold: 0 }
     )
     observer.observe(host)
 
     const resize = new ResizeObserver(size)
     resize.observe(host)
 
-    // Pointer parallax is read at the window level, normalised to
-    // -0.5..0.5, and only moves the camera by a couple of degrees.
     const onPointer = (event: PointerEvent) => {
       scene.setPointer(
         event.clientX / window.innerWidth - 0.5,
-        event.clientY / window.innerHeight - 0.5,
+        event.clientY / window.innerHeight - 0.5
       )
     }
 
@@ -88,19 +78,15 @@ export default function SplitCanvas({ className }: { className?: string }) {
       window.removeEventListener('pointermove', onPointer)
       scene.dispose()
     }
-  }, [supported])
+  }, [supported, variant, speed])
 
   return (
     <div
       ref={hostRef}
       aria-hidden="true"
+      style={{ opacity }}
       className={className ?? 'absolute inset-0 overflow-hidden pointer-events-none'}
     >
-      {/*
-        The floor of the composition, present at every tier. A single very
-        soft cold pool behind the copy column, so the headline sits on
-        something even with the canvas dark or absent.
-      */}
       <div
         className="absolute inset-0"
         style={{
@@ -111,10 +97,6 @@ export default function SplitCanvas({ className }: { className?: string }) {
 
       {supported ? <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" /> : null}
 
-      {/*
-        Vignette. Pulls the eye to the centre and keeps the lanes from
-        reaching the panel edges, where they would fight the chrome.
-      */}
       <div
         className="absolute inset-0"
         style={{

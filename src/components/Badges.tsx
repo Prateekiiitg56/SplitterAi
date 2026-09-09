@@ -2,6 +2,8 @@ import React from 'react'
 import { Layers } from 'lucide-react'
 import type { AgentRole, AgentStatus, SubtaskStatus } from '../types'
 
+export type BadgeSize = 'sm' | 'md'
+
 export function AgentIcon({ role, size = 16, className = "" }: { role: AgentRole | string; size?: number; className?: string }) {
   switch (role) {
     case 'planner':
@@ -33,57 +35,128 @@ export function AgentIcon({ role, size = 16, className = "" }: { role: AgentRole
   }
 }
 
-export function AgentBadge({ role }: { role: AgentRole }) {
-  const labels: Record<AgentRole, string> = { planner: 'Planner', coder: 'Coder', auditor: 'Auditor', tester: 'Tester', unassigned: 'Unassigned' }
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span className="w-6 h-6 rounded-md bg-[var(--panel-2)] border border-[var(--border)] text-[var(--text)] flex items-center justify-center flex-shrink-0">
-        <AgentIcon role={role} size={14} />
-      </span>
-      <span className="text-[12.5px] font-medium text-[var(--text)]">{labels[role] ?? role}</span>
-    </span>
-  )
-}
-
-/* ── Standalone Iconic Status Dot Component (splitterai_redesign.html) ─────── */
-
 export function StatusDot({ status }: { status: AgentStatus | SubtaskStatus | string }) {
   const s = (status || '').toLowerCase()
   let dotClass = 'idle'
 
   if (s === 'working' || s === 'running' || s === 'executing') dotClass = 'working'
-  else if (s === 'completed' || s === 'success' || s === 'done') dotClass = 'done'
+  else if (s === 'completed' || s === 'success' || s === 'done' || s === 'complete') dotClass = 'done'
   else if (s === 'failed' || s === 'error') dotClass = 'failed'
-  else if (s === 'paused') dotClass = 'paused'
+  else if (s === 'paused' || s === 'waiting' || s === 'queued') dotClass = 'paused'
 
   return <span className={`dot ${dotClass}`} />
 }
 
-export function StatusBadge({ status }: { status: AgentStatus | SubtaskStatus | string }) {
+export interface StatusBadgeProps {
+  status: AgentStatus | SubtaskStatus | string
+  compact?: boolean
+  size?: BadgeSize
+  className?: string
+}
+
+export function StatusBadge({ status, compact = false, size = 'md', className = '' }: StatusBadgeProps) {
   const s = (status || '').toLowerCase()
   let statusClass = 'idle'
   let label = s
 
   if (s === 'working' || s === 'running' || s === 'executing') {
     statusClass = 'working'
-    label = 'working'
-  } else if (s === 'completed' || s === 'success' || s === 'done') {
+    label = 'running'
+  } else if (s === 'completed' || s === 'success' || s === 'done' || s === 'complete') {
     statusClass = 'completed'
     label = 'completed'
   } else if (s === 'failed' || s === 'error') {
     statusClass = 'failed'
     label = 'failed'
-  } else if (s === 'paused') {
+  } else if (s === 'paused' || s === 'waiting' || s === 'queued') {
     statusClass = 'paused'
-    label = 'paused'
+    label = s === 'queued' ? 'queued' : 'waiting'
+  }
+
+  const isRunning = statusClass === 'working'
+  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-[11px] gap-1' : 'px-2 py-1 text-[12px] gap-1.5'
+
+  if (compact) {
+    return (
+      <span className={`inline-flex items-center justify-center relative ${className}`} title={`Status: ${label}`}>
+        <StatusDot status={status} />
+        {isRunning && <span className="absolute inset-0 rounded-full animate-ping bg-[var(--accent)] opacity-40 pointer-events-none" />}
+        <span className="sr-only">Status: {label}</span>
+      </span>
+    )
   }
 
   return (
-    <span className={`status-badge ${statusClass}`}>
-      <StatusDot status={status} />
-      <span>{label}</span>
+    <span className={`status-badge ${statusClass} ${sizeClasses} ${className}`}>
+      <span className="relative flex items-center justify-center">
+        <StatusDot status={status} />
+        {isRunning && <span className="absolute inset-0 rounded-full animate-ping bg-[var(--accent)] opacity-40 pointer-events-none" />}
+      </span>
+      <span className="font-mono uppercase tracking-wider text-[10.5px]">{label}</span>
+      <span className="sr-only">Status: {label}</span>
     </span>
   )
+}
+
+export interface RoleBadgeProps {
+  role: AgentRole | string
+  compact?: boolean
+  size?: BadgeSize
+  className?: string
+}
+
+export function RoleBadge({ role, compact = false, size = 'md', className = '' }: RoleBadgeProps) {
+  const r = (role || '').toLowerCase() as AgentRole
+  const tags: Record<string, string> = {
+    planner: 'PL',
+    coder: 'CO',
+    auditor: 'AU',
+    tester: 'TE',
+    unassigned: 'UA'
+  }
+  const labels: Record<string, string> = {
+    planner: 'Planner',
+    coder: 'Coder',
+    auditor: 'Auditor',
+    tester: 'Tester',
+    unassigned: 'Unassigned'
+  }
+  const tag = tags[r] ?? r.slice(0, 2).toUpperCase()
+  const label = labels[r] ?? role
+
+  const roleStyles: Record<string, string> = {
+    planner: 'bg-[rgba(56,189,248,0.12)] text-[#38bdf8] border-[rgba(56,189,248,0.25)]',
+    coder: 'bg-[rgba(59,130,246,0.12)] text-[#60a5fa] border-[rgba(59,130,246,0.25)]',
+    auditor: 'bg-[rgba(245,158,11,0.12)] text-[#fbbf24] border-[rgba(245,158,11,0.25)]',
+    tester: 'bg-[rgba(168,85,247,0.12)] text-[#c084fc] border-[rgba(168,85,247,0.25)]',
+  }
+  const colorClass = roleStyles[r] ?? 'bg-[var(--panel-2)] text-[var(--text)] border-[var(--border)]'
+  const iconSize = size === 'sm' ? 12 : 14
+  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-[11px] gap-1' : 'px-2 py-1 text-[12px] gap-1.5'
+
+  if (compact) {
+    return (
+      <span
+        className={`inline-flex items-center justify-center rounded border ${colorClass} p-1 ${className}`}
+        title={`Role: ${label}`}
+      >
+        <AgentIcon role={role} size={iconSize} />
+        <span className="sr-only">Role: {label}</span>
+      </span>
+    )
+  }
+
+  return (
+    <span className={`inline-flex items-center rounded border font-mono font-medium ${colorClass} ${sizeClasses} ${className}`}>
+      <AgentIcon role={role} size={iconSize} />
+      <span className="text-[10.5px] uppercase tracking-wider font-semibold">{tag}</span>
+      <span className="sr-only">Role: {label}</span>
+    </span>
+  )
+}
+
+export function AgentBadge({ role }: { role: AgentRole }) {
+  return <RoleBadge role={role} size="md" />
 }
 
 export function StatusIcon({ status }: { status: AgentStatus | SubtaskStatus | string }) {
