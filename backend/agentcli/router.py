@@ -148,10 +148,12 @@ async def call_model(
         max_retries = 2
         for retry in range(max_retries):
             try:
-                # Alias gemini-3.5-flash to active valid Gemini endpoint
+                # Alias models to active working endpoints on OpenRouter/Gemini API
                 target_model = model
                 if "gemini-3.5-flash" in model.lower():
-                    target_model = "gemini/gemini-2.0-flash"
+                    target_model = "openrouter/meta-llama/llama-3.3-70b-instruct"
+                elif "nemotron" in model.lower():
+                    target_model = "openrouter/meta-llama/llama-3.3-70b-instruct"
 
                 kwargs: dict[str, Any] = {
                     "model": target_model,

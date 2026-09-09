@@ -129,6 +129,10 @@ class ExecutionConfig:
         """Get the model fallback chain for a role."""
         return self.model_chains.get(role, DEFAULT_MODEL_CHAINS[AgentRole.coder])
 
+    def set_model_chain(self, role: AgentRole, chain: list[str]) -> None:
+        """Set the model fallback chain for a role."""
+        self.model_chains[role] = chain
+
     def get_api_key(self, role: AgentRole, model: str) -> str | None:
         """Get the API key for a role + model."""
         return resolve_api_key(role, model)
