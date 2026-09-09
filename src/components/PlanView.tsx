@@ -82,7 +82,7 @@ export default function PlanView({
               <span className="text-[var(--faint)]">·</span>
               <StatusBadge status={runStatus} />
             </div>
-            <h1 className="text-title font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
+            <h1 className="text-strong md:text-title font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
               {task || 'No active task run'}
             </h1>
           </div>
@@ -90,11 +90,11 @@ export default function PlanView({
           <div className="flex items-center gap-3 flex-shrink-0 self-start md:self-auto">
             <div className="px-3 py-1.5 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-right">
               <p className="text-micro font-mono text-[var(--faint)] uppercase">PARALLEL NODES</p>
-              <p className="text-ui font-mono font-bold text-[var(--text)]">{subtasks.length} Subtasks</p>
+              <p className="text-meta font-mono font-bold text-[var(--text)]">{subtasks.length} Subtasks</p>
             </div>
             <div className="px-3 py-1.5 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-right">
               <p className="text-micro font-mono text-[var(--faint)] uppercase">LANES</p>
-              <p className="text-ui font-mono font-bold text-[var(--accent)]">{groupNums.length} Groups</p>
+              <p className="text-meta font-mono font-bold text-[var(--accent)]">{groupNums.length} Groups</p>
             </div>
           </div>
         </div>
@@ -105,13 +105,13 @@ export default function PlanView({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Activity size={18} className="text-[var(--accent)]" />
-            <h2 className="text-strong font-bold text-[var(--text)]">Execution DAG Workflow Graph</h2>
+            <h2 className="text-ui md:text-strong font-bold text-[var(--text)]">Execution DAG Workflow Graph</h2>
             <span className="text-micro font-mono px-2.5 py-0.5 rounded-control bg-[var(--accent-quiet)] text-[var(--accent)] border border-[var(--accent-edge)] font-semibold">
               Parallel Execution DAG
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-micro font-mono text-[var(--dim)] hidden sm:inline">
+            <span className="text-meta font-mono text-[var(--dim)] hidden sm:inline">
               Hover nodes to trace dependency flow
             </span>
           </div>
@@ -138,7 +138,7 @@ export default function PlanView({
                 <Layers size={22} />
               </div>
               <div className="text-center font-mono">
-                <p className="text-ui font-bold text-[var(--text)]">Planner</p>
+                <p className="text-meta font-bold text-[var(--text)]">Planner</p>
                 <p className="text-micro text-[var(--faint)]">Root Dispatcher</p>
               </div>
             </div>
@@ -249,12 +249,12 @@ export default function PlanView({
 
       {/* ── 3. DETAILED SUBTASK BREAKDOWN & CARDS ─────────────────── */}
       <div className="rounded-panel border border-[var(--border)] bg-[var(--panel)] p-5 shadow-sm space-y-4">
-        <h2 className="text-strong font-bold text-[var(--text)]">Subtask Execution Breakdown</h2>
+        <h2 className="text-ui md:text-strong font-bold text-[var(--text)]">Subtask Execution Breakdown</h2>
 
         {runStatus === 'planning' && (
           <div className="flex items-center gap-3 p-4 rounded-control border border-[var(--border)] bg-[var(--bg-inset)]">
             <Loader2 size={16} className="animate-spin text-[var(--accent)]" />
-            <span className="text-ui font-mono text-[var(--text-2)]">
+            <span className="text-meta font-mono text-[var(--text-2)]">
               Decomposing task prompt into parallel execution DAG…
             </span>
           </div>
@@ -290,7 +290,7 @@ export default function PlanView({
                           <div className="flex items-start gap-3 min-w-0 flex-1">
                             <RoleBadge role={st.role} size="md" className="mt-0.5" />
                             <div>
-                              <p className="text-ui text-[var(--text)] font-semibold leading-snug">
+                              <p className="text-meta md:text-ui text-[var(--text)] font-semibold leading-snug">
                                 {st.instruction}
                               </p>
                               <div className="flex items-center gap-3 mt-1 text-micro font-mono text-[var(--dim)]">
@@ -334,7 +334,7 @@ export default function PlanView({
             <div className="flex items-center justify-between p-4 border-b border-[var(--border)] bg-[var(--panel-2)]">
               <div className="flex items-center gap-2.5 min-w-0">
                 <RoleBadge role={activeDetailSubtask.role} />
-                <span className="font-bold text-sm text-[var(--text)] truncate">
+                <span className="font-bold text-ui text-[var(--text)] truncate">
                   Subtask #{activeDetailSubtask.id} Output
                 </span>
               </div>
@@ -346,27 +346,27 @@ export default function PlanView({
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-4 font-mono text-xs">
+            <div className="p-5 overflow-y-auto space-y-4 font-mono text-meta">
               <div>
-                <label className="text-[10px] text-[var(--faint)] uppercase tracking-wider block mb-1">Instruction</label>
-                <p className="p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text)] font-sans text-sm">
+                <label className="text-micro text-[var(--faint)] uppercase tracking-wider block mb-1">Instruction</label>
+                <p className="p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text)] font-sans text-ui">
                   {activeDetailSubtask.instruction}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 text-[11px]">
+              <div className="grid grid-cols-2 gap-3 text-micro">
                 <div className="p-2.5 rounded bg-[var(--bg-inset)] border border-[var(--border)]">
-                  <span className="text-[var(--faint)] block text-[10px]">Status</span>
+                  <span className="text-[var(--faint)] block text-micro">Status</span>
                   <StatusBadge status={activeDetailSubtask.status} className="mt-1" />
                 </div>
                 <div className="p-2.5 rounded bg-[var(--bg-inset)] border border-[var(--border)]">
-                  <span className="text-[var(--faint)] block text-[10px]">Model</span>
+                  <span className="text-[var(--faint)] block text-micro">Model</span>
                   <span className="text-[var(--accent)] font-semibold mt-1 block">{activeDetailSubtask.model}</span>
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] text-[var(--faint)] uppercase tracking-wider block mb-1">Output Artifact</label>
+                <label className="text-micro text-[var(--faint)] uppercase tracking-wider block mb-1">Output Artifact</label>
                 <pre className="p-4 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text-2)] whitespace-pre-wrap overflow-x-auto leading-relaxed max-h-64">
                   {activeDetailSubtask.output || activeDetailSubtask.error || 'No output text returned.'}
                 </pre>

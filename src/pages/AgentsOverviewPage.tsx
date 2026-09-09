@@ -181,7 +181,7 @@ export default function AgentsOverviewPage() {
               <div
                 key={agent.role}
                 onClick={() => navigate(`/agents/${agent.role}`)}
-                className="agent-card border border-[var(--border-soft)] rounded-panel p-3.5 bg-[var(--panel)] flex flex-col gap-3 hover:border-[var(--border-strong)] hover:shadow-md cursor-pointer transition-all"
+                className="agent-card border border-[var(--border-soft)] rounded-panel p-3.5 bg-[var(--panel)] flex flex-col gap-3 hover:border-[var(--border-strong)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.28)] cursor-pointer transition-all"
               >
                 {/* Agent Card Top */}
                 <div className="agent-card-top flex items-center justify-between">

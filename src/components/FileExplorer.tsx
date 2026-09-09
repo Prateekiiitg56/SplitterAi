@@ -155,7 +155,7 @@ function TreeNode({
       >
         {getFileIcon(node.name)}
 
-        <span className="text-meta font-mono truncate flex-1 text-left">{node.name}</span>
+        <span className="text-micro font-mono truncate flex-1 text-left">{node.name}</span>
 
         {/* Modified in run indicator dot */}
         {isModified && (
@@ -232,7 +232,7 @@ export default function FileExplorer({
       {/* Tree Content */}
       <div className="flex-1 overflow-y-auto p-2 font-mono">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 p-6 text-[var(--faint)] text-meta">
+          <div className="flex items-center justify-center gap-2 p-6 text-[var(--faint)] text-micro">
             <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
             <span>Scanning directory...</span>
           </div>
@@ -267,7 +267,7 @@ export default function FileExplorer({
           <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--panel-2)]">
             <div className="flex items-center gap-2 min-w-0">
               {getFileIcon(selectedFile.name)}
-              <span className="font-mono text-xs font-semibold text-[var(--text)] truncate">
+              <span className="font-mono text-meta font-semibold text-[var(--text)] truncate">
                 {selectedFile.name}
               </span>
             </div>
@@ -279,7 +279,7 @@ export default function FileExplorer({
             </button>
           </div>
 
-          <div className="flex-1 p-3 overflow-y-auto bg-[var(--bg-inset)] font-mono text-meta">
+          <div className="flex-1 p-3 overflow-y-auto bg-[var(--bg-inset)] font-mono text-micro">
             <div className="text-micro text-[var(--faint)] uppercase tracking-wider mb-2 flex items-center gap-1">
               <FileCheck size={11} className="text-[var(--accent)]" /> Read-only Sandbox Preview
             </div>

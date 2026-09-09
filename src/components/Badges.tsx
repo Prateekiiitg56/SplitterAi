@@ -76,7 +76,7 @@ export function StatusBadge({ status, compact = false, size = 'md', className = 
   }
 
   const isRunning = statusClass === 'working'
-  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-[11px] gap-1' : 'px-2 py-1 text-[12px] gap-1.5'
+  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-micro gap-1' : 'px-2 py-1 text-meta gap-1.5'
 
   if (compact) {
     return (
@@ -94,7 +94,7 @@ export function StatusBadge({ status, compact = false, size = 'md', className = 
         <StatusDot status={status} />
         {isRunning && <span className="absolute inset-0 rounded-full animate-ping bg-[var(--accent)] opacity-40 pointer-events-none" />}
       </span>
-      <span className="font-mono uppercase tracking-wider text-[10.5px]">{label}</span>
+      <span className="font-mono uppercase tracking-wider text-micro">{label}</span>
       <span className="sr-only">Status: {label}</span>
     </span>
   )
@@ -134,7 +134,7 @@ export function RoleBadge({ role, compact = false, size = 'md', className = '' }
   }
   const colorClass = roleStyles[r] ?? 'bg-[var(--panel-2)] text-[var(--text)] border-[var(--border)]'
   const iconSize = size === 'sm' ? 12 : 14
-  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-[11px] gap-1' : 'px-2 py-1 text-[12px] gap-1.5'
+  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-micro gap-1' : 'px-2 py-1 text-meta gap-1.5'
 
   if (compact) {
     return (
@@ -151,7 +151,7 @@ export function RoleBadge({ role, compact = false, size = 'md', className = '' }
   return (
     <span className={`inline-flex items-center rounded border font-mono font-medium ${colorClass} ${sizeClasses} ${className}`}>
       <AgentIcon role={role} size={iconSize} />
-      <span className="text-[10.5px] uppercase tracking-wider font-semibold">{tag}</span>
+      <span className="text-micro uppercase tracking-wider font-semibold">{tag}</span>
       <span className="sr-only">Role: {label}</span>
     </span>
   )

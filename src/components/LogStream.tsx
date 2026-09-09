@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type { LogEntry } from '../data'
 import { RoleBadge } from './Badges'
+import { EmptyState } from './primitives/EmptyState'
 
 interface LogStreamProps {
   logs: LogEntry[]
@@ -222,11 +223,11 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
           className="flex-1 overflow-y-auto min-h-0 bg-[#040810] divide-y divide-[rgba(255,255,255,0.03)]"
         >
           {filteredLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-micro p-6 text-center">
-              <Terminal size={24} className="mb-2 opacity-30" />
-              <span>No matching log entries found</span>
-              {searchQuery && <span className="text-micro text-[var(--dim)] mt-1">Query: "{searchQuery}"</span>}
-            </div>
+            <EmptyState
+              icon={<Terminal size={24} />}
+              title="No matching log entries"
+              detail={searchQuery ? `Query: "${searchQuery}"` : undefined}
+            />
           ) : (
             filteredLogs.map(log => {
               const isError = log.type === 'error' || log.type === 'sandbox_block'
@@ -237,7 +238,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
               return (
                 <div
                   key={log.id}
-                  className={`px-3 py-1.5 text-[11.5px] leading-relaxed transition-colors border-l-2 ${
+                  className={`px-3 py-1.5 text-micro leading-relaxed transition-colors border-l-2 ${
                     isError
                       ? 'border-[var(--bad)] bg-[rgba(239,68,68,0.08)] text-[var(--bad)]'
                       : isWarn
@@ -247,7 +248,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
                 >
                   <div className="flex items-start gap-2.5">
                     {/* Timestamp */}
-                    <span className="text-[10px] text-slate-500 tabular-nums select-none pt-0.5 flex-shrink-0 font-mono">
+                    <span className="text-micro text-slate-500 tabular-nums select-none pt-0.5 flex-shrink-0 font-mono">
                       {log.timestamp}
                     </span>
 
@@ -255,7 +256,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
                     {role ? (
                       <RoleBadge role={role} compact size="sm" className="mt-0.5 flex-shrink-0" />
                     ) : (
-                      <span className="text-[9.5px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50 flex-shrink-0">
+                      <span className="text-micro font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50 flex-shrink-0">
                         {log.type.slice(0, 6)}
                       </span>
                     )}
@@ -286,7 +287,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
         {userScrolledUp && (
           <button
             onClick={scrollToBottom}
-            className="absolute bottom-3 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--panel-2)] border border-[var(--accent)] text-[var(--accent)] shadow-lg hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] transition-all text-xs font-semibold z-20"
+            className="absolute bottom-3 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--panel-2)] border border-[var(--accent)] text-[var(--accent)] shadow-lg hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] transition-all text-meta font-semibold z-20"
           >
             <ArrowDown size={12} />
             <span>Jump to latest</span>
