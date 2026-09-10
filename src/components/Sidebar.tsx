@@ -58,8 +58,8 @@ export default function Sidebar({
       {/* Workspace Header */}
       <div
         className={cx(
-          'flex items-center justify-between h-12 px-2 border-b border-white/10 flex-shrink-0',
-          collapsed && 'flex-col justify-center gap-1 px-0 py-2 h-auto min-h-12',
+          'flex h-12 items-center justify-between border-b border-white/10 px-2 flex-shrink-0',
+          collapsed && 'flex-col justify-center gap-2 px-0 py-2 h-auto min-h-12',
         )}
       >
         {!collapsed ? (
@@ -84,7 +84,7 @@ export default function Sidebar({
                 onClick={onToggleCollapse}
                 aria-label="Expand sidebar"
                 title="Expand sidebar"
-                className="p-1 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
               >
                 <PanelLeft size={14} />
               </button>
@@ -97,7 +97,7 @@ export default function Sidebar({
             type="button"
             onClick={onToggleCollapse}
             aria-label="Collapse sidebar"
-            className="p-1 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
           >
             <PanelLeft size={15} />
           </button>
@@ -106,12 +106,12 @@ export default function Sidebar({
 
       {/* Search Input Box */}
       {!collapsed && (
-        <div className="px-2 pt-3 pb-2">
+        <div className="px-2 py-4">
           <button
             type="button"
             onClick={handleOpenCommandPalette}
             aria-label="Search workspace"
-            className="group relative flex min-h-9 w-full items-center gap-2 overflow-hidden rounded-lg border border-white/10 bg-white/[0.045] px-2.5 text-left text-xs text-white/45 shadow-[0_8px_24px_rgba(0,0,0,0.16)] transition-all duration-150 hover:border-white/20 hover:bg-white/[0.08] hover:text-white/80 focus-visible:border-[var(--accent)] focus-visible:bg-white/[0.08]"
+            className="group relative flex h-10 w-full items-center gap-2 overflow-hidden rounded-lg border border-white/10 bg-white/[0.045] px-2 text-left text-xs text-white/45 shadow-[0_8px_24px_rgba(0,0,0,0.16)] transition-all duration-150 hover:border-white/20 hover:bg-white/[0.08] hover:text-white/80 focus-visible:border-[var(--accent)] focus-visible:bg-white/[0.08]"
           >
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/45 transition-colors group-hover:bg-white/10 group-hover:text-white/75">
               <Search size={13} />
@@ -133,7 +133,7 @@ export default function Sidebar({
             type="button"
             onClick={() => navigate('/agents')}
             className={cx(
-              'flex h-8 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
+              'flex h-10 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
               isRouteActive('/agents')
                 ? 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]'
                 : 'text-white/60 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
@@ -152,7 +152,7 @@ export default function Sidebar({
             type="button"
             onClick={() => navigate('/console')}
             className={cx(
-              'flex h-8 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
+              'flex h-10 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
               isRouteActive('/console')
                 ? 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]'
                 : 'text-white/60 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
@@ -168,13 +168,13 @@ export default function Sidebar({
         {/* Company Group */}
         {!collapsed ? (
           <div>
-            <div className="mb-1 px-2 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]">Workspace</div>
-            <div className="space-y-1">
+            <div className="mb-2 px-2 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]">Workspace</div>
+            <div className="space-y-2">
                 <button
                   type="button"
                   onClick={() => navigate('/projects')}
                   className={cx(
-                    'flex h-8 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
+                    'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
                     isRouteActive('/projects') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
                   )}
                 >
@@ -186,7 +186,7 @@ export default function Sidebar({
                   type="button"
                   onClick={() => navigate('/flow')}
                   className={cx(
-                    'flex h-8 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
+                    'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
                     isRouteActive('/flow') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
                   )}
                 >
@@ -197,13 +197,13 @@ export default function Sidebar({
               </div>
           </div>
         ) : (
-          <div className="mt-4 space-y-1 border-t border-white/10 pt-3">
+          <div className="mt-6 space-y-2 border-t border-white/10 pt-4">
             <button
               type="button"
               onClick={() => navigate('/projects')}
               title="Projects"
               className={cx(
-                'flex h-9 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
+                'flex h-10 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
                 isRouteActive('/projects') && 'bg-[#18294b] text-white shadow-[inset_2px_0_0_#60a5fa]',
               )}
             >
@@ -214,7 +214,7 @@ export default function Sidebar({
               onClick={() => navigate('/flow')}
               title="Workflow"
               className={cx(
-                'flex h-9 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
+                'flex h-10 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
                 isRouteActive('/flow') && 'bg-[#18294b] text-white shadow-[inset_2px_0_0_#60a5fa]',
               )}
             >
@@ -226,13 +226,13 @@ export default function Sidebar({
         {/* Integrations */}
         {!collapsed && (
           <div>
-            <div className="mb-1 mt-3.5 px-2 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]">Connect</div>
-            <div className="space-y-1">
+            <div className="mb-2 mt-6 px-2 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]">Connect</div>
+            <div className="space-y-2">
                 <button
                   type="button"
                   onClick={() => navigate('/integrations')}
                   className={cx(
-                    'flex h-8 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
+                    'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
                     isRouteActive('/integrations') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
                   )}
                 >
@@ -247,11 +247,11 @@ export default function Sidebar({
       {/* Footer Profile User Card */}
       <div
         className={cx(
-          'flex items-center justify-between h-12 px-2 border-t border-white/10 flex-shrink-0 bg-black/60',
+          'flex h-12 items-center justify-between border-t border-white/10 px-2 flex-shrink-0 bg-black/60',
           collapsed && 'justify-center px-0',
         )}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
           <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-400 via-rose-400 to-purple-500 p-0.5 shrink-0">
             <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
               <User size={12} className="text-white" />
@@ -263,7 +263,7 @@ export default function Sidebar({
             type="button"
             aria-label="Open account menu"
             title="Account menu"
-            className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
           >
             <MoreHorizontal size={14} />
           </button>

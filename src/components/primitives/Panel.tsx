@@ -53,7 +53,7 @@ export function PanelHeader({ title, meta, actions, icon, className }: PanelHead
   return (
     <div
       className={cx(
-        'flex items-center gap-2.5 h-9 px-3 flex-shrink-0',
+        'flex h-10 items-center gap-2 px-4 flex-shrink-0',
         'border-b border-[var(--border-soft)]',
         className,
       )}

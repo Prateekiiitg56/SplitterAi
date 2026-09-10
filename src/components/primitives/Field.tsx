@@ -24,7 +24,7 @@ const CONTROL = cx(
 
 function Label({ htmlFor, children }: { htmlFor: string; children: ReactNode }) {
   return (
-    <label htmlFor={htmlFor} className="block text-meta font-medium text-[var(--dim)] mb-1.5">
+    <label htmlFor={htmlFor} className="mb-1 block text-meta font-medium text-[var(--dim)]">
       {children}
     </label>
   )
@@ -65,7 +65,7 @@ export function TextField({
         id={id}
         aria-invalid={error ? true : undefined}
         aria-describedby={hint || error ? helpId : undefined}
-        className={cx(CONTROL, 'h-7 px-2', Boolean(error) && 'border-[var(--bad)]')}
+        className={cx(CONTROL, 'h-8 px-3', Boolean(error) && 'border-[var(--bad)]')}
         {...rest}
       />
       <Help hint={hint} error={error} id={helpId} />
@@ -91,7 +91,7 @@ export function TextAreaField({
         rows={rows}
         aria-invalid={error ? true : undefined}
         aria-describedby={hint || error ? helpId : undefined}
-        className={cx(CONTROL, 'px-2 py-1.5 resize-none leading-[1.55]', Boolean(error) && 'border-[var(--bad)]')}
+        className={cx(CONTROL, 'px-3 py-2 resize-none leading-[1.55]', Boolean(error) && 'border-[var(--bad)]')}
         {...rest}
       />
       <Help hint={hint} error={error} id={helpId} />
@@ -115,7 +115,7 @@ export function SelectField({
       <select
         id={id}
         aria-describedby={hint || error ? helpId : undefined}
-        className={cx(CONTROL, 'h-7 px-1.5 cursor-pointer', Boolean(error) && 'border-[var(--bad)]')}
+        className={cx(CONTROL, 'h-8 px-2 cursor-pointer', Boolean(error) && 'border-[var(--bad)]')}
         {...rest}
       >
         {children}
@@ -144,7 +144,7 @@ export function SearchField({
         aria-hidden="true"
         className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--faint)] pointer-events-none"
       />
-      <input id={id} type="search" className={cx(CONTROL, 'h-7 pl-7 pr-2')} {...rest} />
+      <input id={id} type="search" className={cx(CONTROL, 'h-8 pl-8 pr-3')} {...rest} />
     </div>
   )
 }

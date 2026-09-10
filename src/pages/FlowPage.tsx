@@ -340,7 +340,7 @@ export default function FlowPage() {
                 style={{ left: `${node.x}px`, top: `${node.y}px` }}
                 onPointerDown={(e) => handlePointerDown(node.id, e)}
                 onPointerUp={(e) => handlePointerUp(node.id, e)}
-                className={`flow-node absolute w-[184px] border rounded-[8px] bg-[var(--panel)] p-3 cursor-grab select-none shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-colors ${
+                className={`flow-node absolute w-[184px] border rounded-panel bg-[var(--panel)] p-3 cursor-grab select-none shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-colors ${
                   isUnassigned
                     ? 'border-[var(--warn)] bg-[var(--panel)]'
                     : isSelected
@@ -380,13 +380,13 @@ export default function FlowPage() {
 
         {/* Slide-out Detail Drawer (Editable) */}
         <div
-          className={`flow-drawer absolute top-3.5 right-3.5 bottom-3.5 w-[320px] bg-[var(--panel)] border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden shadow-2xl transition-transform duration-[var(--d-slow)] ease-standard z-20 ${
+          className={`flow-drawer absolute top-4 right-4 bottom-4 w-[320px] bg-[var(--panel)] border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden shadow-2xl transition-transform duration-[var(--d-slow)] ease-standard z-20 ${
             selectedNode ? 'translate-x-0' : 'translate-x-[120%]'
           }`}
         >
           {selectedNode && (
             <>
-              <div className="flow-drawer-head flex items-center justify-between p-3.5 border-b border-[var(--border-soft)]">
+              <div className="flow-drawer-head flex items-center justify-between p-4 border-b border-[var(--border-soft)]">
                 <div>
                   <h3 className="flow-drawer-title text-strong font-semibold text-[var(--text)]">{selectedNode.title}</h3>
                   <div className="flow-drawer-role font-mono text-micro text-[var(--faint)]">Group {selectedNode.group}</div>
@@ -399,7 +399,7 @@ export default function FlowPage() {
               <div className="flow-drawer-body p-4 overflow-y-auto flex-1 space-y-4">
                 {/* Editable Agent Role */}
                 <div>
-                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
+                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1 block">
                     ASSIGNED AGENT ROLE
                   </label>
                   <select
@@ -418,7 +418,7 @@ export default function FlowPage() {
                         },
                       }))
                     }}
-                    className={`w-full bg-[var(--bg-inset)] border rounded px-2.5 py-1.5 font-mono text-meta cursor-pointer focus:outline-none ${
+                    className={`w-full bg-[var(--bg-inset)] border rounded px-3 py-2 font-mono text-meta cursor-pointer focus:outline-none ${
                       selectedNode.agentRole === 'unassigned' ? 'border-[var(--warn)] text-[var(--warn)] font-bold' : 'border-[var(--border)] text-[var(--text)]'
                     }`}
                   >
@@ -432,7 +432,7 @@ export default function FlowPage() {
 
                 {/* Editable Instruction Task */}
                 <div>
-                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
+                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1 block">
                     SUBTASK INSTRUCTION
                   </label>
                   <textarea
@@ -453,7 +453,7 @@ export default function FlowPage() {
                 </div>
 
                 <div>
-                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
+                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
                     STATUS & PROGRESS
                   </div>
                   <div className="flex items-center justify-between mb-2">
@@ -470,12 +470,12 @@ export default function FlowPage() {
                 </div>
 
                 <div>
-                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
+                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
                     REAL-TIME ACTIVITY
                   </div>
                   <div className="space-y-1">
                     {selectedNode.activity.map((act, i) => (
-                      <div key={i} className="activity-item flex gap-2.5 text-micro py-1.5 border-b border-[var(--border-soft)] last:border-b-0">
+                      <div key={i} className="activity-item flex gap-3 text-micro py-2 border-b border-[var(--border-soft)] last:border-b-0">
                         <div className="activity-time font-mono text-micro text-[var(--faint)] whitespace-nowrap">{act[0]}</div>
                         <div className="activity-text text-[var(--dim)] leading-relaxed" dangerouslySetInnerHTML={{ __html: act[1] }} />
                       </div>

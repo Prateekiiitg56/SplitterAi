@@ -28,7 +28,7 @@ export function PageHeader({ title, meta, actions, icon, className }: PageHeader
   return (
     <header
       className={cx(
-        'flex items-center gap-3 h-12 px-5 flex-shrink-0',
+        'flex h-12 items-center gap-3 px-4 flex-shrink-0',
         'bg-[var(--bg)] border-b border-[var(--border-soft)]',
         className,
       )}

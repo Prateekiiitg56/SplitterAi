@@ -24,9 +24,9 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <div className={cx('flex flex-col items-center justify-center text-center px-6 py-10', className)}>
+    <div className={cx('flex flex-col items-center justify-center text-center px-6 py-12', className)}>
       {icon ? (
-        <span aria-hidden="true" className="text-[var(--ghost)] mb-3">
+        <span aria-hidden="true" className="mb-4 text-[var(--ghost)]">
           {icon}
         </span>
       ) : null}
