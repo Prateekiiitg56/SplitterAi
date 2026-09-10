@@ -86,94 +86,6 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-
-
-def is_calculator_task(task: str) -> bool:
-    """Recognize the built-in calculator workflow request."""
-    normalized = task.lower()
-    return "calculator" in normalized or "calculater" in normalized
-
-
-def build_calculator_workspace(sandbox: Sandbox, task: str) -> RunResult:
-    """Create a runnable calculator when no remote model credentials are available."""
-    files = {
-        "index.html": """<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Calculator</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <main class="calculator" aria-label="Calculator">
-    <input id="display" class="display" value="0" aria-label="Calculator display" readonly>
-    <div class="keys">
-      <button class="action" data-key="clear">AC</button><button class="action" data-key="sign">+/-</button><button class="action" data-key="percent">%</button><button class="operator" data-key="/">÷</button>
-      <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="operator" data-key="*">×</button>
-      <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button class="operator" data-key="-">−</button>
-      <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button class="operator" data-key="+">+</button>
-      <button class="zero" data-key="0">0</button><button data-key=".">.</button><button class="equals" data-key="=">=</button>
-    </div>
-  </main>
-  <script src="app.js"></script>
-</body>
-</html>
-""",
-        "style.css": """* { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, sans-serif; background: linear-gradient(135deg, #111827, #020617); color: #f8fafc; }
-.calculator { width: min(92vw, 360px); padding: 20px; border: 1px solid #334155; border-radius: 24px; background: #0f172a; box-shadow: 0 24px 80px #0008; }
-.display { width: 100%; margin-bottom: 16px; padding: 20px 14px; border: 0; border-radius: 14px; background: #020617; color: #f8fafc; font: 600 2.5rem/1 system-ui; text-align: right; }
-.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-button { min-height: 58px; border: 0; border-radius: 14px; background: #1e293b; color: #f8fafc; font-size: 1.2rem; cursor: pointer; }
-button:hover { background: #334155; } .operator, .equals { background: #2563eb; } .operator:hover, .equals:hover { background: #3b82f6; }
-.action { background: #475569; } .zero { grid-column: span 2; }
-""",
-        "app.js": """const display = document.querySelector('#display');
-let current = '0', previous = null, operator = null, reset = false;
-function render() { display.value = current; }
-function calculate() {
-  if (previous === null || operator === null) return;
-  const a = Number(previous), b = Number(current);
-  const result = operator === '+' ? a + b : operator === '-' ? a - b : operator === '*' ? a * b : b === 0 ? NaN : a / b;
-  current = Number.isFinite(result) ? String(Number(result.toFixed(10))) : 'Error';
-  previous = null; operator = null; reset = true;
-}
-function press(key) {
-  if (key === 'clear') { current = '0'; previous = null; operator = null; reset = false; }
-  else if (key === 'sign' && current !== '0') current = current.startsWith('-') ? current.slice(1) : '-' + current;
-  else if (key === 'percent') current = String(Number(current) / 100);
-  else if (['+', '-', '*', '/'].includes(key)) { previous = current; operator = key; reset = true; }
-  else if (key === '=') calculate();
-  else if (key === '.' && !current.includes('.')) current += '.';
-  else if (/^\\d$/.test(key)) { current = reset || current === '0' || current === 'Error' ? key : current + key; reset = false; }
-  render();
-}
-document.querySelectorAll('[data-key]').forEach(button => button.addEventListener('click', () => press(button.dataset.key)));
-document.addEventListener('keydown', event => { const key = event.key === 'Enter' ? '=' : event.key; if (/^\\d$/.test(key) || ['+', '-', '*', '/', '.', '='].includes(key)) press(key); if (key === 'Escape') press('clear'); });
-render();
-""",
-    }
-    for relative_path, content in files.items():
-        sandbox.resolve_path(relative_path).write_text(content, encoding="utf-8")
-
-    subtask = Subtask(
-        id="calculator",
-        role=AgentRole.coder,
-        group=1,
-        instruction=task,
-        status=SubtaskStatus.success,
-        output="Created a runnable calculator workspace with keyboard support, percent, sign toggle, and divide-by-zero handling.",
-        steps=len(files),
-    )
-    return RunResult(
-        subtasks=[subtask],
-        results={"calculator": subtask.output or ""},
-        status=RunStatus.done,
-        total_duration_ms=0,
-    )
-
-
 # ── App Factory ───────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -329,17 +241,6 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
     if not task:
         raise HTTPException(status_code=400, detail="Task is required")
 
-    if is_calculator_task(task):
-        return {
-            "task": task,
-            "subtasks": [Subtask(
-                id="calculator",
-                role=AgentRole.coder,
-                group=1,
-                instruction=task,
-            ).model_dump()],
-        }
-
     config = ExecutionConfig()
     req_model = payload.get("model")
     if req_model:
@@ -364,19 +265,6 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
     """Execute a task through the multi-agent pipeline."""
     verify_shared_secret(x_api_key, token)
     sandbox = Sandbox(request.workspace)
-
-    if is_calculator_task(request.task):
-        result = build_calculator_workspace(sandbox, request.task)
-        await manager.broadcast({
-            "type": "plan",
-            "subtasks": [st.model_dump() for st in result.subtasks],
-        })
-        await manager.broadcast({
-            "type": "complete",
-            "result": result.model_dump(),
-        })
-        save_run_result(request.workspace, request.task, result)
-        return result
 
     config = ExecutionConfig()
     if request.model:
