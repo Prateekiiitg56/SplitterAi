@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 
 from agentcli.config import ExecutionConfig
-from agentcli.orchestrator import Orchestrator
+from agentcli.graph import run_graph
 from agentcli.planner import generate_plan, load_manual_plan
 from agentcli.sandbox import Sandbox
 from agentcli.schemas import (
@@ -310,13 +310,15 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
         "subtasks": [st.model_dump() for st in plan.subtasks],
     })
 
-    # Step 2: Execute plan
-    orchestrator = Orchestrator(
+    # Step 2: Execute the LangGraph decision workflow.
+    result = await run_graph(
+        task=request.task,
+        workspace=request.workspace,
         config=config,
         sandbox=sandbox,
         on_event=on_event,
+        plan=plan,
     )
-    result = await orchestrator.execute(plan)
 
     # Step 3: Persist session
     save_run_result(request.workspace, request.task, result)
