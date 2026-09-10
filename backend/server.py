@@ -48,8 +48,6 @@ from agentcli.db_supabase import is_supabase_enabled
 # loaded explicitly so behavior doesn't depend on the server's working directory.
 import os
 root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
-import time
-from pathlib import Path
 load_dotenv(root_env)
 
 logger = logging.getLogger(__name__)
