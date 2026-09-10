@@ -5,24 +5,14 @@ import {
   ChevronDown,
   Play,
   Check,
-  Cpu,
   Plus,
   Loader2,
   Send,
-  X,
-  FileText,
   RefreshCw,
   Maximize2,
   Search,
-  SlidersHorizontal,
   MessageSquare,
-  Mail,
-  PlusSquare,
-  Upload,
   Mic,
-  AtSign,
-  Globe,
-  Grid,
 } from 'lucide-react'
 import { AVAILABLE_MODELS, ROLE_META } from '../../data'
 import { useApp } from '../../context/AppContext'
@@ -38,12 +28,7 @@ import { cx } from '../../lib/cx'
 import AgentTabStrip from '../AgentTabStrip'
 import { useIntegrations } from '../../hooks/useIntegrations'
 import {
-  AgentRainbowBadge,
   ModelFusionIcon,
-  StripeLogo,
-  SlackLogo,
-  GoogleCalendarLogo,
-  ExcelLogo,
 } from '../BrandIcons'
 
 /* ── Types ─────────────────────────────────────────────────────── */
@@ -58,16 +43,6 @@ interface ChatMessage {
 
 const ROLES: AgentRole[] = ['planner', 'coder', 'auditor', 'tester']
 
-/* ── Quick Actions matching reference ──────────────────────────── */
-
-const QUICK_ACTIONS = [
-  { icon: MessageSquare, label: 'Message someone', prompt: 'Message someone on the team regarding this contract' },
-  { icon: FileText, label: 'Summarise contract', prompt: 'Summarise my latest customer contract with James Wick...' },
-  { icon: Mail, label: 'Email customer', prompt: 'Draft an email to customer about contract updates' },
-  { icon: PlusSquare, label: 'Add note', prompt: 'Add a new note to this customer account' },
-  { icon: Upload, label: 'Upload new contract', prompt: 'Upload and parse a new customer contract' },
-] as const
-
 /* ── Greeting helper ───────────────────────────────────────────── */
 
 function getGreeting(): string {
@@ -75,6 +50,12 @@ function getGreeting(): string {
   if (h < 12) return 'Good morning'
   if (h < 17) return 'Good afternoon'
   return 'Good evening'
+}
+
+function formatSessionDate(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
 /* ── Component ─────────────────────────────────────────────────── */
@@ -235,7 +216,7 @@ export function AIAssistantInterface() {
   }
 
   const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.planner
-  const activeAgentName = selectedAgentRole === 'planner' ? 'Rune' : selectedAgentRole === 'coder' ? 'Aether' : selectedAgentRole === 'auditor' ? 'Syntax' : 'Theo'
+  const activeAgentName = selectedMeta.label
   const greeting = useMemo(() => getGreeting(), [])
 
   return (
@@ -251,27 +232,27 @@ export function AIAssistantInterface() {
 
       {/* Main Scrollable View */}
       <div className="flex-1 overflow-y-auto relative z-10">
-        <div className="max-w-[800px] mx-auto px-6 py-8">
+        <div className="w-full max-w-4xl min-h-full mx-auto px-4 py-10 sm:px-8 sm:py-14 lg:ml-16 lg:mr-10 lg:max-w-4xl lg:px-10 lg:py-16 lg:translate-x-16 lg:translate-y-32">
           <motion.div
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
-            className="flex flex-col items-center"
+            className="flex w-full flex-col items-center px-4 sm:px-8 lg:px-10"
           >
             {/* Greeting Hero */}
-            <motion.div variants={fadeUp} className="text-center mb-6">
-              <h1 className="text-3xl md:text-4xl font-serif font-normal text-white tracking-tight mb-1.5">
-                {greeting}, Jane
+            <motion.div variants={fadeUp} className="text-center mb-8">
+              <h1 className="text-3xl md:text-4xl font-serif font-normal text-white tracking-tight mb-2">
+                {greeting}
               </h1>
-              <p className="text-xs text-white/50 font-sans">
-                I'm {activeAgentName}, where should we start today?
+              <p className="text-sm text-white/50 font-sans">
+                {activeAgentName} is ready when you are.
               </p>
             </motion.div>
 
             {/* Input Card Container */}
             <motion.section
               variants={fadeUp}
-              className="w-full bg-[#111116]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden mb-4 transition-colors hover:border-white/20"
+              className="w-full max-w-2xl self-center bg-[#111116]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden mb-6 transition-colors hover:border-white/20"
             >
               {/* Active Chat Thread */}
               <AnimatePresence initial={false}>
@@ -326,7 +307,7 @@ export function AIAssistantInterface() {
               </AnimatePresence>
 
               {/* Textarea Input */}
-              <div className="px-4 pt-4 pb-2">
+              <div className="mx-auto box-border w-full px-5 pt-3 pb-2">
                 <textarea
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
@@ -336,14 +317,13 @@ export function AIAssistantInterface() {
                       handleSend()
                     }
                   }}
-                  placeholder="Example: Summarise my latest customer contract with James Wick..."
-                  rows={2}
-                  className="w-full bg-transparent border-none text-xs text-white/90 font-sans resize-none outline-none min-h-[52px] leading-relaxed placeholder:text-white/30"
+                  rows={1}
+                  className="block box-border w-full bg-transparent border-none text-xs text-white/90 font-sans resize-none outline-none min-h-[40px] leading-relaxed placeholder:text-white/30"
                 />
               </div>
 
               {/* Bottom Row Inside Input Box */}
-              <div className="flex items-center justify-between px-4 pb-3 pt-1 border-t border-white/[0.04]">
+              <div className="mx-auto box-border flex w-full items-center justify-between px-5 pb-3 pt-2 border-t border-white/[0.04]">
                 {/* Left Controls */}
                 <div className="flex items-center gap-2 text-xs">
                   <motion.button
@@ -356,26 +336,7 @@ export function AIAssistantInterface() {
                     <Plus size={15} />
                   </motion.button>
 
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="p-1 rounded text-white/40 hover:text-white transition-colors flex items-center justify-center"
-                  >
-                    <Globe size={14} />
-                  </motion.button>
-
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/70 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all"
-                  >
-                    <Grid size={12} className="text-white/40 shrink-0" />
-                    <span>Skills</span>
-                  </motion.button>
-
-                  {/* Model Fusion selector button */}
+                  {/* Model selector */}
                   <div className="relative">
                     <motion.button
                       type="button"
@@ -385,7 +346,7 @@ export function AIAssistantInterface() {
                       className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/80 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all"
                     >
                       <ModelFusionIcon size={14} />
-                      <span>Model Fusion</span>
+                      <span className="max-w-[9rem] truncate">{selectedModel.label}</span>
                     </motion.button>
 
                     <AnimatePresence>
@@ -453,36 +414,12 @@ export function AIAssistantInterface() {
               </div>
             </motion.section>
 
-            {/* Quick Action Pills */}
-            <motion.div
-              variants={fadeUp}
-              className="flex flex-wrap justify-center items-center gap-2 mb-10 w-full"
-            >
-              {QUICK_ACTIONS.map((action) => (
-                <motion.button
-                  key={action.label}
-                  type="button"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => handleSend(action.prompt)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs text-white/70 hover:text-white hover:bg-white/10 hover:border-white/25 transition-all cursor-pointer"
-                >
-                  <action.icon size={13} className="text-white/40 shrink-0" />
-                  <span>{action.label}</span>
-                </motion.button>
-              ))}
-            </motion.div>
-
             {/* Previous Chats Section */}
-            <motion.div variants={fadeUp} className="w-full mb-8">
-              <div className="flex items-center justify-between mb-3 text-xs">
+            <motion.div variants={fadeUp} className="w-full mb-10 lg:translate-y-12">
+              <div className="flex items-center justify-between mb-4 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-white/80 tracking-tight">Previous chats (120)</span>
-                  <div className="flex items-center -space-x-1">
-                    {Array.from({ length: 5 }).map((_, aIdx) => (
-                      <AgentRainbowBadge key={aIdx} size={14} />
-                    ))}
-                  </div>
+                  <span className="font-semibold text-white/80 tracking-tight">Previous chats</span>
+                  <span className="text-white/40">({sessions.length})</span>
                 </div>
                 <div className="flex items-center gap-3 text-white/40">
                   <button
@@ -504,51 +441,37 @@ export function AIAssistantInterface() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 w-full">
-                {[
-                  {
-                    title: 'Generate a quarterly sales report fo...',
-                    date: 'Today, 2:14 PM',
-                  },
-                  {
-                    title: 'Analyze customer feedback trends ...',
-                    date: 'Yesterday, 11:03 AM',
-                  },
-                  {
-                    title: 'Create follow-up reminders for ove...',
-                    date: 'Feb 8, 2026',
-                  },
-                  {
-                    title: 'Identify top 5 leads from last mont...',
-                    date: 'Feb 6, 2026',
-                  },
-                ].map((item, idx) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
+                {sessions.slice(0, 4).map((session) => (
                   <motion.button
-                    key={idx}
+                    key={session.id}
                     type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
                     onClick={() => navigate('/projects/default')}
                     className="flex items-start gap-2.5 p-3.5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/25 hover:bg-white/[0.07] transition-all text-left h-[88px] group"
                   >
                     <MessageSquare size={14} className="text-white/50 shrink-0 mt-0.5" />
-                    <div className="flex flex-col justify-between h-full min-w-0 flex-1">
+                    <div className="flex flex-col justify-between min-h-16 min-w-0 flex-1">
                       <p className="text-xs text-white/80 group-hover:text-white truncate font-medium leading-tight">
-                        {item.title}
+                        {session.task || 'Untitled session'}
                       </p>
                       <p className="text-[10px] text-white/40 font-sans">
-                        {item.date}
+                        {formatSessionDate(session.createdAt)}
                       </p>
                     </div>
                   </motion.button>
                 ))}
               </div>
+              {sessions.length === 0 && (
+                <p className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-xs text-white/40">
+                  Your completed sessions will appear here.
+                </p>
+              )}
             </motion.div>
 
             {/* Suggested Applications Section */}
-            <motion.div variants={fadeUp} className="w-full">
-              <div className="flex items-center justify-between mb-3 text-xs">
-                <span className="font-semibold text-white/80 tracking-tight">Suggested applications</span>
+            <motion.div variants={fadeUp} className="w-full lg:translate-y-12">
+              <div className="flex items-center justify-between mb-4 text-xs">
+                <span className="font-semibold text-white/80 tracking-tight">Connected integrations</span>
                 <div className="flex items-center gap-3 text-white/40">
                   <button
                     type="button"
@@ -557,13 +480,6 @@ export function AIAssistantInterface() {
                   >
                     <Search size={12} className="shrink-0" />
                     <span>Search</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 hover:text-white transition-colors"
-                  >
-                    <SlidersHorizontal size={12} className="shrink-0" />
-                    <span>Filter</span>
                   </button>
                   <button
                     type="button"
@@ -576,65 +492,39 @@ export function AIAssistantInterface() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 w-full">
-                {[
-                  {
-                    name: 'Stripe MCP',
-                    badge: 'Essential',
-                    logo: StripeLogo,
-                    desc: 'Manage your payments seamlessly with Stripe MCP. This platform allows you to...',
-                  },
-                  {
-                    name: 'Slack',
-                    badge: 'Essential',
-                    logo: SlackLogo,
-                    desc: 'Connect with your team effortlessly using Slack. This messaging app enabl...',
-                  },
-                  {
-                    name: 'Google Calendar',
-                    badge: 'Essential',
-                    logo: GoogleCalendarLogo,
-                    desc: 'Organize your schedule efficiently with Google Calendar. Sync your events, set...',
-                  },
-                  {
-                    name: 'Microsoft Excel',
-                    badge: 'Essential',
-                    logo: ExcelLogo,
-                    desc: 'Create and analyze spreadsheets with Microsoft Excel. Utilize powerful...',
-                  },
-                ].map((app, idx) => {
-                  const LogoComp = app.logo
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
+                {integrations.slice(0, 4).map((app) => {
                   return (
                     <motion.button
-                      key={idx}
+                      key={app.id}
                       type="button"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
                       onClick={() => navigate('/integrations')}
                       className="flex flex-col justify-between p-3.5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/25 hover:bg-white/[0.07] transition-all text-left h-[108px] group"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center justify-between mb-1.5">
                           <div className="flex items-center gap-2">
-                            <LogoComp size={18} />
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-xs font-semibold text-white/70">
+                              {app.name.slice(0, 1).toUpperCase()}
+                            </span>
                             <span className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">
                               {app.name}
                             </span>
                           </div>
-                          {app.badge && (
-                            <span className="text-[9px] bg-white/10 text-white/60 px-1.5 py-0.5 rounded font-mono">
-                              {app.badge}
-                            </span>
-                          )}
                         </div>
                         <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed">
-                          {app.desc}
+                          {app.config?.description || `${app.type.toUpperCase()} integration`}
                         </p>
                       </div>
                     </motion.button>
                   )
                 })}
               </div>
+              {integrations.length === 0 && (
+                <p className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-xs text-white/40">
+                  No integrations connected yet. Connect one to make it available to your agents.
+                </p>
+              )}
             </motion.div>
           </motion.div>
         </div>

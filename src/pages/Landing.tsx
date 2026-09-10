@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import {
-  ExternalLink,
   ArrowRight,
+  ArrowUpRight,
   Cpu,
   Database,
   Workflow,
@@ -9,10 +9,7 @@ import {
   Terminal,
   Layers,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { useScore } from '../lib/motion'
 import { cx } from '../lib/cx'
-import { StatusDot } from '../components/Badges'
 import { ElementsCollection } from '../shaders/elements/ElementsCollection'
 import '../shaders/threeui.css'
 
@@ -21,11 +18,11 @@ const GITHUB_URL = 'https://github.com/Prateekiiitg56/SplitterAi'
 /* ── Tech strip items ──────────────────────────────────────────── */
 
 const TECH_ITEMS = [
-  { icon: Boxes, label: 'React 19' },
-  { icon: Terminal, label: 'FastAPI' },
-  { icon: Layers, label: 'Three.js' },
-  { icon: Cpu, label: 'litellm' },
-  { icon: Database, label: 'SQLite' },
+  { icon: Boxes, label: 'Multi-agent' },
+  { icon: Terminal, label: 'Sandboxed runtime' },
+  { icon: Layers, label: 'Parallel execution' },
+  { icon: Cpu, label: 'Free-tier models' },
+  { icon: Database, label: 'Local workspace' },
   { icon: Workflow, label: 'n8n-compatible' },
 ]
 
@@ -33,122 +30,65 @@ const TECH_ITEMS = [
 
 export default function Landing() {
   const navigate = useNavigate()
-  const score = useScore()
 
   return (
-    <div className="relative min-h-screen text-[var(--text)] font-sans overflow-x-hidden bg-[#0a0a0a]">
+    <div className="relative h-screen overflow-x-hidden overflow-y-auto text-[var(--text)] font-sans bg-[#0a0a0a]">
       {/* ══════════════ Full-page Fixed WebGL Background ══════════════ */}
-      <div className="fixed inset-0 z-0 opacity-100 pointer-events-auto">
+      <div className="fixed inset-0 z-0 opacity-80 pointer-events-auto">
         <ElementsCollection
           variant="generative-tree"
-          speed={1.00}
+          speed={0.8}
           size={1.00}
           particleAmount={1.00}
           hue={0}
           saturation={1.00}
-          brightness={1.00}
-          opacity={1.00}
+          brightness={0.9}
+          opacity={0.8}
         />
       </div>
 
-      {/* ══════════════ Section 1 — Hero ══════════════ */}
-      <section className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 py-16 md:py-20 overflow-hidden">
-        <div className="w-full max-w-[960px] mx-auto flex flex-col items-center">
-          <motion.div
-            variants={score.revealParent}
-            initial="hidden"
-            animate="shown"
-            className="flex flex-col items-center max-w-[640px] text-center"
+      <div className="relative z-10 min-h-screen bg-gradient-to-b from-[#080b10]/70 via-transparent to-[#080b10]/90">
+        {/* ══════════════ Product navigation ══════════════ */}
+        <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between px-6 py-6 sm:px-10 lg:px-12">
+          <button
+            type="button"
+            onClick={() => navigate('/welcome')}
+            className="group flex items-center gap-3 text-left"
+            aria-label="Go to SplitterAI home"
           >
-            {/* Eyebrow */}
-            <motion.p
-              variants={score.revealChild}
-              className="font-mono text-micro font-medium tracking-[0.15em] uppercase text-[var(--dim)] opacity-80 mb-4"
-            >
-              Multi-agent orchestration
-            </motion.p>
+            <img
+              src="/splitterai-logo.png"
+              alt="SplitterAI"
+              className="h-8 w-auto object-contain transition-transform duration-[var(--d-quick)] group-hover:scale-105"
+            />
+            <span className="hidden border-l border-white/15 pl-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--dim)] sm:block">
+              Control plane
+            </span>
+          </button>
 
-            {/* Headline — base uses --t-hero (the one place it's spec'd for),
-               scaled up further on larger viewports for marketing impact */}
-            <motion.h1
-              variants={score.revealChild}
-              className="text-hero sm:text-[46px] md:text-[54px] leading-[1.1] font-bold tracking-tight text-[var(--text)] max-w-[580px] mb-5"
+          <nav className="flex items-center gap-5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--dim)] sm:gap-7">
+            <a href="#stack" className="hidden transition-colors hover:text-[var(--text)] sm:block">Stack</a>
+            <a
+              href={GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-1.5 text-[var(--text-2)] transition-colors hover:text-[var(--accent)]"
             >
-              Direct a team of AI agents through one console
-            </motion.h1>
-
-            {/* Subhead */}
-            <motion.p
-              variants={score.revealChild}
-              className="text-strong sm:text-[17px] font-normal leading-[1.55] text-[var(--text-2)] max-w-[560px] mb-8"
-            >
-              Free-tier models. Sandboxed workspace. Parallel execution.
-              Split complex tasks across Planner, Coder, Auditor, and Tester agents — all orchestrated from a single interface.
-            </motion.p>
-
-            {/* CTAs */}
-            <motion.div variants={score.revealChild} className="flex items-center gap-4 mb-2">
-              <button
-                type="button"
-                onClick={() => navigate('/console')}
-                className={cx(
-                  'inline-flex items-center justify-center gap-2.5 h-11 px-7 rounded-[8px]',
-                  'bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-strong',
-                  'shadow-[0_0_24px_rgba(72,180,255,0.22)] hover:brightness-110 hover:shadow-[0_0_28px_rgba(72,180,255,0.35)]',
-                  'active:scale-[0.985] transition-all duration-[var(--d-quick)] ease-standard',
-                )}
-              >
-                Open Console
-                <ArrowRight size={15} />
-              </button>
-              <a
-                href={GITHUB_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cx(
-                  'inline-flex items-center justify-center gap-2 h-11 px-7 rounded-[8px]',
-                  'border border-[var(--border-strong)] text-[var(--text-2)] bg-transparent',
-                  'hover:bg-[var(--panel-2)] hover:border-[var(--text-2)] hover:text-[var(--text)]',
-                  'font-medium text-strong active:scale-[0.985] transition-all duration-[var(--d-quick)] ease-standard',
-                )}
-              >
-                View on GitHub
-                <ExternalLink size={14} />
-              </a>
-            </motion.div>
-
-            {/* Status strip */}
-            <motion.div
-              variants={score.revealChild}
-              className="flex items-center gap-3 flex-wrap justify-center mt-8"
-            >
-              {[
-                { label: 'Planner → 2 groups', status: 'working' },
-                { label: '4 agents online', status: 'completed' },
-                { label: 'Free-tier', status: 'paused' },
-              ].map(({ label, status }) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border-soft)] bg-[var(--panel-2)]/80 text-meta font-mono text-[var(--dim)] shadow-sm backdrop-blur-sm"
-                >
-                  <StatusDot status={status} />
-                  {label}
-                </span>
-              ))}
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+              GitHub
+              <ArrowUpRight size={13} className="transition-transform duration-[var(--d-quick)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            </a>
+          </nav>
+        </header>
 
       {/* ══════════════ Section 2 — Tech strip ══════════════ */}
-      <section className="relative z-10 px-6 py-12 border-y border-[var(--border-soft)]/60">
-        <div className="flex items-center justify-center gap-6 flex-wrap max-w-[800px] mx-auto">
+      <section id="stack" className="fixed inset-x-0 bottom-0 z-20 border-y border-[var(--border-soft)]/70 bg-[#080b10]/80 px-4 py-4 backdrop-blur-md sm:px-8">
+        <div className="mx-auto flex w-full max-w-none items-center justify-between gap-4 overflow-x-auto">
           {TECH_ITEMS.map(({ icon: TechIcon, label }, i) => (
-            <span key={label} className="flex items-center gap-2">
+            <span key={label} className="flex shrink-0 items-center gap-2">
               {i > 0 && (
                 <span
                   aria-hidden="true"
-                  className="w-px h-4 bg-[var(--border)] -ml-3 mr-0 opacity-50"
+                  className="mr-2 h-4 w-px bg-[var(--border)] opacity-50"
                 />
               )}
               <TechIcon size={13} className="text-[var(--faint)]" />
@@ -161,20 +101,13 @@ export default function Landing() {
       </section>
 
       {/* ══════════════ Section 3 — Footer CTA + footer ══════════════ */}
-      <section className="relative z-10 px-6 py-20 flex flex-col items-center text-center">
-        <h2 className="text-title font-semibold tracking-tight mb-3">
-          Ready to orchestrate?
-        </h2>
-        <p className="text-meta text-[var(--text-2)] mb-6 max-w-[400px]">
-          No API keys required to start. Runs entirely on free-tier model quotas.
-        </p>
-
+      <section className="relative z-10 flex min-h-[calc(100vh-88px)] flex-col items-center justify-end px-6 pb-32 pt-20 text-center">
         <button
           type="button"
           onClick={() => navigate('/console')}
           className={cx(
-            'inline-flex items-center gap-2 h-10 px-6 rounded-panel',
-            'bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-ui',
+            'inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3',
+            'text-[var(--accent-ink)] font-semibold text-ui',
             'hover:brightness-110 active:scale-[0.985]',
             'transition-all duration-[var(--d-quick)] ease-standard',
             'mb-8',
@@ -206,6 +139,7 @@ export default function Landing() {
           <span>Runs entirely on free-tier API quotas.</span>
         </div>
       </section>
+    </div>
     </div>
   )
 }

@@ -86,8 +86,8 @@ html, body, canvas { width: 100%; height: 100%; margin: 0; overflow: hidden; bac
     // A remounted srcDoc can execute before the iframe receives its layout size.
     // Wait one or more frames so the first tree is never generated from a 0x0 viewport.
     .replace(
-      "  createTree();\n  requestAnimationFrame(frame);",
-      `  function startTreeWhenSized() {
+      /(\s*)createTree\(\);\s*requestAnimationFrame\(frame\);/,
+      `$1function startTreeWhenSized() {
     resize();
     if (W <= 0 || H <= 0) {
       requestAnimationFrame(startTreeWhenSized);
@@ -113,6 +113,7 @@ export function GenerativeTree({
 }: GenerativeTreeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [hostVisible, setHostVisible] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [documentVisible, setDocumentVisible] = useState(() => typeof document === "undefined" || !document.hidden);
   const safeSpeed = clamp(speed, 0, 3);
   const paused = !hostVisible || !documentVisible || safeSpeed === 0;
@@ -154,7 +155,10 @@ export function GenerativeTree({
         title="Generative Tree background"
         srcDoc={source}
         sandbox="allow-scripts"
-        onLoad={postControls}
+        onLoad={() => {
+          setHasLoaded(true);
+          postControls();
+        }}
         aria-hidden="true"
         tabIndex={-1}
         style={{
@@ -165,7 +169,7 @@ export function GenerativeTree({
           height: "100%",
           border: 0,
           background: "#0a0a0a",
-          opacity: clamp(opacity, 0.05, 1),
+          opacity: hasLoaded ? clamp(opacity, 0.05, 1) : 0,
           filter: `hue-rotate(${clamp(hue, -180, 180)}deg) saturate(${clamp(saturation, 0, 2)}) brightness(${clamp(brightness, 0.35, 1.8)})`,
         }}
       />
