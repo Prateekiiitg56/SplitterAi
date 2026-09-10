@@ -32,7 +32,7 @@ export default function Landing() {
   const navigate = useNavigate()
 
   return (
-    <div className="relative h-screen overflow-x-hidden overflow-y-auto text-[var(--text)] font-sans bg-[#0a0a0a]">
+    <div className="relative h-screen overflow-x-hidden overflow-y-auto bg-[var(--bg)] text-[var(--text)] font-sans">
       {/* ══════════════ Full-page Fixed WebGL Background ══════════════ */}
       <div className="fixed inset-0 z-0 opacity-80 pointer-events-auto">
         <ElementsCollection
@@ -47,9 +47,9 @@ export default function Landing() {
         />
       </div>
 
-      <div className="relative z-10 min-h-screen bg-gradient-to-b from-[#080b10]/70 via-transparent to-[#080b10]/90">
+      <div className="relative z-10 min-h-screen bg-gradient-to-b from-[var(--bg)]/80 via-transparent to-[var(--bg)]/95">
         {/* ══════════════ Product navigation ══════════════ */}
-        <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between px-6 py-6 sm:px-10 lg:px-12">
+        <header className="mx-auto flex w-full max-w-[1240px] items-center justify-between border-b border-[var(--border-soft)]/70 px-6 py-5 sm:px-10 lg:px-12">
           <button
             type="button"
             onClick={() => navigate('/welcome')}
@@ -81,7 +81,7 @@ export default function Landing() {
         </header>
 
       {/* ══════════════ Section 2 — Tech strip ══════════════ */}
-      <section id="stack" className="fixed inset-x-0 bottom-0 z-20 border-y border-[var(--border-soft)]/70 bg-[#080b10]/80 px-4 py-4 backdrop-blur-md sm:px-8">
+      <section id="stack" className="fixed inset-x-0 bottom-0 z-20 border-y border-[var(--border-soft)]/70 bg-[var(--bg)]/85 px-4 py-4 backdrop-blur-md sm:px-8">
         <div className="mx-auto flex w-full max-w-none items-center justify-between gap-4 overflow-x-auto">
           {TECH_ITEMS.map(({ icon: TechIcon, label }, i) => (
             <span key={label} className="flex shrink-0 items-center gap-2">
@@ -102,11 +102,12 @@ export default function Landing() {
 
       {/* ══════════════ Section 3 — Footer CTA + footer ══════════════ */}
       <section className="relative z-10 flex min-h-[calc(100vh-88px)] flex-col items-center justify-end px-6 pb-32 pt-20 text-center">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[min(62vw,560px)] w-[min(62vw,560px)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--accent)]/10 shadow-[0_0_120px_rgba(72,180,255,0.08)]" />
         <button
           type="button"
           onClick={() => navigate('/console')}
           className={cx(
-            'inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3',
+            'relative inline-flex h-10 items-center gap-2 rounded-control border border-[var(--accent)]/50 bg-[var(--accent)] px-6',
             'text-[var(--accent-ink)] font-semibold text-ui',
             'hover:brightness-110 active:scale-[0.985]',
             'transition-all duration-[var(--d-quick)] ease-standard',

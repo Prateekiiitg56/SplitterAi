@@ -44,7 +44,7 @@ function Layout() {
   }, [])
 
   return (
-    <div className="flex h-screen w-screen bg-[var(--bg)] p-0 overflow-hidden relative">
+    <div className="app-shell flex h-screen w-screen p-0 overflow-hidden relative">
       <ConstellationBackground />
       <Sidebar
         collapsed={sidebarCollapsed}

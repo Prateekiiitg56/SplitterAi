@@ -135,7 +135,7 @@ export default function Sidebar({
             className={cx(
               'flex h-10 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
               isRouteActive('/agents')
-                ? 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]'
+                ? 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]'
                 : 'text-white/60 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
               collapsed && 'justify-center px-0',
             )}
@@ -154,7 +154,7 @@ export default function Sidebar({
             className={cx(
               'flex h-10 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
               isRouteActive('/console')
-                ? 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]'
+                ? 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]'
                 : 'text-white/60 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
               collapsed && 'justify-center px-0',
             )}
@@ -175,7 +175,7 @@ export default function Sidebar({
                   onClick={() => navigate('/projects')}
                   className={cx(
                     'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
-                    isRouteActive('/projects') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
+                    isRouteActive('/projects') && 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]',
                   )}
                 >
                   <CreditCard size={14} className="text-white/50 shrink-0" />
@@ -187,7 +187,7 @@ export default function Sidebar({
                   onClick={() => navigate('/flow')}
                   className={cx(
                     'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
-                    isRouteActive('/flow') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
+                    isRouteActive('/flow') && 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]',
                   )}
                 >
                   <Repeat size={14} className="text-white/50 shrink-0" />
@@ -204,7 +204,7 @@ export default function Sidebar({
               title="Projects"
               className={cx(
                 'flex h-10 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
-                isRouteActive('/projects') && 'bg-[#18294b] text-white shadow-[inset_2px_0_0_#60a5fa]',
+                isRouteActive('/projects') && 'bg-[var(--accent-quiet)] text-white shadow-[inset_2px_0_0_var(--accent)]',
               )}
             >
               <FolderKanban size={15} />
@@ -215,7 +215,7 @@ export default function Sidebar({
               title="Workflow"
               className={cx(
                 'flex h-10 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
-                isRouteActive('/flow') && 'bg-[#18294b] text-white shadow-[inset_2px_0_0_#60a5fa]',
+                isRouteActive('/flow') && 'bg-[var(--accent-quiet)] text-white shadow-[inset_2px_0_0_var(--accent)]',
               )}
             >
               <GitBranch size={15} />
@@ -233,7 +233,7 @@ export default function Sidebar({
                   onClick={() => navigate('/integrations')}
                   className={cx(
                     'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
-                    isRouteActive('/integrations') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
+                    isRouteActive('/integrations') && 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]',
                   )}
                 >
                   <Grid size={14} className="text-white/50 shrink-0" />

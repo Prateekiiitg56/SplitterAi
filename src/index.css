@@ -190,6 +190,20 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.app-shell {
+  background:
+    radial-gradient(ellipse 900px 520px at 50% -12%, rgba(72, 180, 255, 0.08), transparent 68%),
+    var(--bg);
+}
+
+.app-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.22));
+}
+
 /* Machine output is monospaced; prose is not. */
 code, pre, kbd, samp { font-family: var(--mono); }
 
