@@ -184,34 +184,7 @@ export default function Sidebar({
           collapsed ? 'justify-center h-12 px-0' : 'h-12 px-3',
         )}
       >
-        {!collapsed && (
-          <span
-            className={cx(
-              'w-6 h-6 rounded-full border flex items-center justify-center font-mono text-micro font-bold flex-shrink-0 relative',
-              isOnline
-                ? 'bg-[var(--good-quiet)] border-[var(--good)] text-[var(--good)]'
-                : 'bg-[var(--bad-quiet)] border-[var(--bad)] text-[var(--bad)]',
-            )}
-            aria-hidden="true"
-            title={isOnline ? 'Backend server connected (:8000)' : 'Backend server offline (:8000)'}
-          >
-            {isOnline ? (
-              <span className="w-2 h-2 rounded-full bg-[var(--good)] animate-pulse" />
-            ) : (
-              <span className="w-2 h-2 rounded-full bg-[var(--bad)]" />
-            )}
-          </span>
-        )}
-        {!collapsed && (
-          <span className="min-w-0">
-            <span className="block text-micro font-medium text-[var(--text)] truncate">
-              Developer workspace
-            </span>
-            <span className={cx('block text-micro font-mono', isOnline ? 'text-[var(--good)]' : 'text-[var(--bad)]')}>
-              {isOnline ? 'Server :8000' : 'Server offline'}
-            </span>
-          </span>
-        )}
+
         {onToggleCollapse && (
           <button
             type="button"
