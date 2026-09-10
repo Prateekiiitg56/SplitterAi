@@ -135,8 +135,8 @@ export default function AgentsOverviewPage() {
       <div className="page-body flex-1 overflow-y-auto p-6">
         
         {/* Search & Filter Row */}
-        <div className="search-row flex items-center gap-2.5 mb-4">
-          <div className="search-box flex-1 max-w-[300px] flex items-center gap-2 border border-[var(--border-soft)] rounded-md px-2.5 py-1.5 bg-[var(--panel)] text-[var(--faint)]">
+        <div className="search-row flex flex-wrap items-center gap-3 mb-4">
+          <div className="search-box flex h-8 flex-1 max-w-[300px] items-center gap-2 border border-[var(--border-soft)] rounded-md px-3 bg-[var(--panel)] text-[var(--faint)]">
             <Search size={13} />
             <input
               value={searchTerm}
@@ -148,25 +148,25 @@ export default function AgentsOverviewPage() {
 
           <button
             onClick={() => setStatusFilter('all')}
-            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             All
           </button>
           <button
             onClick={() => setStatusFilter('working')}
-            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Working
           </button>
           <button
             onClick={() => setStatusFilter('idle')}
-            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'idle' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'idle' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Idle
           </button>
           <button
             onClick={() => setStatusFilter('failed')}
-            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
           >
             Failed
           </button>
@@ -181,7 +181,7 @@ export default function AgentsOverviewPage() {
               <div
                 key={agent.role}
                 onClick={() => navigate(`/agents/${agent.role}`)}
-                className="agent-card border border-[var(--border-soft)] rounded-panel p-3.5 bg-[var(--panel)] flex flex-col gap-3 hover:border-[var(--border-strong)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.28)] cursor-pointer transition-all"
+                className="agent-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex min-h-full flex-col gap-4 hover:border-[var(--border-strong)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.28)] cursor-pointer transition-all"
               >
                 {/* Agent Card Top */}
                 <div className="agent-card-top flex items-center justify-between">

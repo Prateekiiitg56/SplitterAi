@@ -220,7 +220,7 @@ export function AIAssistantInterface() {
   const greeting = useMemo(() => getGreeting(), [])
 
   return (
-    <div className="relative flex-1 flex flex-col h-full min-h-full text-white font-sans bg-transparent overflow-hidden">
+    <div className="relative flex-1 flex flex-col h-full min-h-full text-[var(--text)] font-sans bg-transparent overflow-hidden">
       {/* Top Header & Agent Tab Strip */}
       <AgentTabStrip
         selectedRole={selectedAgentRole}
@@ -241,10 +241,10 @@ export function AIAssistantInterface() {
           >
             {/* Greeting Hero */}
             <motion.div variants={fadeUp} className="text-center mb-8">
-              <h1 className="text-3xl md:text-4xl font-serif font-normal text-white tracking-tight mb-2">
+              <h1 className="text-display md:text-hero font-semibold text-[var(--text)] tracking-tight mb-2">
                 {greeting}
               </h1>
-              <p className="text-sm text-white/50 font-sans">
+              <p className="text-ui text-[var(--dim)] font-sans">
                 {activeAgentName} is ready when you are.
               </p>
             </motion.div>
@@ -252,7 +252,7 @@ export function AIAssistantInterface() {
             {/* Input Card Container */}
             <motion.section
               variants={fadeUp}
-              className="w-full max-w-2xl self-center bg-[#111116]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden mb-6 transition-colors hover:border-white/20"
+              className="w-full max-w-2xl self-center bg-[var(--panel)]/95 backdrop-blur-xl border border-[var(--border)] rounded-panel shadow-float overflow-hidden mb-6 transition-colors hover:border-[var(--border-strong)]"
             >
               {/* Active Chat Thread */}
               <AnimatePresence initial={false}>
@@ -262,7 +262,7 @@ export function AIAssistantInterface() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={score.transition.slow}
-                    className="overflow-y-auto border-b border-white/10"
+                    className="overflow-y-auto border-b border-[var(--border-soft)]"
                     style={{ maxHeight: 280 }}
                   >
                     <div className="px-4 py-3 space-y-3">
@@ -278,10 +278,10 @@ export function AIAssistantInterface() {
                           )}
                           <div
                             className={cx(
-                              'max-w-[85%] px-3.5 py-2 rounded-xl text-xs leading-relaxed',
+                              'max-w-[85%] px-4 py-2 rounded-panel text-ui leading-relaxed',
                               msg.sender === 'user'
-                                ? 'bg-white text-black font-medium'
-                                : 'bg-white/10 text-white border border-white/10',
+                                ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-medium'
+                                : 'bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)]',
                             )}
                           >
                             {msg.text}
@@ -290,13 +290,13 @@ export function AIAssistantInterface() {
                       ))}
                       {isSending && (
                         <div className="flex items-center gap-2 text-[11px] font-mono text-white/50">
-                          <Loader2 size={12} className="animate-spin text-amber-300" />
+                          <Loader2 size={12} className="animate-spin text-[var(--accent)]" />
                           <span>{activeAgentName} ({selectedModel.label}) is typing…</span>
                         </div>
                       )}
                       {isPlanning && (
                         <div className="flex items-center gap-2 text-[11px] font-mono text-white/50">
-                          <Loader2 size={12} className="animate-spin text-amber-300" />
+                          <Loader2 size={12} className="animate-spin text-[var(--accent)]" />
                           <span>Planning task split across agents…</span>
                         </div>
                       )}
@@ -323,7 +323,7 @@ export function AIAssistantInterface() {
               </div>
 
               {/* Bottom Row Inside Input Box */}
-              <div className="mx-auto box-border flex w-full items-center justify-between px-5 pb-3 pt-2 border-t border-white/[0.04]">
+              <div className="mx-auto box-border flex w-full items-center justify-between px-5 pb-3 pt-2 border-t border-[var(--border-soft)]">
                 {/* Left Controls */}
                 <div className="flex items-center gap-2 text-xs">
                   <motion.button
@@ -331,7 +331,7 @@ export function AIAssistantInterface() {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setShowAddAgentModal(true)}
-                    className="p-1 rounded text-white/40 hover:text-white transition-colors flex items-center justify-center"
+                    className="flex h-8 w-8 items-center justify-center rounded-control text-[var(--dim)] hover:text-[var(--text)] transition-colors"
                   >
                     <Plus size={15} />
                   </motion.button>
@@ -343,7 +343,7 @@ export function AIAssistantInterface() {
                       whileHover={{ scale: 1.03 }}
                       whileTap={{ scale: 0.97 }}
                       onClick={() => setModelDropdownOpen((v) => !v)}
-                      className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/80 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all"
+                      className="flex h-8 items-center gap-2 rounded-control bg-[var(--panel-2)] px-3 border border-[var(--border)] text-meta text-[var(--text-2)] hover:bg-[var(--panel-3)] hover:text-[var(--text)] hover:border-[var(--border-strong)] transition-all"
                     >
                       <ModelFusionIcon size={14} />
                       <span className="max-w-[9rem] truncate">{selectedModel.label}</span>
@@ -356,7 +356,7 @@ export function AIAssistantInterface() {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -2 }}
                           transition={score.transition.base}
-                          className="absolute left-0 bottom-full mb-1.5 w-[240px] rounded-xl border border-white/10 bg-[#16161c] shadow-2xl p-1 z-50"
+                          className="absolute left-0 bottom-full mb-2 w-[240px] rounded-float border border-[var(--border)] bg-[var(--panel)] shadow-float p-1 z-50"
                         >
                           {AVAILABLE_MODELS.map((m) => {
                             const isSel = selectedModel.id === m.id
@@ -370,11 +370,11 @@ export function AIAssistantInterface() {
                                 }}
                                 className={cx(
                                   'flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors',
-                                  isSel ? 'bg-white/15 text-white font-medium' : 'text-white/60 hover:bg-white/5 hover:text-white',
+                                  isSel ? 'bg-[var(--accent-quiet)] text-[var(--text)] font-medium' : 'text-[var(--dim)] hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
                                 )}
                               >
                                 <span>{m.label}</span>
-                                {isSel && <Check size={12} className="text-amber-300" />}
+                                {isSel && <Check size={12} className="text-[var(--accent)]" />}
                               </button>
                             )
                           })}
@@ -402,10 +402,10 @@ export function AIAssistantInterface() {
                     onClick={() => handleSend()}
                     disabled={!inputValue.trim() || isSending}
                     className={cx(
-                      'w-7 h-7 rounded-lg flex items-center justify-center transition-all shadow-md shrink-0',
+                      'h-8 w-8 rounded-control flex items-center justify-center transition-all shadow-raise shrink-0',
                       inputValue.trim() && !isSending
-                        ? 'bg-white text-black hover:bg-white/90'
-                        : 'bg-white/20 text-white/40 cursor-not-allowed',
+                        ? 'bg-[var(--accent)] text-[var(--accent-ink)] hover:brightness-110'
+                        : 'bg-[var(--panel-3)] text-[var(--faint)] cursor-not-allowed',
                     )}
                   >
                     <Send size={13} className="ml-0.5" />

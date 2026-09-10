@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 
 from agentcli.config import ExecutionConfig
-from agentcli.orchestrator import Orchestrator
+from agentcli.graph import run_graph
 from agentcli.planner import generate_plan, load_manual_plan
 from agentcli.sandbox import Sandbox
 from agentcli.schemas import (
@@ -31,6 +31,8 @@ from agentcli.schemas import (
     RunRequest,
     RunResult,
     RunStatus,
+    Subtask,
+    SubtaskStatus,
 )
 from agentcli.session import list_sessions, save_run_result
 from agentcli.integrations_store import (
@@ -45,6 +47,7 @@ from agentcli.db_supabase import is_supabase_enabled
 # Load .env — single source of truth is the project-root .env (see .env.example),
 # loaded explicitly so behavior doesn't depend on the server's working directory.
 import os
+from pathlib import Path
 root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
 load_dotenv(root_env)
 
@@ -82,8 +85,6 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
-
-
 # ── App Factory ───────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -214,12 +215,14 @@ async def preview_workspace(file_name: str = ""):
     target_file = file_name if file_name else "index.html"
     file_path = os.path.join(workspace_dir, target_file)
 
-    resolved_file = os.path.abspath(file_path)
-    resolved_ws = os.path.abspath(workspace_dir)
-    if not resolved_file.startswith(resolved_ws):
+    resolved_file = Path(file_path).resolve()
+    resolved_ws = Path(workspace_dir).resolve()
+    try:
+        resolved_file.relative_to(resolved_ws)
+    except ValueError:
         raise HTTPException(status_code=403, detail="Forbidden: path escapes workspace")
 
-    if not os.path.exists(file_path):
+    if not resolved_file.exists():
         if not file_name or file_name == "index.html":
             return HTMLResponse("""<!DOCTYPE html>
 <html>
@@ -228,7 +231,7 @@ async def preview_workspace(file_name: str = ""):
 </html>""")
         raise HTTPException(status_code=404, detail="File not found")
 
-    return FileResponse(file_path)
+    return FileResponse(resolved_file)
 
 
 @app.post("/plan")
@@ -262,12 +265,12 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
 async def run_task(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Execute a task through the multi-agent pipeline."""
     verify_shared_secret(x_api_key, token)
+    sandbox = Sandbox(request.workspace)
+
     config = ExecutionConfig()
     if request.model:
         for r in AgentRole:
             config.set_model_chain(r, [request.model] + config.get_model_chain(r))
-
-    sandbox = Sandbox(request.workspace)
 
     # Build event emitter for real-time WebSocket streaming
     on_event = make_event_emitter()
@@ -310,13 +313,15 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
         "subtasks": [st.model_dump() for st in plan.subtasks],
     })
 
-    # Step 2: Execute plan
-    orchestrator = Orchestrator(
+    # Step 2: Execute the LangGraph decision workflow.
+    result = await run_graph(
+        task=request.task,
+        workspace=request.workspace,
         config=config,
         sandbox=sandbox,
         on_event=on_event,
+        plan=plan,
     )
-    result = await orchestrator.execute(plan)
 
     # Step 3: Persist session
     save_run_result(request.workspace, request.task, result)
@@ -532,7 +537,7 @@ async def upload_workspace(
 
     zip_bytes = await file.read()
     if len(zip_bytes) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Uploaded file exceeds 50MB limit.")
+        raise HTTPException(status_code=413, detail="Uploaded file exceeds 50MB limit.")
 
     try:
         from agentcli.workspace_import import extract_zip_to_workspace

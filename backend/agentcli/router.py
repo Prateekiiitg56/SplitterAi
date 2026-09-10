@@ -87,7 +87,11 @@ class AllModelsFailedError(Exception):
     def __init__(self, attempts: list[dict[str, Any]]):
         self.attempts = attempts
         models = [a["model"] for a in attempts]
-        super().__init__(f"All models failed: {models}")
+        details = "; ".join(
+            f"{attempt['model']}: {attempt.get('error', 'unknown error')}"
+            for attempt in attempts
+        )
+        super().__init__(f"All models failed: {models}. Details: {details}")
 
 
 async def call_model(
@@ -148,12 +152,9 @@ async def call_model(
         max_retries = 2
         for retry in range(max_retries):
             try:
-                # Alias models to active working endpoints on OpenRouter/Gemini API
+                # Keep provider-qualified model names intact so each configured
+                # API key is sent to its intended provider.
                 target_model = model
-                if "gemini-3.5-flash" in model.lower():
-                    target_model = "openrouter/meta-llama/llama-3.3-70b-instruct"
-                elif "nemotron" in model.lower():
-                    target_model = "openrouter/meta-llama/llama-3.3-70b-instruct"
 
                 kwargs: dict[str, Any] = {
                     "model": target_model,

@@ -133,7 +133,7 @@ export default function IntegrationsPage() {
       />
 
       {/* Page Body */}
-      <div className="page-body flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="page-body flex-1 overflow-y-auto p-6 space-y-8">
         
         {error && (
           <div className="p-3.5 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta">
@@ -142,7 +142,7 @@ export default function IntegrationsPage() {
         )}
 
         {/* Connected Section */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="section-sub font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold">
             CONNECTED INTEGRATIONS ({integrations.length})
           </div>
@@ -174,9 +174,9 @@ export default function IntegrationsPage() {
               />
             </Panel>
           ) : (
-            <div className="int-grid grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+            <div className="int-grid grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
               {integrations.map((item) => (
-                <div key={item.id} className="int-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+                <div key={item.id} className="int-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex min-h-full flex-col justify-between gap-4">
                   <div className="int-card-top flex items-center gap-2.5">
                     <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center flex-shrink-0 text-[var(--accent)]">
                       {item.type === 'github' ? <GitBranch size={15} /> : <Server size={15} />}
@@ -217,12 +217,12 @@ export default function IntegrationsPage() {
         </div>
 
         {/* Catalog Section */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="section-sub font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold">
             AVAILABLE INTEGRATION CATALOG
           </div>
 
-          <div className="int-grid grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+          <div className="int-grid grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
             {/* GitHub */}
             <div className="int-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
               <div>

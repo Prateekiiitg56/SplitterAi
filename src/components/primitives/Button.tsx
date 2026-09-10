@@ -71,8 +71,8 @@ export function Button(props: ButtonProps) {
         'duration-[var(--d-quick)] ease-standard',
         'active:scale-[0.985]',
         'disabled:opacity-45 disabled:pointer-events-none',
-        size === 'sm' ? 'h-6' : 'h-7',
-        iconOnly ? (size === 'sm' ? 'w-6 h-6' : 'w-7 h-7') : size === 'sm' ? 'px-2' : 'px-2.5',
+        size === 'sm' ? 'h-8' : 'h-9',
+        iconOnly ? (size === 'sm' ? 'w-8 h-8' : 'w-9 h-9') : size === 'sm' ? 'px-3' : 'px-4',
         VARIANT[variant],
         className,
       )}

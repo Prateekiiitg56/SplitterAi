@@ -20,9 +20,9 @@ export default function AgentTabStrip({
 }: AgentTabStripProps) {
   return (
     <div className="flex flex-shrink-0 select-none bg-black/40 backdrop-blur-md z-10">
-      <div className="ml-4 flex w-[calc(100%-1rem)] items-center justify-between min-h-11 px-5 pl-7 sm:px-8 sm:pl-10 lg:justify-end lg:pl-10 lg:pr-10 border-b border-white/10 text-xs gap-4">
+      <div className="ml-4 flex min-h-12 w-[calc(100%-1rem)] items-center justify-between gap-4 border-b border-white/10 px-4 sm:px-6 lg:justify-end lg:px-8 text-xs">
         {/* Left: Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto min-w-0">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
           {/* Active / Available Agent Tabs */}
           {sessionAgents.map((r) => {
             const name = ROLE_META[r].label
@@ -33,7 +33,7 @@ export default function AgentTabStrip({
                 type="button"
                 onClick={() => onSelectRole(r)}
                 className={cx(
-                  'relative flex items-center gap-1.5 px-3 py-1 rounded-md font-medium transition-all',
+                  'relative flex h-8 items-center gap-2 rounded-md px-3 font-medium transition-all',
                   isActive
                     ? 'bg-[#182238] text-white shadow-sm ring-1 ring-white/15'
                     : 'text-white/60 hover:text-white/90 hover:bg-white/5',
@@ -50,7 +50,7 @@ export default function AgentTabStrip({
           <button
             type="button"
             onClick={onAddAgent}
-            className="ml-3 flex items-center gap-1 px-2.5 py-1 text-white/50 hover:text-white transition-colors"
+            className="ml-2 flex h-8 items-center gap-2 px-3 text-white/50 hover:text-white transition-colors"
           >
             <Plus size={13} />
             <span className="whitespace-nowrap">Add Agent</span>
@@ -58,11 +58,11 @@ export default function AgentTabStrip({
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-8 shrink-0">
+        <div className="flex shrink-0 items-center gap-4">
           <button
             type="button"
             onClick={onStartFromScratch}
-            className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors"
+            className="flex h-8 items-center gap-2 px-3 text-white/60 hover:text-white transition-colors"
           >
             <RotateCcw size={12} />
             <span>Start from scratch</span>

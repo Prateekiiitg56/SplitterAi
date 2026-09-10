@@ -90,7 +90,7 @@ export default function TopBar() {
         <div className="relative">
           <button
             onClick={() => setWorkspaceOpen(!workspaceOpen)}
-            className="flex items-center gap-2 px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] hover:border-[var(--accent)] transition-colors text-left"
+            className="flex h-8 items-center gap-2 rounded bg-[var(--panel-2)] px-3 border border-[var(--border)] hover:border-[var(--accent)] transition-colors text-left"
             title={DEFAULT_WORKSPACE}
             aria-haspopup="true"
             aria-expanded={workspaceOpen}
@@ -146,7 +146,7 @@ export default function TopBar() {
       {/* Center Quick Search Button */}
       <button
         onClick={handleOpenCommandPalette}
-        className="hidden md:flex items-center gap-2 px-3 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--border-strong)] text-[var(--dim)] hover:text-[var(--text)] transition-colors text-meta"
+        className="hidden md:flex h-8 items-center gap-2 rounded bg-[var(--bg-inset)] px-3 border border-[var(--border)] hover:border-[var(--border-strong)] text-[var(--dim)] hover:text-[var(--text)] transition-colors text-meta"
       >
         <Search size={13} className="text-[var(--faint)]" />
         <span>Search commands & files...</span>
@@ -158,7 +158,7 @@ export default function TopBar() {
       {/* Right Controls */}
       <div className="flex items-center gap-2">
         {/* WS Connection Indicator */}
-        <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-micro font-mono">
+        <div className="hidden sm:flex h-8 items-center gap-1.5 rounded bg-[var(--panel-2)] px-3 border border-[var(--border)] text-micro font-mono">
           <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
           <span className="hidden lg:inline text-[var(--text-2)]">
             {wsConnected ? 'CONNECTED' : 'STANDBY'}
@@ -170,7 +170,7 @@ export default function TopBar() {
         <div className="relative" ref={quotaRef}>
           <button
             onClick={() => setQuotaOpen(!quotaOpen)}
-            className="p-2 rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
+            className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
             title="API Quotas & Usage"
             aria-label="API Quotas & Usage"
             aria-haspopup="true"
@@ -185,7 +185,7 @@ export default function TopBar() {
                 <span className="font-mono text-meta font-semibold text-[var(--text)] flex items-center gap-1.5">
                   <Cpu size={14} className="text-[var(--accent)]" /> Model Quotas
                 </span>
-                <button onClick={() => setQuotaOpen(false)} className="p-2.5 -m-2.5 text-[var(--faint)] hover:text-[var(--text)] rounded transition-colors" aria-label="Close">
+                <button onClick={() => setQuotaOpen(false)} className="flex h-8 w-8 items-center justify-center text-[var(--faint)] hover:text-[var(--text)] rounded transition-colors" aria-label="Close">
                   <X size={13} />
                 </button>
               </div>
@@ -209,7 +209,7 @@ export default function TopBar() {
         {/* Integrations Link */}
         <Link
           to="/integrations"
-          className="p-2 rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
+          className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
           title="Integrations"
           aria-label="Integrations"
         >
@@ -220,7 +220,7 @@ export default function TopBar() {
         {/* Settings Toggle */}
         <button
           onClick={() => setSettingsOpen(!settingsOpen)}
-          className="p-2 rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors"
           title="Settings"
           aria-label="Settings"
           aria-expanded={settingsOpen}
