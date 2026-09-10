@@ -60,8 +60,7 @@ function Layout() {
         <div className="flex-1 overflow-hidden relative flex flex-col h-full">
           <ErrorBoundary key={location.pathname}>
             <Routes>
-              {/* Console / Home */}
-              <Route path="/" element={<AIAssistantInterface />} />
+              {/* Console */}
               <Route path="/console" element={<AIAssistantInterface />} />
 
               {/* Projects & Runs */}
@@ -95,8 +94,8 @@ function Layout() {
 function AppRoutes() {
   const location = useLocation()
 
-  // Welcome route renders standalone landing
-  if (location.pathname === '/welcome') {
+  // The landing page is the default entry point and remains standalone.
+  if (location.pathname === '/' || location.pathname === '/welcome') {
     return <Landing />
   }
 
