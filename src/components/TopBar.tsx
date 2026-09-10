@@ -11,12 +11,17 @@ import {
   AlertCircle,
   Clock,
   X,
-  Cpu
+  Cpu,
+  Download,
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { DEFAULT_WORKSPACE } from '../config'
 
-export default function TopBar() {
+interface TopBarProps {
+  onDownloadClick?: () => void
+}
+
+export default function TopBar({ onDownloadClick }: TopBarProps) {
   const location = useLocation()
   const { sessions, runStatus } = useApp()
   const wsConnected = runStatus !== 'error'
@@ -227,6 +232,16 @@ export default function TopBar() {
         >
           <Settings size={17} />
         </button>
+
+        {onDownloadClick && (
+          <button
+            onClick={onDownloadClick}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] text-[var(--dim)] transition-colors text-meta font-medium ml-1"
+          >
+            <Download size={13} />
+            <span className="hidden sm:inline">Get the app</span>
+          </button>
+        )}
       </div>
     </header>
   )
