@@ -6,7 +6,7 @@ interface IconProps {
 }
 
 /**
- * Agent Rainbow Badge SVG as seen in the reference screenshot (Ask Rune, Agent Tabs, Previous Chats)
+ * Agent Rainbow Badge SVG used for role and agent identity.
  */
 export function AgentRainbowBadge({ size = 16, className = '' }: IconProps) {
   return (
