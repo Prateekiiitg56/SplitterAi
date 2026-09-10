@@ -1,0 +1,2671 @@
+From 053cea6c6df1275abe2c6f9c311682fb2d6da8b0 Mon Sep 17 00:00:00 2001
+From: Claude <audit@splitterai.local>
+Date: Wed, 9 Sep 2026 20:39:39 +0000
+Subject: [PATCH] UI/UX audit pass 1: type scale, tokens, shared primitives,
+ motion score
+
+Fixes real bugs:
+- FlowPage referenced undefined --warning/--warning-dim tokens (actual
+  names are --warn/--warn-quiet); the "unassigned agent" warning styling
+  was rendering with no color at all.
+- DagBackground (Landing hero canvas) never checked prefers-reduced-motion
+  and always ran its rAF loop, unlike the sibling SplitCanvas which
+  already does this correctly via detectTier(). Now renders a single
+  static frame when reduced motion is preferred.
+- Several transitions used raw duration-200/300/500 instead of the
+  documented motion score (--d-quick/base/slow/cine), so they silently
+  escaped the prefers-reduced-motion override (which only collapses the
+  CSS custom properties). Remapped onto the score, including the Flow
+  drawer slide which now correctly uses --d-slow ("drawer, modal, layout
+  move" per its own definition).
+
+Consistency pass:
+- Migrated every legacy alias token (--radius, --bad-dim, --good-dim,
+  --accent-dim, --wait-dim) and arbitrary rounded-[var(--r-*)] usage onto
+  the current token/utility names, per index.css's own "delete once
+  migrated" note.
+- Normalized every off-scale font size (9.5-26px, ~90 occurrences) onto
+  the documented 7-step type scale (micro/meta/ui/strong/title/display/hero).
+- Replaced 5 duplicated hand-rolled topbars (Agents, Projects,
+  Integrations, Flow, and partially Agent Workspace) with the existing
+  shared PageHeader + Button primitives instead of parallel
+  implementations. AgentPage's topbar keeps its custom back-nav + tab
+  shape (PageHeader's icon slot is aria-hidden, wrong fit for a real
+  control) but now uses Button and proper role="tablist"/aria-selected.
+- Normalized h-[48px] topbar heights to h-12.
+
+Empty & loading states:
+- The EmptyState primitive existed but wasn't used anywhere. Migrated 7
+  hand-rolled empty states (Projects, Integrations, ProjectTasks,
+  ProjectOverview DAG panel, FileExplorer, PlanView, AgentPage activity
+  stream) onto it, and added spinners to 2 silent-text loading states.
+
+Verified: npx tsc --noEmit and npm run build both pass clean.
+
+Still to do (next pass): StatusDot/StatusIcon used standalone with no
+visible label in Landing/ConsolePreview/Sidebar/PlanView (status conveyed
+by color/shape alone), plus categories 2 (hierarchy/scrims), 5
+(responsive breakpoints), and the rest of 6 (accessibility).
+---
+ src/components/Badges.tsx                    |   8 +-
+ src/components/ConsolePreview.tsx            |   4 +-
+ src/components/DagBackground.tsx             |  15 +-
+ src/components/ErrorBoundary.tsx             |  12 +-
+ src/components/FileExplorer.tsx              |  43 +++--
+ src/components/LogStream.tsx                 |  37 ++--
+ src/components/PlanView.tsx                  |  64 +++----
+ src/components/Sidebar.tsx                   |  18 +-
+ src/components/TerminalPanel.tsx             |  24 +--
+ src/components/primitives/Panel.tsx          |   2 +-
+ src/components/ui/ai-assistant-interface.tsx |  24 +--
+ src/pages/AgentPage.tsx                      |  57 +++---
+ src/pages/AgentsOverviewPage.tsx             |  63 +++----
+ src/pages/FlowPage.tsx                       | 109 ++++++------
+ src/pages/IntegrationsPage.tsx               | 176 ++++++++++---------
+ src/pages/ProjectAgentsPage.tsx              |  36 ++--
+ src/pages/ProjectOverviewPage.tsx            |  61 +++----
+ src/pages/ProjectTabShell.tsx                |   2 +-
+ src/pages/ProjectTasksPage.tsx               |  40 +++--
+ src/pages/ProjectsPage.tsx                   | 152 ++++++++--------
+ 20 files changed, 480 insertions(+), 467 deletions(-)
+
+diff --git a/src/components/Badges.tsx b/src/components/Badges.tsx
+index 1945f2d..fd373c6 100644
+--- a/src/components/Badges.tsx
++++ b/src/components/Badges.tsx
+@@ -74,7 +74,7 @@ export function StatusBadge({ status, compact = false, size = 'md', className =
+   }
+ 
+   const isRunning = statusClass === 'working'
+-  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-[11px] gap-1' : 'px-2 py-1 text-[12px] gap-1.5'
++  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-micro gap-1' : 'px-2 py-1 text-meta gap-1.5'
+ 
+   if (compact) {
+     return (
+@@ -92,7 +92,7 @@ export function StatusBadge({ status, compact = false, size = 'md', className =
+         <StatusDot status={status} />
+         {isRunning && <span className="absolute inset-0 rounded-full animate-ping bg-[var(--accent)] opacity-40 pointer-events-none" />}
+       </span>
+-      <span className="font-mono uppercase tracking-wider text-[10.5px]">{label}</span>
++      <span className="font-mono uppercase tracking-wider text-micro">{label}</span>
+       <span className="sr-only">Status: {label}</span>
+     </span>
+   )
+@@ -132,7 +132,7 @@ export function RoleBadge({ role, compact = false, size = 'md', className = '' }
+   }
+   const colorClass = roleStyles[r] ?? 'bg-[var(--panel-2)] text-[var(--text)] border-[var(--border)]'
+   const iconSize = size === 'sm' ? 12 : 14
+-  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-[11px] gap-1' : 'px-2 py-1 text-[12px] gap-1.5'
++  const sizeClasses = size === 'sm' ? 'px-1.5 py-0.5 text-micro gap-1' : 'px-2 py-1 text-meta gap-1.5'
+ 
+   if (compact) {
+     return (
+@@ -149,7 +149,7 @@ export function RoleBadge({ role, compact = false, size = 'md', className = '' }
+   return (
+     <span className={`inline-flex items-center rounded border font-mono font-medium ${colorClass} ${sizeClasses} ${className}`}>
+       <AgentIcon role={role} size={iconSize} />
+-      <span className="text-[10.5px] uppercase tracking-wider font-semibold">{tag}</span>
++      <span className="text-micro uppercase tracking-wider font-semibold">{tag}</span>
+       <span className="sr-only">Role: {label}</span>
+     </span>
+   )
+diff --git a/src/components/ConsolePreview.tsx b/src/components/ConsolePreview.tsx
+index 1f387ad..081db47 100644
+--- a/src/components/ConsolePreview.tsx
++++ b/src/components/ConsolePreview.tsx
+@@ -77,7 +77,7 @@ export default function ConsolePreview() {
+     <div className="w-full max-w-[800px] mx-auto">
+       {/* Browser chrome frame */}
+       <div
+-        className="rounded-[var(--r-float)] border border-[var(--border)] overflow-hidden shadow-[var(--shadow-float)]"
++        className="rounded-float border border-[var(--border)] overflow-hidden shadow-[var(--shadow-float)]"
+         style={{ backgroundColor: 'var(--panel)' }}
+       >
+         {/* Title bar */}
+@@ -112,7 +112,7 @@ export default function ConsolePreview() {
+                   key={st.id}
+                   className={cx(
+                     'flex items-center gap-2 px-2 py-1.5 rounded-control',
+-                    'transition-colors duration-300',
++                    'transition-colors duration-[var(--d-base)] ease-standard',
+                     status === 'working' ? 'bg-[var(--panel-2)]' : '',
+                   )}
+                 >
+diff --git a/src/components/DagBackground.tsx b/src/components/DagBackground.tsx
+index 6d58b9b..fbda3b1 100644
+--- a/src/components/DagBackground.tsx
++++ b/src/components/DagBackground.tsx
+@@ -1,6 +1,6 @@
+ import { useEffect, useRef } from 'react'
+ import * as THREE from 'three'
+-import { hasWebGL } from '../lib/quality'
++import { hasWebGL, prefersReducedMotion } from '../lib/quality'
+ 
+ /**
+  * DagBackground — halo-framed node graph.
+@@ -27,7 +27,7 @@ const COLORS = {
+   line: 0x3b5278,
+ }
+ 
+-function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
++function createScene(canvas: HTMLCanvasElement, width: number, height: number, reducedMotion: boolean) {
+   const isMobile = width < 768
+   const NODE_COUNT = isMobile ? 12 : 24
+ 
+@@ -203,6 +203,7 @@ function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
+   }
+ 
+   function start() {
++    if (reducedMotion) return
+     if (!running) {
+       running = true
+       animId = requestAnimationFrame(animate)
+@@ -229,7 +230,13 @@ function createScene(canvas: HTMLCanvasElement, width: number, height: number) {
+     scene.clear()
+   }
+ 
+-  animId = requestAnimationFrame(animate)
++  // Start — a single static, deliberately composed frame when the user
++  // prefers reduced motion, otherwise the drifting animation loop.
++  if (reducedMotion) {
++    renderer.render(scene, camera)
++  } else {
++    animId = requestAnimationFrame(animate)
++  }
+ 
+   return { start, stop, resize, dispose }
+ }
+@@ -247,7 +254,7 @@ export default function DagBackground() {
+     const rect = host.getBoundingClientRect()
+     let dag: ReturnType<typeof createScene>
+     try {
+-      dag = createScene(canvas, rect.width, rect.height)
++      dag = createScene(canvas, rect.width, rect.height, prefersReducedMotion())
+     } catch {
+       return
+     }
+diff --git a/src/components/ErrorBoundary.tsx b/src/components/ErrorBoundary.tsx
+index 1295189..44c6dc5 100644
+--- a/src/components/ErrorBoundary.tsx
++++ b/src/components/ErrorBoundary.tsx
+@@ -39,23 +39,23 @@ export class ErrorBoundary extends Component<Props, State> {
+     if (this.state.hasError) {
+       return (
+         <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[var(--bg)] text-[var(--text)] font-sans text-center min-h-[400px]">
+-          <div className="rounded-panel border border-[var(--bad-quiet)] bg-[var(--bad-dim)] p-8 max-w-[500px] w-full space-y-4 shadow-[var(--shadow-float)]">
+-            <div className="w-12 h-12 rounded-control bg-[var(--bad-dim)] text-[var(--bad)] flex items-center justify-center mx-auto border border-[var(--bad-quiet)]">
++          <div className="rounded-panel border border-[var(--bad-quiet)] bg-[var(--bad-quiet)] p-8 max-w-[500px] w-full space-y-4 shadow-[var(--shadow-float)]">
++            <div className="w-12 h-12 rounded-control bg-[var(--bad-quiet)] text-[var(--bad)] flex items-center justify-center mx-auto border border-[var(--bad-quiet)]">
+               <AlertTriangle size={24} />
+             </div>
+ 
+-            <h2 className="text-[18px] font-bold text-[var(--text)]">
++            <h2 className="text-title font-bold text-[var(--text)]">
+               {this.props.fallbackTitle || 'Something went wrong loading this page'}
+             </h2>
+ 
+-            <p className="text-[12.5px] text-[var(--text-2)] font-mono leading-relaxed bg-[var(--bg-inset)] p-3 rounded-control border border-[var(--border)] text-left overflow-x-auto">
++            <p className="text-meta text-[var(--text-2)] font-mono leading-relaxed bg-[var(--bg-inset)] p-3 rounded-control border border-[var(--border)] text-left overflow-x-auto">
+               {this.state.error?.message || 'An unexpected error occurred during rendering.'}
+             </p>
+ 
+             <div className="flex items-center justify-center gap-3 pt-2">
+               <button
+                 onClick={this.handleGoHome}
+-                className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--panel-2)] hover:bg-[var(--panel-3)] text-[var(--text-2)] text-[13px] font-semibold transition-colors cursor-pointer border border-[var(--border)]"
++                className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--panel-2)] hover:bg-[var(--panel-3)] text-[var(--text-2)] text-ui font-semibold transition-colors cursor-pointer border border-[var(--border)]"
+               >
+                 <Home size={14} />
+                 <span>Back to Home</span>
+@@ -63,7 +63,7 @@ export class ErrorBoundary extends Component<Props, State> {
+ 
+               <button
+                 onClick={this.handleReset}
+-                className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-[13px] font-semibold transition-colors cursor-pointer"
++                className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-ui font-semibold transition-colors cursor-pointer"
+               >
+                 <RefreshCw size={14} />
+                 <span>Retry</span>
+diff --git a/src/components/FileExplorer.tsx b/src/components/FileExplorer.tsx
+index fa30369..f9a2998 100644
+--- a/src/components/FileExplorer.tsx
++++ b/src/components/FileExplorer.tsx
+@@ -18,6 +18,7 @@ import {
+ import { DEFAULT_WORKSPACE } from '../config'
+ import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
+ import type { FileNode } from '../types'
++import { EmptyState } from './primitives/EmptyState'
+ 
+ interface FileExplorerProps {
+   workspace?: string
+@@ -106,11 +107,11 @@ function TreeNode({
+           ) : (
+             <Folder size={14} className="text-[var(--dim)] flex-shrink-0" />
+           )}
+-          <span className="text-[12px] font-mono font-medium truncate text-[var(--text)] flex-1 text-left">
++          <span className="text-meta font-mono font-medium truncate text-[var(--text)] flex-1 text-left">
+             {node.name}
+           </span>
+           {node.children && (
+-            <span className="text-[10px] font-mono text-[var(--faint)] pr-2">{node.children.length}</span>
++            <span className="text-micro font-mono text-[var(--faint)] pr-2">{node.children.length}</span>
+           )}
+         </button>
+ 
+@@ -154,7 +155,7 @@ function TreeNode({
+       >
+         {getFileIcon(node.name)}
+ 
+-        <span className="text-[11.5px] font-mono truncate flex-1 text-left">{node.name}</span>
++        <span className="text-micro font-mono truncate flex-1 text-left">{node.name}</span>
+ 
+         {/* Modified in run indicator dot */}
+         {isModified && (
+@@ -165,12 +166,12 @@ function TreeNode({
+         )}
+ 
+         {node.size && (
+-          <span className="text-[10px] font-mono text-[var(--faint)] flex-shrink-0 group-hover:hidden">
++          <span className="text-micro font-mono text-[var(--faint)] flex-shrink-0 group-hover:hidden">
+             {typeof node.size === 'number' ? `${node.size}B` : node.size}
+           </span>
+         )}
+ 
+-        <span className="hidden group-hover:flex items-center gap-1 text-[10px] text-[var(--accent)] font-mono flex-shrink-0">
++        <span className="hidden group-hover:flex items-center gap-1 text-micro text-[var(--accent)] font-mono flex-shrink-0">
+           <Eye size={10} /> Preview
+         </span>
+       </button>
+@@ -200,25 +201,25 @@ export default function FileExplorer({
+       <div className="flex items-center justify-between h-10 px-3.5 border-b border-[var(--border)] flex-shrink-0 bg-[var(--panel-2)]">
+         <div className="flex items-center gap-2">
+           <Lock size={12} className="text-[var(--accent)]" />
+-          <span className="text-[11px] font-mono font-bold tracking-wide text-[var(--text)] uppercase">
++          <span className="text-micro font-mono font-bold tracking-wide text-[var(--text)] uppercase">
+             Sandboxed Root
+           </span>
+         </div>
+-        <span className="text-[10px] font-mono text-[var(--faint)] truncate max-w-[120px]" title={workspace}>
++        <span className="text-micro font-mono text-[var(--faint)] truncate max-w-[120px]" title={workspace}>
+           {workspace.split(/[/\\]/).pop()}
+         </span>
+       </div>
+ 
+       {/* Search Input */}
+       <div className="p-2 border-b border-[var(--border)] flex-shrink-0 bg-[var(--bg)]">
+-        <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[12px] focus-within:border-[var(--accent)] transition-colors">
++        <div className="flex items-center gap-2 px-2.5 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-meta focus-within:border-[var(--accent)] transition-colors">
+           <Search size={13} className="text-[var(--faint)]" />
+           <input
+             type="text"
+             value={searchQuery}
+             onChange={e => setSearchQuery(e.target.value)}
+             placeholder="Filter files in workspace..."
+-            className="w-full bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-[11px]"
++            className="w-full bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-micro"
+           />
+           {searchQuery && (
+             <button onClick={() => setSearchQuery('')} className="text-[var(--faint)] hover:text-[var(--text)]">
+@@ -231,23 +232,21 @@ export default function FileExplorer({
+       {/* Tree Content */}
+       <div className="flex-1 overflow-y-auto p-2 font-mono">
+         {loading ? (
+-          <div className="flex items-center justify-center gap-2 p-6 text-[var(--faint)] text-[11.5px]">
++          <div className="flex items-center justify-center gap-2 p-6 text-[var(--faint)] text-micro">
+             <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
+             <span>Scanning directory...</span>
+           </div>
+         ) : error ? (
+-          <div className="p-3 text-[11px] text-[var(--bad)] space-y-1 bg-[rgba(239,68,68,0.05)] rounded border border-[var(--bad-quiet)]">
++          <div className="p-3 text-micro text-[var(--bad)] space-y-1 bg-[rgba(239,68,68,0.05)] rounded border border-[var(--bad-quiet)]">
+             <p className="font-semibold">Failed to load workspace</p>
+-            <p className="text-[var(--faint)] text-[10px]">{error}</p>
++            <p className="text-[var(--faint)] text-micro">{error}</p>
+           </div>
+         ) : fileTree.length === 0 ? (
+-          <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--faint)] gap-2">
+-            <FolderSearch size={24} className="opacity-40" />
+-            <p className="text-xs font-semibold text-[var(--text)]">Empty Workspace</p>
+-            <p className="text-[11px] text-[var(--faint)] leading-relaxed max-w-[180px]">
+-              Files modified by agent execution will appear here.
+-            </p>
+-          </div>
++          <EmptyState
++            icon={<FolderSearch size={24} />}
++            title="Empty workspace"
++            detail="Files modified by agent execution will appear here."
++          />
+         ) : (
+           fileTree.map(node => (
+             <TreeNode
+@@ -268,7 +267,7 @@ export default function FileExplorer({
+           <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--panel-2)]">
+             <div className="flex items-center gap-2 min-w-0">
+               {getFileIcon(selectedFile.name)}
+-              <span className="font-mono text-xs font-semibold text-[var(--text)] truncate">
++              <span className="font-mono text-meta font-semibold text-[var(--text)] truncate">
+                 {selectedFile.name}
+               </span>
+             </div>
+@@ -280,8 +279,8 @@ export default function FileExplorer({
+             </button>
+           </div>
+ 
+-          <div className="flex-1 p-3 overflow-y-auto bg-[var(--bg-inset)] font-mono text-[11px]">
+-            <div className="text-[10px] text-[var(--faint)] uppercase tracking-wider mb-2 flex items-center gap-1">
++          <div className="flex-1 p-3 overflow-y-auto bg-[var(--bg-inset)] font-mono text-micro">
++            <div className="text-micro text-[var(--faint)] uppercase tracking-wider mb-2 flex items-center gap-1">
+               <FileCheck size={11} className="text-[var(--accent)]" /> Read-only Sandbox Preview
+             </div>
+             <div className="p-3 rounded bg-[var(--panel)] border border-[var(--border)] text-[var(--text-2)] whitespace-pre-wrap leading-relaxed">
+diff --git a/src/components/LogStream.tsx b/src/components/LogStream.tsx
+index 0b1af55..b84599f 100644
+--- a/src/components/LogStream.tsx
++++ b/src/components/LogStream.tsx
+@@ -14,6 +14,7 @@ import {
+ } from 'lucide-react'
+ import type { LogEntry } from '../data'
+ import { RoleBadge } from './Badges'
++import { EmptyState } from './primitives/EmptyState'
+ 
+ interface LogStreamProps {
+   logs: LogEntry[]
+@@ -35,7 +36,7 @@ function ToolCallDetails({ toolName, details }: { toolName: string; details?: st
+   const isLong = details.length > 120 || details.includes('\n')
+ 
+   return (
+-    <div className="mt-1 ml-4 border-l-2 border-[var(--accent)] pl-2 text-[11px] font-mono text-[var(--dim)]">
++    <div className="mt-1 ml-4 border-l-2 border-[var(--accent)] pl-2 text-micro font-mono text-[var(--dim)]">
+       <button
+         onClick={() => setExpanded(!expanded)}
+         className="flex items-center gap-1 text-[var(--accent)] font-semibold hover:underline"
+@@ -44,12 +45,12 @@ function ToolCallDetails({ toolName, details }: { toolName: string; details?: st
+         <span>tool: {toolName}</span>
+       </button>
+       {expanded ? (
+-        <pre className="mt-1 p-2 rounded bg-[var(--panel)] border border-[var(--border)] overflow-x-auto text-[10.5px] whitespace-pre-wrap text-[var(--text-2)]">
++        <pre className="mt-1 p-2 rounded bg-[var(--panel)] border border-[var(--border)] overflow-x-auto text-micro whitespace-pre-wrap text-[var(--text-2)]">
+           {details}
+         </pre>
+       ) : isLong ? (
+         <div className="text-[var(--faint)] truncate max-w-xl cursor-pointer" onClick={() => setExpanded(true)}>
+-          {details.slice(0, 80)}... <span className="text-[var(--accent)] text-[10px]">(click to view)</span>
++          {details.slice(0, 80)}... <span className="text-[var(--accent)] text-micro">(click to view)</span>
+         </div>
+       ) : (
+         <div className="text-[var(--text-2)]">{details}</div>
+@@ -134,10 +135,10 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+         <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 border-b border-[var(--border)] bg-[var(--panel-2)] flex-shrink-0 select-none">
+           <div className="flex items-center gap-2">
+             <Terminal size={14} className="text-[var(--accent)]" />
+-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
++            <span className="text-meta font-bold uppercase tracking-wider text-[var(--text)]">
+               Execution Stream
+             </span>
+-            <span className="text-[10.5px] font-mono text-[var(--faint)] bg-[var(--bg-inset)] px-1.5 py-0.5 rounded border border-[var(--border)]">
++            <span className="text-micro font-mono text-[var(--faint)] bg-[var(--bg-inset)] px-1.5 py-0.5 rounded border border-[var(--border)]">
+               {filteredLogs.length} / {logs.length}
+             </span>
+           </div>
+@@ -151,7 +152,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+                   <button
+                     key={role}
+                     onClick={() => setRoleFilter(active ? null : role)}
+-                    className={`px-1.5 py-0.5 text-[10px] font-semibold rounded uppercase transition-colors ${
++                    className={`px-1.5 py-0.5 text-micro font-semibold rounded uppercase transition-colors ${
+                       active
+                         ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
+                         : 'text-[var(--dim)] hover:text-[var(--text)]'
+@@ -170,7 +171,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+                 placeholder="Filter logs..."
+                 value={searchQuery}
+                 onChange={e => setSearchQuery(e.target.value)}
+-                className="h-6 pl-6 pr-2 text-[11px] bg-[var(--bg-inset)] text-[var(--text)] border border-[var(--border)] rounded focus:border-[var(--accent)] outline-none w-32 focus:w-44 transition-all"
++                className="h-6 pl-6 pr-2 text-micro bg-[var(--bg-inset)] text-[var(--text)] border border-[var(--border)] rounded focus:border-[var(--accent)] outline-none w-32 focus:w-44 transition-all"
+               />
+               {searchQuery && (
+                 <button
+@@ -188,7 +189,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+                   setRoleFilter(null)
+                   onClearFilter?.()
+                 }}
+-                className="text-[10px] text-[var(--accent)] hover:underline flex items-center gap-0.5"
++                className="text-micro text-[var(--accent)] hover:underline flex items-center gap-0.5"
+               >
+                 <X size={10} /> Clear
+               </button>
+@@ -196,7 +197,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+ 
+             <button
+               onClick={copyAllLogs}
+-              className="flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--border-strong)] text-[var(--dim)] hover:text-[var(--text)] text-[11px] transition-colors"
++              className="flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--border-strong)] text-[var(--dim)] hover:text-[var(--text)] text-micro transition-colors"
+               title="Copy visible logs"
+             >
+               {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+@@ -212,11 +213,11 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+           className="flex-1 overflow-y-auto min-h-0 bg-[#040810] divide-y divide-[rgba(255,255,255,0.03)]"
+         >
+           {filteredLogs.length === 0 ? (
+-            <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-xs p-6 text-center">
+-              <Terminal size={24} className="mb-2 opacity-30" />
+-              <span>No matching log entries found</span>
+-              {searchQuery && <span className="text-[11px] text-[var(--dim)] mt-1">Query: "{searchQuery}"</span>}
+-            </div>
++            <EmptyState
++              icon={<Terminal size={24} />}
++              title="No matching log entries"
++              detail={searchQuery ? `Query: "${searchQuery}"` : undefined}
++            />
+           ) : (
+             filteredLogs.map(log => {
+               const isError = log.type === 'error' || log.type === 'sandbox_block'
+@@ -227,7 +228,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+               return (
+                 <div
+                   key={log.id}
+-                  className={`px-3 py-1.5 text-[11.5px] leading-relaxed transition-colors border-l-2 ${
++                  className={`px-3 py-1.5 text-micro leading-relaxed transition-colors border-l-2 ${
+                     isError
+                       ? 'border-[var(--bad)] bg-[rgba(239,68,68,0.08)] text-[var(--bad)]'
+                       : isWarn
+@@ -237,7 +238,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+                 >
+                   <div className="flex items-start gap-2.5">
+                     {/* Timestamp */}
+-                    <span className="text-[10px] text-slate-500 tabular-nums select-none pt-0.5 flex-shrink-0 font-mono">
++                    <span className="text-micro text-slate-500 tabular-nums select-none pt-0.5 flex-shrink-0 font-mono">
+                       {log.timestamp}
+                     </span>
+ 
+@@ -245,7 +246,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+                     {role ? (
+                       <RoleBadge role={role} compact size="sm" className="mt-0.5 flex-shrink-0" />
+                     ) : (
+-                      <span className="text-[9.5px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50 flex-shrink-0">
++                      <span className="text-micro font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50 flex-shrink-0">
+                         {log.type.slice(0, 6)}
+                       </span>
+                     )}
+@@ -276,7 +277,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
+         {userScrolledUp && (
+           <button
+             onClick={scrollToBottom}
+-            className="absolute bottom-3 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--panel-2)] border border-[var(--accent)] text-[var(--accent)] shadow-lg hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] transition-all text-xs font-semibold z-20"
++            className="absolute bottom-3 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--panel-2)] border border-[var(--accent)] text-[var(--accent)] shadow-lg hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] transition-all text-meta font-semibold z-20"
+           >
+             <ArrowDown size={12} />
+             <span>Jump to latest</span>
+diff --git a/src/components/PlanView.tsx b/src/components/PlanView.tsx
+index 4931fe8..e46589e 100644
+--- a/src/components/PlanView.tsx
++++ b/src/components/PlanView.tsx
+@@ -75,25 +75,25 @@ export default function PlanView({
+         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+           <div className="space-y-1 min-w-0">
+             <div className="flex items-center gap-2 flex-wrap">
+-              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[var(--accent)]">
++              <span className="text-micro font-mono font-bold uppercase tracking-wider text-[var(--accent)]">
+                 ACTIVE AGENT PLAN
+               </span>
+               <span className="text-[var(--faint)]">·</span>
+               <StatusBadge status={runStatus} />
+             </div>
+-            <h1 className="text-base md:text-lg font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
++            <h1 className="text-strong md:text-title font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
+               {task || 'No active task run'}
+             </h1>
+           </div>
+ 
+           <div className="flex items-center gap-3 flex-shrink-0 self-start md:self-auto">
+             <div className="px-3 py-1.5 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-right">
+-              <p className="text-[10px] font-mono text-[var(--faint)] uppercase">PARALLEL NODES</p>
+-              <p className="text-xs font-mono font-bold text-[var(--text)]">{subtasks.length} Subtasks</p>
++              <p className="text-micro font-mono text-[var(--faint)] uppercase">PARALLEL NODES</p>
++              <p className="text-meta font-mono font-bold text-[var(--text)]">{subtasks.length} Subtasks</p>
+             </div>
+             <div className="px-3 py-1.5 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-right">
+-              <p className="text-[10px] font-mono text-[var(--faint)] uppercase">LANES</p>
+-              <p className="text-xs font-mono font-bold text-[var(--accent)]">{groupNums.length} Groups</p>
++              <p className="text-micro font-mono text-[var(--faint)] uppercase">LANES</p>
++              <p className="text-meta font-mono font-bold text-[var(--accent)]">{groupNums.length} Groups</p>
+             </div>
+           </div>
+         </div>
+@@ -104,10 +104,10 @@ export default function PlanView({
+         <div className="flex items-center justify-between">
+           <div className="flex items-center gap-2.5">
+             <Activity size={18} className="text-[var(--accent)]" />
+-            <h2 className="text-sm md:text-base font-bold text-[var(--text)]">Execution DAG Workflow Graph</h2>
++            <h2 className="text-ui md:text-strong font-bold text-[var(--text)]">Execution DAG Workflow Graph</h2>
+           </div>
+           <div className="flex items-center gap-2">
+-            <span className="text-xs font-mono text-[var(--dim)] hidden sm:inline">
++            <span className="text-meta font-mono text-[var(--dim)] hidden sm:inline">
+               Hover nodes to trace dependency flow
+             </span>
+           </div>
+@@ -134,8 +134,8 @@ export default function PlanView({
+                 <Layers size={22} />
+               </div>
+               <div className="text-center font-mono">
+-                <p className="text-xs font-bold text-[var(--text)]">Planner</p>
+-                <p className="text-[10px] text-[var(--faint)]">Root Dispatcher</p>
++                <p className="text-meta font-bold text-[var(--text)]">Planner</p>
++                <p className="text-micro text-[var(--faint)]">Root Dispatcher</p>
+               </div>
+             </div>
+ 
+@@ -151,10 +151,10 @@ export default function PlanView({
+                   <div key={groupNum} className="flex items-center gap-8 flex-shrink-0">
+                     <div className="flex flex-col gap-3.5 p-3 rounded-panel bg-[var(--panel-2)]/40 border border-[var(--border)] min-w-[200px]">
+                       <div className="flex items-center justify-between border-b border-[var(--border)] pb-2 px-1">
+-                        <span className="text-[10.5px] font-mono font-bold text-[var(--accent)] uppercase tracking-wider">
++                        <span className="text-micro font-mono font-bold text-[var(--accent)] uppercase tracking-wider">
+                           Group {groupNum}
+                         </span>
+-                        <span className="text-[10px] font-mono text-[var(--faint)]">
++                        <span className="text-micro font-mono text-[var(--faint)]">
+                           {groupSubtasks.length > 1 ? 'Parallel' : 'Seq'}
+                         </span>
+                       </div>
+@@ -187,13 +187,13 @@ export default function PlanView({
+                                 <StatusBadge status={st.status} compact />
+                               </div>
+ 
+-                              <p className="text-xs font-semibold text-[var(--text)] line-clamp-2 leading-snug">
++                              <p className="text-meta font-semibold text-[var(--text)] line-clamp-2 leading-snug">
+                                 {st.instruction}
+                               </p>
+ 
+-                              <div className="mt-2 pt-1.5 border-t border-[var(--border-soft)] flex items-center justify-between text-[10px] font-mono text-[var(--faint)]">
++                              <div className="mt-2 pt-1.5 border-t border-[var(--border-soft)] flex items-center justify-between text-micro font-mono text-[var(--faint)]">
+                                 <span>{st.model?.split('-')[0] || 'model'}</span>
+-                                <span className="uppercase text-[9px] px-1 rounded bg-[var(--bg-inset)]">
++                                <span className="uppercase text-micro px-1 rounded bg-[var(--bg-inset)]">
+                                   #{st.id}
+                                 </span>
+                               </div>
+@@ -234,7 +234,7 @@ export default function PlanView({
+             >
+               <ZoomOut size={13} />
+             </button>
+-            <span className="text-[10.5px] font-mono px-1 min-w-[34px] text-center text-[var(--text-2)]">
++            <span className="text-micro font-mono px-1 min-w-[34px] text-center text-[var(--text-2)]">
+               {zoomLevel}%
+             </span>
+             <button
+@@ -250,12 +250,12 @@ export default function PlanView({
+ 
+       {/* ── 3. DETAILED SUBTASK BREAKDOWN & CARDS ─────────────────── */}
+       <div className="rounded-panel border border-[var(--border)] bg-[var(--panel)] p-5 shadow-sm space-y-4">
+-        <h2 className="text-sm md:text-base font-bold text-[var(--text)]">Subtask Execution Breakdown</h2>
++        <h2 className="text-ui md:text-strong font-bold text-[var(--text)]">Subtask Execution Breakdown</h2>
+ 
+         {runStatus === 'planning' && (
+           <div className="flex items-center gap-3 p-4 rounded-control border border-[var(--border)] bg-[var(--bg-inset)]">
+             <Loader2 size={16} className="animate-spin text-[var(--accent)]" />
+-            <span className="text-xs font-mono text-[var(--text-2)]">
++            <span className="text-meta font-mono text-[var(--text-2)]">
+               Decomposing task prompt into parallel execution DAG…
+             </span>
+           </div>
+@@ -274,10 +274,10 @@ export default function PlanView({
+                 >
+                   <div className="flex items-center gap-2.5">
+                     {isGroupExpanded ? <ChevronDown size={14} className="text-[var(--dim)]" /> : <ChevronRight size={14} className="text-[var(--dim)]" />}
+-                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--text)]">
++                    <span className="text-meta font-bold uppercase tracking-wider text-[var(--text)]">
+                       Group {groupNum}
+                     </span>
+-                    <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-full bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--dim)]">
++                    <span className="text-micro font-mono px-2 py-0.5 rounded-full bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--dim)]">
+                       {groupSubtasks.length} workers
+                     </span>
+                   </div>
+@@ -291,10 +291,10 @@ export default function PlanView({
+                           <div className="flex items-start gap-3 min-w-0 flex-1">
+                             <RoleBadge role={st.role} size="md" className="mt-0.5" />
+                             <div>
+-                              <p className="text-xs md:text-sm text-[var(--text)] font-semibold leading-snug">
++                              <p className="text-meta md:text-ui text-[var(--text)] font-semibold leading-snug">
+                                 {st.instruction}
+                               </p>
+-                              <div className="flex items-center gap-3 mt-1 text-[11px] font-mono text-[var(--dim)]">
++                              <div className="flex items-center gap-3 mt-1 text-micro font-mono text-[var(--dim)]">
+                                 <span>Model: {st.model}</span>
+                                 <span>·</span>
+                                 <span>Group {st.group}</span>
+@@ -306,7 +306,7 @@ export default function PlanView({
+                             <StatusBadge status={st.status} />
+                             <button
+                               onClick={() => setActiveDetailSubtask(st)}
+-                              className="px-2.5 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--accent)] text-xs font-mono text-[var(--accent)] transition-colors"
++                              className="px-2.5 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--accent)] text-meta font-mono text-[var(--accent)] transition-colors"
+                             >
+                               Inspect Output
+                             </button>
+@@ -314,7 +314,7 @@ export default function PlanView({
+                         </div>
+ 
+                         {st.output && (
+-                          <div className="mt-3 p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] font-mono text-xs text-[var(--text-2)] whitespace-pre-wrap max-h-36 overflow-y-auto">
++                          <div className="mt-3 p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] font-mono text-meta text-[var(--text-2)] whitespace-pre-wrap max-h-36 overflow-y-auto">
+                             {st.output}
+                           </div>
+                         )}
+@@ -335,7 +335,7 @@ export default function PlanView({
+             <div className="flex items-center justify-between p-4 border-b border-[var(--border)] bg-[var(--panel-2)]">
+               <div className="flex items-center gap-2.5 min-w-0">
+                 <RoleBadge role={activeDetailSubtask.role} />
+-                <span className="font-bold text-sm text-[var(--text)] truncate">
++                <span className="font-bold text-ui text-[var(--text)] truncate">
+                   Subtask #{activeDetailSubtask.id} Output
+                 </span>
+               </div>
+@@ -347,27 +347,27 @@ export default function PlanView({
+               </button>
+             </div>
+ 
+-            <div className="p-5 overflow-y-auto space-y-4 font-mono text-xs">
++            <div className="p-5 overflow-y-auto space-y-4 font-mono text-meta">
+               <div>
+-                <label className="text-[10px] text-[var(--faint)] uppercase tracking-wider block mb-1">Instruction</label>
+-                <p className="p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text)] font-sans text-sm">
++                <label className="text-micro text-[var(--faint)] uppercase tracking-wider block mb-1">Instruction</label>
++                <p className="p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text)] font-sans text-ui">
+                   {activeDetailSubtask.instruction}
+                 </p>
+               </div>
+ 
+-              <div className="grid grid-cols-2 gap-3 text-[11px]">
++              <div className="grid grid-cols-2 gap-3 text-micro">
+                 <div className="p-2.5 rounded bg-[var(--bg-inset)] border border-[var(--border)]">
+-                  <span className="text-[var(--faint)] block text-[10px]">Status</span>
++                  <span className="text-[var(--faint)] block text-micro">Status</span>
+                   <StatusBadge status={activeDetailSubtask.status} className="mt-1" />
+                 </div>
+                 <div className="p-2.5 rounded bg-[var(--bg-inset)] border border-[var(--border)]">
+-                  <span className="text-[var(--faint)] block text-[10px]">Model</span>
++                  <span className="text-[var(--faint)] block text-micro">Model</span>
+                   <span className="text-[var(--accent)] font-semibold mt-1 block">{activeDetailSubtask.model}</span>
+                 </div>
+               </div>
+ 
+               <div>
+-                <label className="text-[10px] text-[var(--faint)] uppercase tracking-wider block mb-1">Output Artifact</label>
++                <label className="text-micro text-[var(--faint)] uppercase tracking-wider block mb-1">Output Artifact</label>
+                 <pre className="p-4 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--text-2)] whitespace-pre-wrap overflow-x-auto leading-relaxed max-h-64">
+                   {activeDetailSubtask.output || activeDetailSubtask.error || 'No output text returned.'}
+                 </pre>
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index ae387fb..4a4d040 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -64,7 +64,7 @@ export default function Sidebar({
+         )}
+       >
+         <span
+-          className="w-6 h-6 rounded-[var(--r-control)] border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"
++          className="w-6 h-6 rounded-control border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"
+           aria-hidden="true"
+         >
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+@@ -72,7 +72,7 @@ export default function Sidebar({
+           </svg>
+         </span>
+         {!collapsed && (
+-          <span className="font-semibold text-[13.5px] tracking-tight text-[var(--text)]">
++          <span className="font-semibold text-ui tracking-tight text-[var(--text)]">
+             Splitter
+           </span>
+         )}
+@@ -98,7 +98,7 @@ export default function Sidebar({
+                   title={collapsed ? label : undefined}
+                   aria-current={active ? 'page' : undefined}
+                   className={cx(
+-                    'relative w-full flex items-center gap-2.5 rounded-[var(--r-control)]',
++                    'relative w-full flex items-center gap-2.5 rounded-control',
+                     'text-meta font-medium text-left transition-colors duration-[var(--d-quick)] ease-standard',
+                     collapsed ? 'justify-center h-9' : 'px-2 h-8',
+                     active
+@@ -131,7 +131,7 @@ export default function Sidebar({
+           )}
+           <ul className="space-y-0.5">
+             {sessions.length === 0 ? (
+-              <li className={cx('text-[11px] text-[var(--faint)]', collapsed ? 'hidden' : 'px-2 py-1.5')}>
++              <li className={cx('text-micro text-[var(--faint)]', collapsed ? 'hidden' : 'px-2 py-1.5')}>
+                 No active runs
+               </li>
+             ) : (
+@@ -148,7 +148,7 @@ export default function Sidebar({
+                       }}
+                       title={collapsed ? s.task || 'Session' : undefined}
+                       className={cx(
+-                        'relative w-full flex items-center gap-2.5 rounded-[var(--r-control)]',
++                        'relative w-full flex items-center gap-2.5 rounded-control',
+                         'text-meta transition-colors duration-[var(--d-quick)] ease-standard',
+                         collapsed ? 'justify-center h-9' : 'px-2 h-8',
+                         selected
+@@ -187,7 +187,7 @@ export default function Sidebar({
+         {!collapsed && (
+           <span
+             className={cx(
+-              'w-6 h-6 rounded-full border flex items-center justify-center font-mono text-[10px] font-bold flex-shrink-0 relative',
++              'w-6 h-6 rounded-full border flex items-center justify-center font-mono text-micro font-bold flex-shrink-0 relative',
+               isOnline
+                 ? 'bg-[var(--good-quiet)] border-[var(--good)] text-[var(--good)]'
+                 : 'bg-[var(--bad-quiet)] border-[var(--bad)] text-[var(--bad)]',
+@@ -204,10 +204,10 @@ export default function Sidebar({
+         )}
+         {!collapsed && (
+           <span className="min-w-0">
+-            <span className="block text-[11.5px] font-medium text-[var(--text)] truncate">
++            <span className="block text-micro font-medium text-[var(--text)] truncate">
+               Developer workspace
+             </span>
+-            <span className={cx('block text-[10.5px] font-mono', isOnline ? 'text-[var(--good)]' : 'text-[var(--bad)]')}>
++            <span className={cx('block text-micro font-mono', isOnline ? 'text-[var(--good)]' : 'text-[var(--bad)]')}>
+               {isOnline ? 'Server :8000' : 'Server offline'}
+             </span>
+           </span>
+@@ -218,7 +218,7 @@ export default function Sidebar({
+             onClick={onToggleCollapse}
+             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+             className={cx(
+-              'flex items-center justify-center rounded-[var(--r-control)]',
++              'flex items-center justify-center rounded-control',
+               'text-[var(--faint)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
+               'transition-colors duration-[var(--d-quick)] ease-standard',
+               'w-6 h-6 flex-shrink-0',
+diff --git a/src/components/TerminalPanel.tsx b/src/components/TerminalPanel.tsx
+index 04551be..38e77e4 100644
+--- a/src/components/TerminalPanel.tsx
++++ b/src/components/TerminalPanel.tsx
+@@ -97,7 +97,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
+ 
+   if (collapsed) {
+     return (
+-      <div className="h-8 flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel-2)] px-4 flex items-center justify-between text-[11px] font-mono text-[var(--dim)] select-none z-20">
++      <div className="h-8 flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel-2)] px-4 flex items-center justify-between text-micro font-mono text-[var(--dim)] select-none z-20">
+         <div className="flex items-center gap-2">
+           <Terminal size={13} className="text-[var(--accent)]" />
+           <span className="font-medium text-[var(--text)]">Terminal collapsed</span>
+@@ -117,13 +117,13 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
+   const heightClass = maximized ? 'h-[480px]' : 'h-[240px]'
+ 
+   return (
+-    <div className={`flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel)] flex flex-col font-mono text-[var(--text)] select-none transition-all duration-300 z-20 ${heightClass}`}>
++    <div className={`flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel)] flex flex-col font-mono text-[var(--text)] select-none transition-all duration-[var(--d-base)] ease-standard z-20 ${heightClass}`}>
+       {/* ── Terminal header bar ─────────────────────────────── */}
+-      <div className="flex items-center justify-between h-9 px-4 border-b border-[var(--border-soft)] bg-[var(--panel-2)] text-[11.5px] flex-shrink-0">
++      <div className="flex items-center justify-between h-9 px-4 border-b border-[var(--border-soft)] bg-[var(--panel-2)] text-micro flex-shrink-0">
+ 
+         {/* Tabs */}
+         <div className="flex items-center gap-2">
+-          <div className="flex items-center gap-1.5 font-sans font-medium text-[var(--text)] text-[12px] pr-2 border-r border-[var(--border-soft)]">
++          <div className="flex items-center gap-1.5 font-sans font-medium text-[var(--text)] text-meta pr-2 border-r border-[var(--border-soft)]">
+             <Terminal size={14} className="text-[var(--accent)]" />
+             <span>Terminal Logs</span>
+           </div>
+@@ -136,7 +136,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
+                 key={tab}
+                 onClick={() => setActiveTab(tab)}
+                 aria-pressed={isAct}
+-                className={`px-2.5 py-0.5 rounded-[var(--r-control)] text-[11px] font-medium transition-colors cursor-pointer ${
++                className={`px-2.5 py-0.5 rounded-control text-micro font-medium transition-colors cursor-pointer ${
+                   isAct
+                     ? 'bg-[var(--accent-quiet)] text-[var(--text)] border border-[var(--accent-edge)] font-semibold'
+                     : 'text-[var(--dim)] hover:text-[var(--text)] hover:bg-[var(--panel-3)]'
+@@ -189,7 +189,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
+       </div>
+ 
+       {/* ── Command input bar ───────────────────────────── */}
+-      <div className="px-3 py-1.5 border-b border-[var(--border-soft)] bg-[var(--panel-2)] flex items-center gap-2 text-[12px] flex-shrink-0">
++      <div className="px-3 py-1.5 border-b border-[var(--border-soft)] bg-[var(--panel-2)] flex items-center gap-2 text-meta flex-shrink-0">
+         <span className="text-[var(--good)] font-bold">$</span>
+         <input
+           type="text"
+@@ -200,12 +200,12 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
+           }}
+           placeholder="Execute sandboxed command (e.g. pytest, python script.py, ls)..."
+           aria-label="Sandboxed command input"
+-          className="flex-1 bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-[12px]"
++          className="flex-1 bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-meta"
+         />
+         <button
+           onClick={handleRunCommand}
+           disabled={!commandInput.trim()}
+-          className="flex items-center gap-1 px-2.5 py-1 rounded-control bg-[var(--accent)] hover:brightness-110 disabled:opacity-40 disabled:hover:brightness-100 text-[var(--accent-ink)] text-[11px] font-semibold transition-[filter] cursor-pointer disabled:cursor-not-allowed"
++          className="flex items-center gap-1 px-2.5 py-1 rounded-control bg-[var(--accent)] hover:brightness-110 disabled:opacity-40 disabled:hover:brightness-100 text-[var(--accent-ink)] text-micro font-semibold transition-[filter] cursor-pointer disabled:cursor-not-allowed"
+         >
+           <span>Run</span>
+           <CornerDownLeft size={11} />
+@@ -213,9 +213,9 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
+       </div>
+ 
+       {/* ── Terminal output render stream ─────────────────────── */}
+-      <div className="flex-1 overflow-y-auto font-mono text-[12px] p-2 bg-[var(--bg-inset)] select-text">
++      <div className="flex-1 overflow-y-auto font-mono text-meta p-2 bg-[var(--bg-inset)] select-text">
+         {filteredLogs.length === 0 ? (
+-          <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-[11.5px] p-4 text-center">
++          <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-micro p-4 text-center">
+             <span>Terminal ready — type a command above or run an agent task.</span>
+           </div>
+         ) : (
+@@ -237,8 +237,8 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
+                     : 'hover:bg-[var(--panel-2)] text-[var(--text-2)]'
+                 }`}
+               >
+-                <span className="w-[58px] flex-shrink-0 text-[var(--faint)] text-[10.5px] select-none">{log.timestamp}</span>
+-                <span className="w-[55px] flex-shrink-0 text-[9.5px] font-bold uppercase text-[var(--faint)] select-none">
++                <span className="w-[58px] flex-shrink-0 text-[var(--faint)] text-micro select-none">{log.timestamp}</span>
++                <span className="w-[55px] flex-shrink-0 text-micro font-bold uppercase text-[var(--faint)] select-none">
+                   {typeLabel[log.type] ?? log.type}
+                 </span>
+                 <span className="flex-1 min-w-0 break-words">{log.message}</span>
+diff --git a/src/components/primitives/Panel.tsx b/src/components/primitives/Panel.tsx
+index 0cd872e..49d948f 100644
+--- a/src/components/primitives/Panel.tsx
++++ b/src/components/primitives/Panel.tsx
+@@ -5,7 +5,7 @@ import { cx } from '../../lib/cx'
+  * Panel — the app's single raised surface.
+  *
+  * This replaces roughly sixteen hand-rolled copies of
+- * `border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)]`
++ * `border border-[var(--border-soft)] rounded-panel bg-[var(--panel)]`
+  * plus eight legacy `rounded-2xl border-white/[0.08]` glass cards that
+  * belonged to an older visual system.
+  */
+diff --git a/src/components/ui/ai-assistant-interface.tsx b/src/components/ui/ai-assistant-interface.tsx
+index 4143ec2..1b06320 100644
+--- a/src/components/ui/ai-assistant-interface.tsx
++++ b/src/components/ui/ai-assistant-interface.tsx
+@@ -185,7 +185,7 @@ export function AIAssistantInterface() {
+           <motion.div variants={score.revealChild} className="mb-6">
+             <span
+               aria-hidden="true"
+-              className="w-10 h-10 rounded-[var(--r-control)] border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] shadow-[var(--shadow-raise)]"
++              className="w-10 h-10 rounded-control border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] shadow-[var(--shadow-raise)]"
+             >
+               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
+                 <circle cx="12" cy="5" r="2.4" /><circle cx="5" cy="19" r="2.4" /><circle cx="19" cy="19" r="2.4" /><path d="M12 7.4V12M12 12L6.3 17M12 12l5.7 5" />
+@@ -196,14 +196,14 @@ export function AIAssistantInterface() {
+           {/* Headline */}
+           <motion.h1
+             variants={score.revealChild}
+-            className="text-[26px] leading-[1.2] font-semibold tracking-tight text-center mb-2.5"
++            className="text-display leading-[1.2] font-semibold tracking-tight text-center mb-2.5"
+           >
+             Split the work. Run it in parallel.
+           </motion.h1>
+ 
+           <motion.p
+             variants={score.revealChild}
+-            className="text-[13.5px] leading-[1.55] text-[var(--dim)] text-center max-w-[440px] mb-8"
++            className="text-ui leading-[1.55] text-[var(--dim)] text-center max-w-[440px] mb-8"
+           >
+             Talk to one agent like a normal chat, or bring more into the room when a task is ready
+             to be divided and run at once.
+@@ -212,7 +212,7 @@ export function AIAssistantInterface() {
+           {/* Composer card */}
+           <motion.section
+             variants={score.revealChild}
+-            className="w-full max-w-[560px] border border-[var(--border)] rounded-[var(--r-float)] shadow-[var(--shadow-float)] overflow-hidden"
++            className="w-full max-w-[560px] border border-[var(--border)] rounded-float shadow-[var(--shadow-float)] overflow-hidden"
+             style={{ backgroundColor: 'rgba(15, 20, 32, 0.82)' }}
+           >
+             {/* Picker bar */}
+@@ -241,7 +241,7 @@ export function AIAssistantInterface() {
+                         animate={{ opacity: 1, y: 0 }}
+                         exit={{ opacity: 0, y: -2 }}
+                         transition={score.transition.base}
+-                        className="absolute left-0 top-full mt-1.5 w-[200px] rounded-[var(--r-float)] border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
++                        className="absolute left-0 top-full mt-1.5 w-[200px] rounded-float border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
+                       >
+                         {ROLES.map((r) => {
+                           const meta = ROLE_META[r]
+@@ -255,7 +255,7 @@ export function AIAssistantInterface() {
+                                 setAgentDropdownOpen(false)
+                               }}
+                               className={cx(
+-                                'flex items-center justify-between w-full h-7 px-2 rounded-[var(--r-control)]',
++                                'flex items-center justify-between w-full h-7 px-2 rounded-control',
+                                 'text-meta text-left transition-colors duration-[var(--d-quick)] ease-standard',
+                                 isSel
+                                   ? 'bg-[var(--panel-3)] text-[var(--text)]'
+@@ -298,7 +298,7 @@ export function AIAssistantInterface() {
+                         animate={{ opacity: 1, y: 0 }}
+                         exit={{ opacity: 0, y: -2 }}
+                         transition={score.transition.base}
+-                        className="absolute left-0 top-full mt-1.5 w-[260px] rounded-[var(--r-float)] border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
++                        className="absolute left-0 top-full mt-1.5 w-[260px] rounded-float border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
+                       >
+                         {AVAILABLE_MODELS.map((m) => {
+                           const isSel = selectedModel.id === m.id
+@@ -311,7 +311,7 @@ export function AIAssistantInterface() {
+                                 setModelDropdownOpen(false)
+                               }}
+                               className={cx(
+-                                'flex items-center justify-between w-full px-2 py-1.5 rounded-[var(--r-control)]',
++                                'flex items-center justify-between w-full px-2 py-1.5 rounded-control',
+                                 'text-meta text-left transition-colors duration-[var(--d-quick)] ease-standard',
+                                 isSel
+                                   ? 'bg-[var(--panel-3)] text-[var(--text)]'
+@@ -393,7 +393,7 @@ export function AIAssistantInterface() {
+                         )}
+                         <div
+                           className={cx(
+-                            'max-w-[85%] px-3 py-2 rounded-[var(--r-control)] text-ui leading-[1.5]',
++                            'max-w-[85%] px-3 py-2 rounded-control text-ui leading-[1.5]',
+                             msg.sender === 'user'
+                               ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-medium'
+                               : 'bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)]',
+@@ -527,7 +527,7 @@ export function AIAssistantInterface() {
+               {draftPlan.subtasks.map((st, idx) => (
+                 <div
+                   key={st.id}
+-                  className="flex items-center justify-between gap-3 px-2.5 py-2 rounded-[var(--r-control)] bg-[var(--panel-2)] border border-[var(--border-soft)]"
++                  className="flex items-center justify-between gap-3 px-2.5 py-2 rounded-control bg-[var(--panel-2)] border border-[var(--border-soft)]"
+                 >
+                   <span className="truncate flex-1 text-meta text-[var(--text)]">
+                     <span className="font-mono text-micro text-[var(--faint)] mr-2 tabular-nums">{idx + 1}</span>
+@@ -582,7 +582,7 @@ export function AIAssistantInterface() {
+                     }
+                   }}
+                   className={cx(
+-                    'flex flex-col items-center justify-between gap-1.5 rounded-[var(--r-control)] border p-3 cursor-pointer',
++                    'flex flex-col items-center justify-between gap-1.5 rounded-control border p-3 cursor-pointer',
+                     'text-meta font-medium capitalize transition-all duration-[var(--d-quick)] ease-standard',
+                     isAlreadyIn
+                       ? 'border-[var(--accent-edge)] bg-[var(--panel-3)] text-[var(--text)]'
+@@ -614,7 +614,7 @@ export function AIAssistantInterface() {
+                 setShowAddAgentModal(false)
+                 navigate('/projects/default/agents')
+               }}
+-              className="text-[12px] text-[var(--accent)] hover:underline font-medium cursor-pointer"
++              className="text-meta text-[var(--accent)] hover:underline font-medium cursor-pointer"
+             >
+               Need per-agent tasks and custom ordering? Open the full builder →
+             </button>
+diff --git a/src/pages/AgentPage.tsx b/src/pages/AgentPage.tsx
+index 5400580..30f6036 100644
+--- a/src/pages/AgentPage.tsx
++++ b/src/pages/AgentPage.tsx
+@@ -1,11 +1,12 @@
+ import { useParams, useNavigate } from 'react-router-dom'
+ import { useState, useRef, useEffect } from 'react'
+-import { ArrowLeft, FileText, ChevronRight, RefreshCw } from 'lucide-react'
++import { ArrowLeft, FileText, ChevronRight, RefreshCw, Activity, Loader2 } from 'lucide-react'
+ import { ROLE_META } from '../data'
+ import type { AgentRole, LogEntry, AgentStatus } from '../types'
+ import { AgentIcon, StatusBadge } from '../components/Badges'
+ import { Modal } from '../components/primitives/Modal'
+ import { Button } from '../components/primitives/Button'
++import { EmptyState } from '../components/primitives/EmptyState'
+ import { useAgentDetail } from '../hooks/useAgentDetail'
+ import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
+ import { useUI } from '../context/UIContext'
+@@ -59,32 +60,28 @@ export function AgentPage() {
+     <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
+       
+       {/* Topbar */}
+-      <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
++      <div className="topbar h-12 border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
+         <div className="topbar-left flex items-center gap-3">
+-          <button
+-            onClick={() => navigate('/agents')}
+-            className="icon-btn w-7 h-7 rounded-md flex items-center justify-center text-[var(--faint)] hover:text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors cursor-pointer"
+-            title="Back to Agents"
+-          >
+-            <ArrowLeft size={14} />
+-          </button>
+-          <span className="topbar-title font-semibold text-[14px]">Agent Workspace</span>
+-          <span className="topbar-crumb font-mono text-[11.5px] text-[var(--faint)]">/ {meta.label}</span>
++          <Button variant="quiet" size="sm" icon={<ArrowLeft size={14} />} label="Back to Agents" onClick={() => navigate('/agents')} />
++          <span className="topbar-title font-semibold text-strong">Agent Workspace</span>
++          <span className="topbar-crumb font-mono text-micro text-[var(--faint)]">/ {meta.label}</span>
+         </div>
+ 
+         {/* Role Tabs */}
+         <div className="topbar-right flex items-center gap-3">
+-          <div className="flex items-center gap-1 bg-[var(--panel)] border border-[var(--border-soft)] p-0.5 rounded-md">
++          <div role="tablist" aria-label="Agent role" className="flex items-center gap-1 bg-[var(--panel)] border border-[var(--border-soft)] p-0.5 rounded-md">
+             {(['coder', 'auditor', 'tester', 'planner'] as AgentRole[]).map((r) => {
+               const isSel = selectedRole === r
+               return (
+                 <button
+                   key={r}
++                  role="tab"
++                  aria-selected={isSel}
+                   onClick={() => {
+                     setSelectedRole(r)
+                     navigate(`/agents/${r}`)
+                   }}
+-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11.5px] font-medium transition-colors cursor-pointer capitalize ${
++                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-micro font-medium transition-colors cursor-pointer capitalize ${
+                     isSel ? 'bg-[var(--panel-2)] text-[var(--text)] font-bold' : 'text-[var(--dim)] hover:text-[var(--text)]'
+                   }`}
+                 >
+@@ -104,36 +101,40 @@ export function AgentPage() {
+         <div className="aw-grid grid grid-cols-[1.4fr_1fr] gap-3.5 h-full">
+           
+           {/* Left Panel: Activity Stream */}
+-          <div className="panel border border-[var(--border-soft)] rounded-[var(--radius)] flex flex-col overflow-hidden bg-[var(--panel)]">
+-            <div className="panel-head flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-soft)] font-mono text-[10px] tracking-wider text-[var(--faint)] uppercase font-bold">
++          <div className="panel border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden bg-[var(--panel)]">
++            <div className="panel-head flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-soft)] font-mono text-micro tracking-wider text-[var(--faint)] uppercase font-bold">
+               <span>LIVE ACTIVITY STREAM ({agentLogs.length})</span>
+               <span>{meta.label} Worker</span>
+             </div>
+ 
+             <div className="panel-body p-3.5 overflow-y-auto flex-1 font-sans">
+               {loading ? (
+-                <div className="p-4 text-center font-mono text-[12px] text-[var(--dim)]">Loading activity...</div>
++                <div className="p-4 flex items-center justify-center gap-2 font-mono text-meta text-[var(--dim)]">
++                  <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
++                  <span>Loading activity…</span>
++                </div>
+               ) : error ? (
+-                <div className="p-3 text-[12px] text-[var(--bad)] border border-[var(--bad)] rounded bg-[var(--bad-dim)]">
++                <div className="p-3 text-meta text-[var(--bad)] border border-[var(--bad)] rounded bg-[var(--bad-quiet)]">
+                   ⚠️ Error: {error}
+                 </div>
+               ) : agentLogs.length === 0 ? (
+-                <div className="p-8 text-center text-[var(--faint)] font-mono text-[12px] space-y-1">
+-                  <p>No activity events recorded yet for {meta.label}.</p>
+-                  <p className="text-[11px]">Events will stream in real-time when a task is launched.</p>
+-                </div>
++                <EmptyState
++                  icon={<Activity size={28} />}
++                  title={`No activity recorded yet for ${meta.label}`}
++                  detail="Events will stream in real time when a task is launched."
++                />
+               ) : (
+                 <div className="space-y-0.5">
+                   {agentLogs.map((log, idx) => (
+                     <div
+                       key={log.id || idx}
+-                      className="activity-item flex gap-3 text-[12px] py-1.5 border-b border-[var(--border-soft)] last:border-b-0"
++                      className="activity-item flex gap-3 text-meta py-1.5 border-b border-[var(--border-soft)] last:border-b-0"
+                     >
+-                      <div className="activity-time font-mono text-[10.5px] text-[var(--faint)] whitespace-nowrap pt-0.5">
++                      <div className="activity-time font-mono text-micro text-[var(--faint)] whitespace-nowrap pt-0.5">
+                         {log.timestamp}
+                       </div>
+                       <div className="activity-text text-[var(--dim)] flex-1 leading-relaxed">
+-                        <strong className="text-[var(--text)] font-semibold uppercase text-[10.5px] font-mono mr-1.5 text-[var(--accent)]">
++                        <strong className="text-[var(--text)] font-semibold uppercase text-micro font-mono mr-1.5 text-[var(--accent)]">
+                           [{log.type}]
+                         </strong>
+                         {log.message}
+@@ -147,13 +148,13 @@ export function AgentPage() {
+           </div>
+ 
+           {/* Right Panel: Workspace Files & Context */}
+-          <div className="panel border border-[var(--border-soft)] rounded-[var(--radius)] flex flex-col overflow-hidden bg-[var(--panel)]">
+-            <div className="panel-head flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-soft)] font-mono text-[10px] tracking-wider text-[var(--faint)] uppercase font-bold">
++          <div className="panel border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden bg-[var(--panel)]">
++            <div className="panel-head flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-soft)] font-mono text-micro tracking-wider text-[var(--faint)] uppercase font-bold">
+               <span>MODIFIED FILES & CONTEXT</span>
+               <span>Workspace Files</span>
+             </div>
+ 
+-            <div className="panel-body p-3.5 overflow-y-auto flex-1 font-mono text-[12px]">
++            <div className="panel-body p-3.5 overflow-y-auto flex-1 font-mono text-meta">
+               {workspaceFiles.length === 0 ? (
+                 <div className="p-6 text-center text-[var(--faint)] italic">No workspace files indexed</div>
+               ) : (
+@@ -189,7 +190,7 @@ export function AgentPage() {
+           </Button>
+         }
+       >
+-        <div className="p-3 bg-[var(--bg-inset)] border border-[var(--border-soft)] rounded-control font-mono text-[11.5px] text-[var(--text)] max-h-[300px] overflow-y-auto">
++        <div className="p-3 bg-[var(--bg-inset)] border border-[var(--border-soft)] rounded-control font-mono text-micro text-[var(--text)] max-h-[300px] overflow-y-auto">
+           <code>// Inspected file context: {selectedFilePath}</code>
+         </div>
+       </Modal>
+diff --git a/src/pages/AgentsOverviewPage.tsx b/src/pages/AgentsOverviewPage.tsx
+index d9a14c4..6e7f535 100644
+--- a/src/pages/AgentsOverviewPage.tsx
++++ b/src/pages/AgentsOverviewPage.tsx
+@@ -8,6 +8,7 @@ import { Search, Plus, X } from 'lucide-react'
+ import { Modal } from '../components/primitives/Modal'
+ import { Button } from '../components/primitives/Button'
+ import { TextAreaField, SelectField } from '../components/primitives/Field'
++import { PageHeader } from '../components/PageHeader'
+ 
+ export default function AgentsOverviewPage() {
+   const navigate = useNavigate()
+@@ -121,22 +122,14 @@ export default function AgentsOverviewPage() {
+   return (
+     <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
+       
+-      {/* Topbar */}
+-      <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
+-        <div className="topbar-left flex items-center gap-2.5">
+-          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Agents</h1>
+-        </div>
+-
+-        <div className="topbar-right">
+-          <button
+-            onClick={() => setShowLaunchModal(true)}
+-            className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs px-3.5 py-1.5 rounded-md border border-[var(--accent)] hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+-          >
+-            <Plus size={13} />
+-            <span>Launch agent</span>
+-          </button>
+-        </div>
+-      </div>
++      <PageHeader
++        title="Agents"
++        actions={
++          <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowLaunchModal(true)}>
++            Launch agent
++          </Button>
++        }
++      />
+ 
+       {/* Page Body */}
+       <div className="page-body flex-1 overflow-y-auto p-6">
+@@ -149,31 +142,31 @@ export default function AgentsOverviewPage() {
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+               placeholder="Search agents…"
+-              className="bg-transparent border-none outline-none text-[var(--text)] text-[12px] w-full placeholder:text-[var(--faint)] font-sans"
++              className="bg-transparent border-none outline-none text-[var(--text)] text-meta w-full placeholder:text-[var(--faint)] font-sans"
+             />
+           </div>
+ 
+           <button
+             onClick={() => setStatusFilter('all')}
+-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
++            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+           >
+             All
+           </button>
+           <button
+             onClick={() => setStatusFilter('working')}
+-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
++            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+           >
+             Working
+           </button>
+           <button
+             onClick={() => setStatusFilter('idle')}
+-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'idle' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
++            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'idle' ? 'border-[var(--border)] text-[var(--text)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+           >
+             Idle
+           </button>
+           <button
+             onClick={() => setStatusFilter('failed')}
+-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
++            className={`chip-filter border text-micro px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
+           >
+             Failed
+           </button>
+@@ -188,7 +181,7 @@ export default function AgentsOverviewPage() {
+               <div
+                 key={agent.role}
+                 onClick={() => navigate(`/agents/${agent.role}`)}
+-                className="agent-card border border-[var(--border)] rounded-lg p-4 bg-[var(--panel)] shadow-sm flex flex-col gap-3 hover:border-[var(--border-strong)] hover:shadow-md cursor-pointer transition-all"
++                className="agent-card border border-[var(--border-soft)] rounded-panel p-3.5 bg-[var(--panel)] flex flex-col gap-3 hover:border-[var(--border-strong)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.28)] cursor-pointer transition-all"
+               >
+                 {/* Agent Card Top */}
+                 <div className="agent-card-top flex items-center justify-between">
+@@ -201,8 +194,8 @@ export default function AgentsOverviewPage() {
+                     </div>
+ 
+                     <div>
+-                      <div className="agent-name font-medium text-[12.5px] text-[var(--text)]">{agent.title}</div>
+-                      <div className="agent-role text-[11px] font-mono text-[var(--faint)]">{agent.desc}</div>
++                      <div className="agent-name font-medium text-meta text-[var(--text)]">{agent.title}</div>
++                      <div className="agent-role text-micro font-mono text-[var(--faint)]">{agent.desc}</div>
+                     </div>
+                   </div>
+ 
+@@ -210,14 +203,14 @@ export default function AgentsOverviewPage() {
+                 </div>
+ 
+                 {/* Agent Task */}
+-                <div className="agent-task text-[12px] text-[var(--dim)] line-clamp-2">
++                <div className="agent-task text-meta text-[var(--dim)] line-clamp-2">
+                   Current task: <b className="text-[var(--text)] font-medium">{agent.currentTask || 'Idle — ready for task assignment'}</b>
+                 </div>
+ 
+                 {/* Progress Track */}
+                 <div className="progress-track h-[3px] rounded-full bg-[var(--border-soft)] overflow-hidden">
+                   <div
+-                    className="progress-fill h-full rounded-full transition-all duration-300"
++                    className="progress-fill h-full rounded-full transition-all duration-[var(--d-base)] ease-standard"
+                     style={{
+                       width: `${agent.progress}%`,
+                       backgroundColor: agent.status === 'completed' ? 'var(--good)' : agent.status === 'working' ? 'var(--accent)' : 'var(--faint)',
+@@ -226,7 +219,7 @@ export default function AgentsOverviewPage() {
+                 </div>
+ 
+                 {/* Actions */}
+-                <div className="agent-card-actions flex gap-3 text-[11.5px] text-[var(--faint)] pt-1 border-t border-[var(--border-soft)]">
++                <div className="agent-card-actions flex gap-3 text-micro text-[var(--faint)] pt-1 border-t border-[var(--border-soft)]">
+                   <button
+                     onClick={(e) => {
+                       e.stopPropagation()
+@@ -258,9 +251,9 @@ export default function AgentsOverviewPage() {
+       {/* Launch Agent Modal */}
+       {showLaunchModal && (
+         <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+-          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[var(--radius)] p-5 max-w-[420px] w-full space-y-4 shadow-2xl">
++          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-panel p-5 max-w-[420px] w-full space-y-4 shadow-2xl">
+             <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-2">
+-              <h3 className="text-[14.5px] font-semibold text-[var(--text)] flex items-center gap-2">
++              <h3 className="text-strong font-semibold text-[var(--text)] flex items-center gap-2">
+                 <Plus size={15} className="text-[var(--accent)]" />
+                 Launch Worker Agent
+               </h3>
+@@ -271,11 +264,11 @@ export default function AgentsOverviewPage() {
+ 
+             <div className="space-y-3">
+               <div>
+-                <label className="text-[11.5px] font-mono text-[var(--faint)] block mb-1">Target Agent Role</label>
++                <label className="text-micro font-mono text-[var(--faint)] block mb-1">Target Agent Role</label>
+                 <select
+                   value={modalRole}
+                   onChange={(e) => setModalRole(e.target.value as AgentRole)}
+-                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-[12.5px] text-[var(--text)] font-mono outline-none cursor-pointer"
++                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-meta text-[var(--text)] font-mono outline-none cursor-pointer"
+                 >
+                   <option value="coder">Coder Agent (Code Generation)</option>
+                   <option value="auditor">Auditor Agent (Security & Review)</option>
+@@ -285,13 +278,13 @@ export default function AgentsOverviewPage() {
+               </div>
+ 
+               <div>
+-                <label className="text-[11.5px] font-mono text-[var(--faint)] block mb-1">Instruction Task</label>
++                <label className="text-micro font-mono text-[var(--faint)] block mb-1">Instruction Task</label>
+                 <textarea
+                   value={modalTask}
+                   onChange={(e) => setModalTask(e.target.value)}
+                   placeholder="e.g. Implement authentication module with unit tests..."
+                   rows={3}
+-                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded p-2.5 text-[12.5px] text-[var(--text)] font-sans outline-none resize-none"
++                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded p-2.5 text-meta text-[var(--text)] font-sans outline-none resize-none"
+                 />
+               </div>
+             </div>
+@@ -299,14 +292,14 @@ export default function AgentsOverviewPage() {
+             <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-soft)]">
+               <button
+                 onClick={() => setShowLaunchModal(false)}
+-                className="px-3 py-1.5 rounded border border-[var(--border)] text-[12px] text-[var(--dim)] hover:text-[var(--text)] cursor-pointer"
++                className="px-3 py-1.5 rounded border border-[var(--border)] text-meta text-[var(--dim)] hover:text-[var(--text)] cursor-pointer"
+               >
+                 Cancel
+               </button>
+               <button
+                 onClick={handleLaunchSubmit}
+                 disabled={!modalTask.trim()}
+-                className="px-4 py-1.5 rounded bg-[var(--accent)] text-[var(--bg)] font-semibold text-[12px] cursor-pointer disabled:opacity-50"
++                className="px-4 py-1.5 rounded bg-[var(--accent)] text-[var(--bg)] font-semibold text-meta cursor-pointer disabled:opacity-50"
+               >
+                 Launch Agent Task
+               </button>
+diff --git a/src/pages/FlowPage.tsx b/src/pages/FlowPage.tsx
+index 155e170..2cf6632 100644
+--- a/src/pages/FlowPage.tsx
++++ b/src/pages/FlowPage.tsx
+@@ -6,6 +6,8 @@ import { ROLE_META } from '../data'
+ import { X, Layers, Upload, Play, AlertTriangle } from 'lucide-react'
+ import type { AgentRole, Subtask } from '../types'
+ import { importN8nWorkflow } from '../lib/api'
++import { PageHeader } from '../components/PageHeader'
++import { Button } from '../components/primitives/Button'
+ 
+ interface FlowNodeData {
+   id: string
+@@ -261,55 +263,44 @@ export default function FlowPage() {
+   return (
+     <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
+       
+-      {/* Topbar */}
+-      <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
+-        <div className="topbar-left flex items-center gap-2.5">
+-          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Agent Flow Canvas</h1>
+-          <span className="topbar-crumb font-mono text-[11px] text-[var(--faint)]">({importedTaskTitle})</span>
+-        </div>
+-
+-        <div className="topbar-right flex items-center gap-2.5">
+-          <input
+-            ref={fileInputRef}
+-            type="file"
+-            accept=".json"
+-            className="hidden"
+-            onChange={handleFileChange}
+-          />
+-
+-          <button
+-            onClick={() => fileInputRef.current?.click()}
+-            className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+-          >
+-            <Upload size={13} className="text-[var(--accent)]" />
+-            <span>Import n8n workflow</span>
+-          </button>
+-
+-          <button
+-            onClick={handleLaunchPlan}
+-            disabled={unassignedCount > 0}
+-            className={`font-semibold text-xs px-3.5 py-1.5 rounded-md border flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+-              unassignedCount > 0
+-                ? 'opacity-50 cursor-not-allowed border-[var(--border-soft)] text-[var(--faint)] bg-[var(--panel-2)]'
+-                : 'bg-[var(--accent)] text-[var(--accent-ink)] border-[var(--accent)] hover:brightness-110'
+-            }`}
+-          >
+-            <Play size={13} />
+-            <span>Confirm & launch plan</span>
+-          </button>
+-        </div>
+-      </div>
++      <input
++        ref={fileInputRef}
++        type="file"
++        accept=".json"
++        className="hidden"
++        onChange={handleFileChange}
++      />
++      <PageHeader
++        title="Agent Flow Canvas"
++        meta={`(${importedTaskTitle})`}
++        actions={
++          <>
++            <Button variant="ghost" size="sm" icon={<Upload size={13} />} onClick={() => fileInputRef.current?.click()}>
++              Import n8n workflow
++            </Button>
++            <Button
++              variant="primary"
++              size="sm"
++              icon={<Play size={13} />}
++              disabled={unassignedCount > 0}
++              onClick={handleLaunchPlan}
++            >
++              Confirm & launch plan
++            </Button>
++          </>
++        }
++      />
+ 
+       {/* Error or Warning Banners */}
+       {importError && (
+-        <div className="mx-5 mt-3 p-3 rounded border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px] flex items-center justify-between flex-shrink-0">
++        <div className="mx-5 mt-3 p-3 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
+           <span>⚠️ <strong>Import Error:</strong> {importError}</span>
+           <button onClick={() => setImportError(null)} className="font-bold hover:underline">✕</button>
+         </div>
+       )}
+ 
+       {unassignedCount > 0 && !importError && (
+-        <div className="mx-5 mt-3 p-2.5 rounded border border-[var(--warning)] bg-[var(--warning-dim)] text-[var(--warning)] text-[12px] flex items-center gap-2 flex-shrink-0">
++        <div className="mx-5 mt-3 p-2.5 rounded border border-[var(--warn)] bg-[var(--warn-quiet)] text-[var(--warn)] text-meta flex items-center gap-2 flex-shrink-0">
+           <AlertTriangle size={14} className="flex-shrink-0" />
+           <span>
+             <strong>Role Required:</strong> {unassignedCount} node(s) have role <code>"unassigned"</code>. Click a node to assign its role before launching.
+@@ -351,7 +342,7 @@ export default function FlowPage() {
+                 onPointerUp={(e) => handlePointerUp(node.id, e)}
+                 className={`flow-node absolute w-[184px] border rounded-[8px] bg-[var(--panel)] p-3 cursor-grab select-none shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-colors ${
+                   isUnassigned
+-                    ? 'border-[var(--warning)] bg-[var(--panel)]'
++                    ? 'border-[var(--warn)] bg-[var(--panel)]'
+                     : isSelected
+                     ? 'border-[var(--accent)] shadow-[0_0_0_1px_var(--accent)]'
+                     : 'border-[var(--border-soft)] hover:border-[var(--border)]'
+@@ -364,20 +355,20 @@ export default function FlowPage() {
+                 {/* Node Top */}
+                 <div className="flow-node-top flex items-center gap-2 mb-2">
+                   <div className={`flow-node-avatar w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 ${
+-                    isUnassigned ? 'border-[var(--warning)] text-[var(--warning)]' : 'border-[var(--border)] text-[var(--accent)]'
++                    isUnassigned ? 'border-[var(--warn)] text-[var(--warn)]' : 'border-[var(--border)] text-[var(--accent)]'
+                   }`}>
+                     <AgentIcon role={node.agentRole === 'unassigned' ? 'planner' : node.agentRole} size={12} />
+                   </div>
+                   <div className="min-w-0">
+-                    <div className="flow-node-name font-medium text-[12px] text-[var(--text)] truncate">{node.title}</div>
+-                    <div className={`flow-node-role font-mono text-[10px] truncate ${isUnassigned ? 'text-[var(--warning)] font-bold' : 'text-[var(--faint)]'}`}>
++                    <div className="flow-node-name font-medium text-meta text-[var(--text)] truncate">{node.title}</div>
++                    <div className={`flow-node-role font-mono text-micro truncate ${isUnassigned ? 'text-[var(--warn)] font-bold' : 'text-[var(--faint)]'}`}>
+                       {node.role}
+                     </div>
+                   </div>
+                 </div>
+ 
+                 {/* Node Task */}
+-                <div className="flow-node-task text-[10.5px] text-[var(--dim)] line-clamp-2 leading-relaxed mb-2">
++                <div className="flow-node-task text-micro text-[var(--dim)] line-clamp-2 leading-relaxed mb-2">
+                   {node.task}
+                 </div>
+ 
+@@ -389,7 +380,7 @@ export default function FlowPage() {
+ 
+         {/* Slide-out Detail Drawer (Editable) */}
+         <div
+-          className={`flow-drawer absolute top-3.5 right-3.5 bottom-3.5 w-[320px] bg-[var(--panel)] border border-[var(--border-soft)] rounded-[var(--radius)] flex flex-col overflow-hidden shadow-2xl transition-transform duration-200 z-20 ${
++          className={`flow-drawer absolute top-3.5 right-3.5 bottom-3.5 w-[320px] bg-[var(--panel)] border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden shadow-2xl transition-transform duration-[var(--d-slow)] ease-standard z-20 ${
+             selectedNode ? 'translate-x-0' : 'translate-x-[120%]'
+           }`}
+         >
+@@ -397,8 +388,8 @@ export default function FlowPage() {
+             <>
+               <div className="flow-drawer-head flex items-center justify-between p-3.5 border-b border-[var(--border-soft)]">
+                 <div>
+-                  <h3 className="flow-drawer-title text-[14px] font-semibold text-[var(--text)]">{selectedNode.title}</h3>
+-                  <div className="flow-drawer-role font-mono text-[10.5px] text-[var(--faint)]">Group {selectedNode.group}</div>
++                  <h3 className="flow-drawer-title text-strong font-semibold text-[var(--text)]">{selectedNode.title}</h3>
++                  <div className="flow-drawer-role font-mono text-micro text-[var(--faint)]">Group {selectedNode.group}</div>
+                 </div>
+                 <button onClick={() => setSelectedNodeId(null)} className="text-[var(--faint)] hover:text-[var(--text)] cursor-pointer">
+                   <X size={15} />
+@@ -408,7 +399,7 @@ export default function FlowPage() {
+               <div className="flow-drawer-body p-4 overflow-y-auto flex-1 space-y-4">
+                 {/* Editable Agent Role */}
+                 <div>
+-                  <label className="flow-drawer-section-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
++                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
+                     ASSIGNED AGENT ROLE
+                   </label>
+                   <select
+@@ -427,8 +418,8 @@ export default function FlowPage() {
+                         },
+                       }))
+                     }}
+-                    className={`w-full bg-[var(--bg-inset)] border rounded px-2.5 py-1.5 font-mono text-[12px] cursor-pointer focus:outline-none ${
+-                      selectedNode.agentRole === 'unassigned' ? 'border-[var(--warning)] text-[var(--warning)] font-bold' : 'border-[var(--border)] text-[var(--text)]'
++                    className={`w-full bg-[var(--bg-inset)] border rounded px-2.5 py-1.5 font-mono text-meta cursor-pointer focus:outline-none ${
++                      selectedNode.agentRole === 'unassigned' ? 'border-[var(--warn)] text-[var(--warn)] font-bold' : 'border-[var(--border)] text-[var(--text)]'
+                     }`}
+                   >
+                     <option value="unassigned">⚠️ unassigned (role required)</option>
+@@ -441,7 +432,7 @@ export default function FlowPage() {
+ 
+                 {/* Editable Instruction Task */}
+                 <div>
+-                  <label className="flow-drawer-section-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
++                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5 block">
+                     SUBTASK INSTRUCTION
+                   </label>
+                   <textarea
+@@ -457,35 +448,35 @@ export default function FlowPage() {
+                       }))
+                     }}
+                     rows={4}
+-                    className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded p-2 text-[12px] text-[var(--text)] font-sans focus:outline-none focus:border-[var(--accent)] resize-none"
++                    className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded p-2 text-meta text-[var(--text)] font-sans focus:outline-none focus:border-[var(--accent)] resize-none"
+                   />
+                 </div>
+ 
+                 <div>
+-                  <div className="flow-drawer-section-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
++                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
+                     STATUS & PROGRESS
+                   </div>
+                   <div className="flex items-center justify-between mb-2">
+                     <StatusBadge status={selectedNode.status} />
+-                    <span className="font-mono text-[11px] text-[var(--dim)]">{selectedNode.progress}%</span>
++                    <span className="font-mono text-micro text-[var(--dim)]">{selectedNode.progress}%</span>
+                   </div>
+ 
+                   <div className="progress-track h-[3px] rounded-full bg-[var(--border-soft)] overflow-hidden">
+                     <div
+-                      className="progress-fill h-full rounded-full transition-all duration-300"
++                      className="progress-fill h-full rounded-full transition-all duration-[var(--d-base)] ease-standard"
+                       style={{ width: `${selectedNode.progress}%`, backgroundColor: selectedNode.color }}
+                     />
+                   </div>
+                 </div>
+ 
+                 <div>
+-                  <div className="flow-drawer-section-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
++                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1.5">
+                     REAL-TIME ACTIVITY
+                   </div>
+                   <div className="space-y-1">
+                     {selectedNode.activity.map((act, i) => (
+-                      <div key={i} className="activity-item flex gap-2.5 text-[11.5px] py-1.5 border-b border-[var(--border-soft)] last:border-b-0">
+-                        <div className="activity-time font-mono text-[10.5px] text-[var(--faint)] whitespace-nowrap">{act[0]}</div>
++                      <div key={i} className="activity-item flex gap-2.5 text-micro py-1.5 border-b border-[var(--border-soft)] last:border-b-0">
++                        <div className="activity-time font-mono text-micro text-[var(--faint)] whitespace-nowrap">{act[0]}</div>
+                         <div className="activity-text text-[var(--dim)] leading-relaxed" dangerouslySetInnerHTML={{ __html: act[1] }} />
+                       </div>
+                     ))}
+diff --git a/src/pages/IntegrationsPage.tsx b/src/pages/IntegrationsPage.tsx
+index 7686047..cc4af0c 100644
+--- a/src/pages/IntegrationsPage.tsx
++++ b/src/pages/IntegrationsPage.tsx
+@@ -14,6 +14,10 @@ import { useIntegrations } from '../hooks/useIntegrations'
+ import { StatusBadge } from '../components/Badges'
+ import type { AgentRole, Integration } from '../types'
+ import { ROLE_META } from '../data'
++import { PageHeader } from '../components/PageHeader'
++import { Button } from '../components/primitives/Button'
++import { EmptyState } from '../components/primitives/EmptyState'
++import { Panel } from '../components/primitives/Panel'
+ 
+ export default function IntegrationsPage() {
+   const { integrations, loading, error, connectingId, connect, disconnect, reconfigure } = useIntegrations()
+@@ -98,87 +102,99 @@ export default function IntegrationsPage() {
+   return (
+     <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
+       
+-      {/* Topbar */}
+-      <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
+-        <div className="topbar-left flex items-center gap-2.5">
+-          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Integrations</h1>
+-        </div>
+-
+-        <div className="topbar-right flex items-center gap-2">
+-          <button
+-            onClick={() => {
+-              setFormError(null)
+-              setShowConnectGithubModal(true)
+-            }}
+-            className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+-          >
+-            <GitBranch size={13} className="text-[var(--accent)]" />
+-            <span>Connect GitHub</span>
+-          </button>
+-
+-          <button
+-            onClick={() => {
+-              setFormError(null)
+-              setShowConnectMcpModal(true)
+-            }}
+-            className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs px-3.5 py-1.5 rounded-md border border-[var(--accent)] hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+-          >
+-            <Plus size={13} />
+-            <span>Add MCP Server</span>
+-          </button>
+-        </div>
+-      </div>
++      <PageHeader
++        title="Integrations"
++        actions={
++          <>
++            <Button
++              variant="ghost"
++              size="sm"
++              icon={<GitBranch size={13} />}
++              onClick={() => {
++                setFormError(null)
++                setShowConnectGithubModal(true)
++              }}
++            >
++              Connect GitHub
++            </Button>
++            <Button
++              variant="primary"
++              size="sm"
++              icon={<Plus size={13} />}
++              onClick={() => {
++                setFormError(null)
++                setShowConnectMcpModal(true)
++              }}
++            >
++              Add MCP Server
++            </Button>
++          </>
++        }
++      />
+ 
+       {/* Page Body */}
+       <div className="page-body flex-1 overflow-y-auto p-6 space-y-6">
+         
+         {error && (
+-          <div className="p-3 px-4 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-xs font-mono flex items-center gap-2.5 shadow-sm">
+-            <AlertCircle size={15} className="text-red-400 flex-shrink-0" />
+-            <span>{error}</span>
++          <div className="p-3.5 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta">
++            ⚠️ <strong>Error:</strong> {error}
+           </div>
+         )}
+ 
+         {/* Connected Section */}
+         <div className="space-y-3">
+-          <div className="section-sub font-mono text-[11px] text-[var(--faint)] tracking-[0.1em] uppercase font-medium">
++          <div className="section-sub font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold">
+             CONNECTED INTEGRATIONS ({integrations.length})
+           </div>
+ 
+           {loading ? (
+-            <div className="p-6 border border-[var(--border)] rounded-lg bg-[var(--panel)] text-center text-[var(--dim)] font-mono text-xs flex items-center justify-center gap-2 shadow-sm">
++            <div className="p-6 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] text-center text-[var(--dim)] font-mono text-meta flex items-center justify-center gap-2">
+               <Loader2 size={14} className="animate-spin text-[var(--accent)]" />
+               <span>Loading workspace integrations...</span>
+             </div>
+           ) : integrations.length === 0 ? (
+-            <div className="border border-[var(--border)] rounded-lg p-8 text-center bg-[var(--panel)] space-y-2 shadow-sm">
+-              <p className="text-sm font-semibold text-[var(--text)]">No integrations connected</p>
+-              <p className="text-xs text-[var(--faint)] font-mono">
+-                Connect GitHub or an MCP server to give agents more tools to work with during autonomous task execution.
+-              </p>
+-            </div>
++            <Panel>
++              <EmptyState
++                icon={<Server size={32} />}
++                title="No integrations connected"
++                detail="Connect GitHub or an MCP server to give agents more tools to work with during autonomous task execution."
++                action={
++                  <Button
++                    variant="primary"
++                    size="sm"
++                    icon={<Plus size={13} />}
++                    onClick={() => {
++                      setFormError(null)
++                      setShowConnectMcpModal(true)
++                    }}
++                  >
++                    Add MCP Server
++                  </Button>
++                }
++              />
++            </Panel>
+           ) : (
+             <div className="int-grid grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+               {integrations.map((item) => (
+-                <div key={item.id} className="int-card border border-[var(--border)] rounded-lg p-4 bg-[var(--panel)] shadow-sm flex flex-col justify-between gap-3">
++                <div key={item.id} className="int-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+                   <div className="int-card-top flex items-center gap-2.5">
+                     <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center flex-shrink-0 text-[var(--accent)]">
+                       {item.type === 'github' ? <GitBranch size={15} /> : <Server size={15} />}
+                     </div>
+                     <div className="min-w-0 flex-1">
+-                      <div className="int-name font-semibold text-[13px] text-[var(--text)] truncate">{item.name}</div>
+-                      <div className="int-meta text-[11px] text-[var(--faint)] font-mono truncate">
++                      <div className="int-name font-medium text-meta text-[var(--text)] truncate">{item.name}</div>
++                      <div className="int-meta text-micro text-[var(--faint)] font-mono truncate">
+                         {item.config?.repo || item.config?.url || 'Connected'}
+                       </div>
+                     </div>
+                     <StatusBadge status={item.status} />
+                   </div>
+ 
+-                  <div className="int-desc text-xs text-[var(--dim)]/80 line-clamp-2 leading-relaxed font-mono">
++                  <div className="int-desc text-meta text-[var(--dim)] line-clamp-2 leading-relaxed">
+                     Allowed Agent Roles: {(item.allowedRoles || ['planner', 'coder', 'auditor', 'tester']).join(', ')}
+                   </div>
+ 
+-                  <div className="int-actions flex items-center gap-3 pt-2.5 border-t border-[var(--border-soft)] text-xs">
++                  <div className="int-actions flex items-center gap-3 pt-2 border-t border-[var(--border-soft)] text-micro">
+                     <button
+                       onClick={() => setReconfigureTarget(item)}
+                       className="text-[var(--dim)] hover:text-[var(--text)] cursor-pointer flex items-center gap-1 transition-colors"
+@@ -202,24 +218,24 @@ export default function IntegrationsPage() {
+ 
+         {/* Catalog Section */}
+         <div className="space-y-3">
+-          <div className="section-sub font-mono text-[11px] text-[var(--faint)] tracking-[0.1em] uppercase font-medium">
++          <div className="section-sub font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold">
+             AVAILABLE INTEGRATION CATALOG
+           </div>
+ 
+           <div className="int-grid grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+             {/* GitHub */}
+-            <div className="int-card border border-[var(--border)] rounded-lg p-4.5 bg-[var(--panel)] shadow-sm flex flex-col justify-between gap-3">
++            <div className="int-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+               <div>
+                 <div className="int-card-top flex items-center gap-2.5 mb-2.5">
+                   <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center text-[var(--accent)]">
+                     <GitBranch size={15} />
+                   </div>
+                   <div>
+-                    <div className="int-name font-semibold text-[13px] text-[var(--text)]">GitHub Connector</div>
+-                    <div className="int-meta text-[11px] text-[var(--faint)] font-mono">Code & PRs</div>
++                    <div className="int-name font-medium text-meta text-[var(--text)]">GitHub Connector</div>
++                    <div className="int-meta text-micro text-[var(--faint)] font-mono">Code & PRs</div>
+                   </div>
+                 </div>
+-                <div className="int-desc text-xs text-[var(--dim)]/80 leading-relaxed">
++                <div className="int-desc text-meta text-[var(--dim)] leading-relaxed">
+                   Grant agents scoped read/write access to repositories, branches, and PR workflows.
+                 </div>
+               </div>
+@@ -229,25 +245,25 @@ export default function IntegrationsPage() {
+                   setFormError(null)
+                   setShowConnectGithubModal(true)
+                 }}
+-                className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs py-1.5 px-3 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all cursor-pointer w-full text-center"
++                className="btn-ghost text-micro py-1.5 border border-[var(--border)] rounded text-[var(--dim)] hover:text-[var(--text)] cursor-pointer w-full text-center"
+               >
+                 Configure GitHub
+               </button>
+             </div>
+ 
+             {/* Custom MCP */}
+-            <div className="int-card border border-[var(--border)] rounded-lg p-4.5 bg-[var(--panel)] shadow-sm flex flex-col justify-between gap-3">
++            <div className="int-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+               <div>
+                 <div className="int-card-top flex items-center gap-2.5 mb-2.5">
+                   <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center text-[var(--accent)]">
+                     <Server size={15} />
+                   </div>
+                   <div>
+-                    <div className="int-name font-semibold text-[13px] text-[var(--text)]">Custom MCP Server</div>
+-                    <div className="int-meta text-[11px] text-[var(--faint)] font-mono">Model Context Protocol</div>
++                    <div className="int-name font-medium text-meta text-[var(--text)]">Custom MCP Server</div>
++                    <div className="int-meta text-micro text-[var(--faint)] font-mono">Model Context Protocol</div>
+                   </div>
+                 </div>
+-                <div className="int-desc text-xs text-[var(--dim)]/80 leading-relaxed">
++                <div className="int-desc text-meta text-[var(--dim)] leading-relaxed">
+                   Connect standard SSE/HTTP MCP server endpoints with automated validation.
+                 </div>
+               </div>
+@@ -257,25 +273,25 @@ export default function IntegrationsPage() {
+                   setFormError(null)
+                   setShowConnectMcpModal(true)
+                 }}
+-                className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs py-1.5 px-3 rounded-md border border-[var(--accent)] hover:brightness-110 shadow-sm transition-all cursor-pointer w-full text-center"
++                className="btn-primary text-[var(--accent)] text-micro py-1.5 border border-[var(--border)] hover:border-[var(--accent)] rounded cursor-pointer w-full text-center"
+               >
+                 Add MCP Server
+               </button>
+             </div>
+ 
+             {/* PostgreSQL */}
+-            <div className="int-card border border-[var(--border)] rounded-lg p-4.5 bg-[var(--panel)] shadow-sm flex flex-col justify-between gap-3">
++            <div className="int-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex flex-col justify-between gap-3">
+               <div>
+                 <div className="int-card-top flex items-center gap-2.5 mb-2.5">
+                   <div className="int-icon w-8 h-8 rounded-md border border-[var(--border)] bg-[var(--panel-2)] flex items-center justify-center text-[var(--accent)]">
+                     <Database size={15} />
+                   </div>
+                   <div>
+-                    <div className="int-name font-semibold text-[13px] text-[var(--text)]">PostgreSQL DB MCP</div>
+-                    <div className="int-meta text-[11px] text-[var(--faint)] font-mono">Database Tools</div>
++                    <div className="int-name font-medium text-meta text-[var(--text)]">PostgreSQL DB MCP</div>
++                    <div className="int-meta text-micro text-[var(--faint)] font-mono">Database Tools</div>
+                   </div>
+                 </div>
+-                <div className="int-desc text-xs text-[var(--dim)]/80 leading-relaxed">
++                <div className="int-desc text-meta text-[var(--dim)] leading-relaxed">
+                   Relational DB schema inspection, SQL queries, and migration execution.
+                 </div>
+               </div>
+@@ -286,7 +302,7 @@ export default function IntegrationsPage() {
+                   setMcpUrl('http://localhost:5432/mcp')
+                   setShowConnectMcpModal(true)
+                 }}
+-                className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs py-1.5 px-3 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all cursor-pointer w-full text-center"
++                className="btn-ghost text-micro py-1.5 border border-[var(--border)] rounded text-[var(--dim)] hover:text-[var(--text)] cursor-pointer w-full text-center"
+               >
+                 Connect Database
+               </button>
+@@ -298,9 +314,9 @@ export default function IntegrationsPage() {
+       {/* GitHub Connect Modal */}
+       {showConnectGithubModal && (
+         <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+-          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[var(--radius)] p-5 max-w-[420px] w-full space-y-4 shadow-2xl">
++          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-panel p-5 max-w-[420px] w-full space-y-4 shadow-2xl">
+             <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-2">
+-              <h3 className="text-[14.5px] font-semibold text-[var(--text)] flex items-center gap-2">
++              <h3 className="text-strong font-semibold text-[var(--text)] flex items-center gap-2">
+                 <GitBranch size={15} className="text-[var(--accent)]" />
+                 Connect GitHub Repository
+               </h3>
+@@ -310,30 +326,30 @@ export default function IntegrationsPage() {
+             </div>
+ 
+             {formError && (
+-              <div className="p-2.5 rounded bg-[var(--bad-dim)] border border-[var(--bad)] text-[var(--bad)] text-[11.5px]">
++              <div className="p-2.5 rounded bg-[var(--bad-quiet)] border border-[var(--bad)] text-[var(--bad)] text-micro">
+                 {formError}
+               </div>
+             )}
+ 
+             <div className="space-y-3">
+               <div>
+-                <label className="text-[11.5px] font-mono text-[var(--faint)] block mb-1">Target Repo (org/repo)</label>
++                <label className="text-micro font-mono text-[var(--faint)] block mb-1">Target Repo (org/repo)</label>
+                 <input
+                   type="text"
+                   value={ghRepo}
+                   onChange={(e) => setGhRepo(e.target.value)}
+-                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-[12.5px] font-mono text-[var(--text)] outline-none"
++                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-meta font-mono text-[var(--text)] outline-none"
+                 />
+               </div>
+ 
+               <div>
+-                <label className="text-[11.5px] font-mono text-[var(--faint)] block mb-1">Access Token</label>
++                <label className="text-micro font-mono text-[var(--faint)] block mb-1">Access Token</label>
+                 <input
+                   type="password"
+                   value={ghToken}
+                   onChange={(e) => setGhToken(e.target.value)}
+                   placeholder="ghp_..."
+-                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-[12.5px] font-mono text-[var(--text)] outline-none"
++                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-meta font-mono text-[var(--text)] outline-none"
+                 />
+               </div>
+             </div>
+@@ -341,13 +357,13 @@ export default function IntegrationsPage() {
+             <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-soft)]">
+               <button
+                 onClick={() => setShowConnectGithubModal(false)}
+-                className="px-3 py-1.5 rounded border border-[var(--border)] text-[12px] text-[var(--dim)] hover:text-[var(--text)]"
++                className="px-3 py-1.5 rounded border border-[var(--border)] text-meta text-[var(--dim)] hover:text-[var(--text)]"
+               >
+                 Cancel
+               </button>
+               <button
+                 onClick={handleConnectGithub}
+-                className="px-4 py-1.5 rounded bg-[var(--accent)] text-[var(--bg)] font-semibold text-[12px]"
++                className="px-4 py-1.5 rounded bg-[var(--accent)] text-[var(--bg)] font-semibold text-meta"
+               >
+                 Authorize & Connect
+               </button>
+@@ -359,9 +375,9 @@ export default function IntegrationsPage() {
+       {/* MCP Connect Modal */}
+       {showConnectMcpModal && (
+         <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+-          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-[var(--radius)] p-5 max-w-[420px] w-full space-y-4 shadow-2xl">
++          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-panel p-5 max-w-[420px] w-full space-y-4 shadow-2xl">
+             <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-2">
+-              <h3 className="text-[14.5px] font-semibold text-[var(--text)] flex items-center gap-2">
++              <h3 className="text-strong font-semibold text-[var(--text)] flex items-center gap-2">
+                 <Server size={15} className="text-[var(--accent)]" />
+                 Connect MCP Server
+               </h3>
+@@ -371,31 +387,31 @@ export default function IntegrationsPage() {
+             </div>
+ 
+             {formError && (
+-              <div className="p-2.5 rounded bg-[var(--bad-dim)] border border-[var(--bad)] text-[var(--bad)] text-[11.5px]">
++              <div className="p-2.5 rounded bg-[var(--bad-quiet)] border border-[var(--bad)] text-[var(--bad)] text-micro">
+                 {formError}
+               </div>
+             )}
+ 
+             <div className="space-y-3">
+               <div>
+-                <label className="text-[11.5px] font-mono text-[var(--faint)] block mb-1">Server Name</label>
++                <label className="text-micro font-mono text-[var(--faint)] block mb-1">Server Name</label>
+                 <input
+                   type="text"
+                   value={mcpName}
+                   onChange={(e) => setMcpName(e.target.value)}
+                   placeholder="e.g. Asana Workflow MCP"
+-                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-[12.5px] text-[var(--text)] outline-none"
++                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-meta text-[var(--text)] outline-none"
+                 />
+               </div>
+ 
+               <div>
+-                <label className="text-[11.5px] font-mono text-[var(--faint)] block mb-1">Server URL</label>
++                <label className="text-micro font-mono text-[var(--faint)] block mb-1">Server URL</label>
+                 <input
+                   type="text"
+                   value={mcpUrl}
+                   onChange={(e) => setMcpUrl(e.target.value)}
+                   placeholder="http://localhost:8008/mcp"
+-                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-[12.5px] font-mono text-[var(--text)] outline-none"
++                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-meta font-mono text-[var(--text)] outline-none"
+                 />
+               </div>
+             </div>
+@@ -403,13 +419,13 @@ export default function IntegrationsPage() {
+             <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-soft)]">
+               <button
+                 onClick={() => setShowConnectMcpModal(false)}
+-                className="px-3 py-1.5 rounded border border-[var(--border)] text-[12px] text-[var(--dim)] hover:text-[var(--text)]"
++                className="px-3 py-1.5 rounded border border-[var(--border)] text-meta text-[var(--dim)] hover:text-[var(--text)]"
+               >
+                 Cancel
+               </button>
+               <button
+                 onClick={handleConnectMcp}
+-                className="px-4 py-1.5 rounded bg-[var(--accent)] text-[var(--bg)] font-semibold text-[12px]"
++                className="px-4 py-1.5 rounded bg-[var(--accent)] text-[var(--bg)] font-semibold text-meta"
+               >
+                 Validate & Connect
+               </button>
+diff --git a/src/pages/ProjectAgentsPage.tsx b/src/pages/ProjectAgentsPage.tsx
+index 48c52cd..4032379 100644
+--- a/src/pages/ProjectAgentsPage.tsx
++++ b/src/pages/ProjectAgentsPage.tsx
+@@ -129,11 +129,11 @@ export default function ProjectAgentsPage() {
+         {/* Header Row */}
+         <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-4">
+           <div>
+-            <h2 className="text-[18px] font-bold text-[var(--text)] tracking-tight flex items-center gap-2.5">
++            <h2 className="text-title font-bold text-[var(--text)] tracking-tight flex items-center gap-2.5">
+               <Users size={18} className="text-[var(--accent)]" />
+               <span>Manual Agent Pipeline Builder</span>
+             </h2>
+-            <p className="text-[12px] text-[var(--dim)] mt-0.5 font-mono">
++            <p className="text-meta text-[var(--dim)] mt-0.5 font-mono">
+               Build custom multi-agent subtasks with sequential or parallel dependency chains.
+             </p>
+           </div>
+@@ -141,7 +141,7 @@ export default function ProjectAgentsPage() {
+           <button
+             onClick={handleLaunchPlan}
+             disabled={!isFormValid}
+-            className={`btn-primary text-[12.5px] font-medium px-4 py-2 rounded-md border flex items-center gap-2 transition-all cursor-pointer ${
++            className={`btn-primary text-meta font-medium px-4 py-2 rounded-md border flex items-center gap-2 transition-all cursor-pointer ${
+               !isFormValid
+                 ? 'opacity-50 cursor-not-allowed border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--faint)]'
+                 : 'border-[var(--border)] text-[var(--accent)] hover:border-[var(--accent)] shadow-md'
+@@ -153,8 +153,8 @@ export default function ProjectAgentsPage() {
+         </div>
+ 
+         {/* Master Task Title Input */}
+-        <div className="space-y-1.5 border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)]">
+-          <label className="text-[11px] font-mono uppercase tracking-wider text-[var(--faint)] font-bold block">
++        <div className="space-y-1.5 border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)]">
++          <label className="text-micro font-mono uppercase tracking-wider text-[var(--faint)] font-bold block">
+             MASTER TASK TITLE
+           </label>
+           <input
+@@ -162,7 +162,7 @@ export default function ProjectAgentsPage() {
+             value={masterTitle}
+             onChange={(e) => setMasterTitle(e.target.value)}
+             placeholder="e.g. Build REST API & test suite"
+-            className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded px-3 py-2 text-[13.5px] text-[var(--text)] font-medium focus:outline-none focus:border-[var(--accent)]"
++            className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded px-3 py-2 text-ui text-[var(--text)] font-medium focus:outline-none focus:border-[var(--accent)]"
+           />
+         </div>
+ 
+@@ -176,7 +176,7 @@ export default function ProjectAgentsPage() {
+             return (
+               <div
+                 key={agent.id}
+-                className="border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)] p-5 space-y-4 hover:border-[var(--border)] transition-colors relative shadow-sm"
++                className="border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] p-5 space-y-4 hover:border-[var(--border)] transition-colors relative shadow-sm"
+               >
+                 {/* Card Header Row */}
+                 <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-3">
+@@ -199,7 +199,7 @@ export default function ProjectAgentsPage() {
+                           onKeyDown={(e) => {
+                             if (e.key === 'Enter') handleSaveRename(agent.id)
+                           }}
+-                          className="bg-[var(--bg-inset)] border border-[var(--accent)] rounded px-2 py-0.5 text-[13px] font-bold text-[var(--text)] focus:outline-none"
++                          className="bg-[var(--bg-inset)] border border-[var(--accent)] rounded px-2 py-0.5 text-ui font-bold text-[var(--text)] focus:outline-none"
+                           autoFocus
+                         />
+                         <button
+@@ -211,7 +211,7 @@ export default function ProjectAgentsPage() {
+                       </div>
+                     ) : (
+                       <div className="flex items-center gap-2">
+-                        <span className="text-[14px] font-bold text-[var(--text)] tracking-tight">
++                        <span className="text-strong font-bold text-[var(--text)] tracking-tight">
+                           {agent.label}
+                         </span>
+                         <button
+@@ -227,7 +227,7 @@ export default function ProjectAgentsPage() {
+ 
+                   {/* Group & Controls */}
+                   <div className="flex items-center gap-3">
+-                    <span className="text-[11px] font-mono px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border-soft)] text-[var(--dim)]">
++                    <span className="text-micro font-mono px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border-soft)] text-[var(--dim)]">
+                       Group {computedGroup} {agent.runsAfter ? `(After ${drafts.find(d => d.id === agent.runsAfter)?.label || 'predecessor'})` : '(Parallel)'}
+                     </span>
+ 
+@@ -247,7 +247,7 @@ export default function ProjectAgentsPage() {
+                 <div className="grid grid-cols-2 gap-4">
+                   {/* Role Selector */}
+                   <div>
+-                    <label className="text-[10.5px] font-mono uppercase tracking-wider text-[var(--faint)] font-bold block mb-1">
++                    <label className="text-micro font-mono uppercase tracking-wider text-[var(--faint)] font-bold block mb-1">
+                       AGENT ROLE
+                     </label>
+                     <select
+@@ -258,7 +258,7 @@ export default function ProjectAgentsPage() {
+                           prev.map((d) => (d.id === agent.id ? { ...d, role: newRole } : d))
+                         )
+                       }}
+-                      className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded px-3 py-2 text-[12.5px] text-[var(--text)] font-medium cursor-pointer focus:outline-none focus:border-[var(--accent)]"
++                      className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded px-3 py-2 text-meta text-[var(--text)] font-medium cursor-pointer focus:outline-none focus:border-[var(--accent)]"
+                     >
+                       <option value="planner">Planner (Auto-decomposition)</option>
+                       <option value="coder">Coder (Implementation & Code)</option>
+@@ -269,7 +269,7 @@ export default function ProjectAgentsPage() {
+ 
+                   {/* Runs After Selector */}
+                   <div>
+-                    <label className="text-[10.5px] font-mono uppercase tracking-wider text-[var(--faint)] font-bold block mb-1">
++                    <label className="text-micro font-mono uppercase tracking-wider text-[var(--faint)] font-bold block mb-1">
+                       RUNS AFTER (DEPENDENCY)
+                     </label>
+                     <select
+@@ -280,7 +280,7 @@ export default function ProjectAgentsPage() {
+                           prev.map((d) => (d.id === agent.id ? { ...d, runsAfter: val } : d))
+                         )
+                       }}
+-                      className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded px-3 py-2 text-[12.5px] text-[var(--text)] font-medium cursor-pointer focus:outline-none focus:border-[var(--accent)]"
++                      className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded px-3 py-2 text-meta text-[var(--text)] font-medium cursor-pointer focus:outline-none focus:border-[var(--accent)]"
+                     >
+                       <option value="">— runs immediately (Group 1) —</option>
+                       {precedingAgents.map((pa) => (
+@@ -294,7 +294,7 @@ export default function ProjectAgentsPage() {
+ 
+                 {/* Subtask Instruction Textarea */}
+                 <div>
+-                  <label className="text-[10.5px] font-mono uppercase tracking-wider text-[var(--faint)] font-bold block mb-1">
++                  <label className="text-micro font-mono uppercase tracking-wider text-[var(--faint)] font-bold block mb-1">
+                     SUBTASK INSTRUCTION
+                   </label>
+                   <textarea
+@@ -307,7 +307,7 @@ export default function ProjectAgentsPage() {
+                     }}
+                     rows={3}
+                     placeholder="What should this agent do? (e.g. Implement JWT user authentication endpoint in backend/auth.py)"
+-                    className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded p-2.5 text-[12.5px] text-[var(--text)] font-sans focus:outline-none focus:border-[var(--accent)] resize-none"
++                    className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded p-2.5 text-meta text-[var(--text)] font-sans focus:outline-none focus:border-[var(--accent)] resize-none"
+                   />
+                 </div>
+               </div>
+@@ -319,7 +319,7 @@ export default function ProjectAgentsPage() {
+         <div className="flex items-center justify-between pt-2">
+           <button
+             onClick={handleAddAgent}
+-            className="btn-secondary text-[var(--text)] font-medium text-[12.5px] px-4 py-2 rounded-md border border-[var(--border)] hover:border-[var(--accent)] flex items-center gap-2 transition-colors cursor-pointer"
++            className="btn-secondary text-[var(--text)] font-medium text-meta px-4 py-2 rounded-md border border-[var(--border)] hover:border-[var(--accent)] flex items-center gap-2 transition-colors cursor-pointer"
+           >
+             <Plus size={14} />
+             <span>+ Add agent</span>
+@@ -328,7 +328,7 @@ export default function ProjectAgentsPage() {
+           <button
+             onClick={handleLaunchPlan}
+             disabled={!isFormValid}
+-            className={`btn-primary text-[12.5px] font-medium px-5 py-2.5 rounded-md border flex items-center gap-2 transition-all cursor-pointer ${
++            className={`btn-primary text-meta font-medium px-5 py-2.5 rounded-md border flex items-center gap-2 transition-all cursor-pointer ${
+               !isFormValid
+                 ? 'opacity-50 cursor-not-allowed border-[var(--border-soft)] bg-[var(--panel-2)] text-[var(--faint)]'
+                 : 'border-[var(--border)] text-[var(--accent)] hover:border-[var(--accent)] shadow-md'
+diff --git a/src/pages/ProjectOverviewPage.tsx b/src/pages/ProjectOverviewPage.tsx
+index bc4bdbf..670e409 100644
+--- a/src/pages/ProjectOverviewPage.tsx
++++ b/src/pages/ProjectOverviewPage.tsx
+@@ -7,6 +7,7 @@ import ProjectTabShell from './ProjectTabShell'
+ import { useApp } from '../context/AppContext'
+ import { useUI } from '../context/UIContext'
+ import { Button } from '../components/primitives/Button'
++import { EmptyState } from '../components/primitives/EmptyState'
+ import { DEFAULT_WORKSPACE } from '../config'
+ import { ROLE_META, AVAILABLE_MODELS } from '../data'
+ import type { AgentRole, Subtask } from '../types'
+@@ -56,7 +57,7 @@ export default function ProjectOverviewPage() {
+                   <button
+                     onClick={() => setMultiMode(true)}
+                     aria-pressed={multiMode}
+-                    className={`h-7 px-3 font-medium text-[11.5px] transition-colors ${
++                    className={`h-7 px-3 font-medium text-micro transition-colors ${
+                       multiMode ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]'
+                     }`}
+                   >
+@@ -65,7 +66,7 @@ export default function ProjectOverviewPage() {
+                   <button
+                     onClick={() => setMultiMode(false)}
+                     aria-pressed={!multiMode}
+-                    className={`h-7 px-3 font-medium text-[11.5px] transition-colors border-l border-[var(--border)] ${
++                    className={`h-7 px-3 font-medium text-micro transition-colors border-l border-[var(--border)] ${
+                       !multiMode ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]'
+                     }`}
+                   >
+@@ -82,7 +83,7 @@ export default function ProjectOverviewPage() {
+                     const next = AVAILABLE_MODELS.find((m) => m.id === e.target.value)
+                     if (next) setSelectedModel(next)
+                   }}
+-                  className="appearance-none h-7 pl-2.5 pr-7 bg-[var(--bg-inset)] border border-[var(--border)] rounded-control font-medium text-[11.5px] text-[var(--text)] cursor-pointer hover:border-[var(--border-strong)] focus:border-[var(--accent)] focus:outline-none transition-[border-color]"
++                  className="appearance-none h-7 pl-2.5 pr-7 bg-[var(--bg-inset)] border border-[var(--border)] rounded-control font-medium text-micro text-[var(--text)] cursor-pointer hover:border-[var(--border-strong)] focus:border-[var(--accent)] focus:outline-none transition-[border-color]"
+                 >
+                   {AVAILABLE_MODELS.map((m) => (
+                     <option key={m.id} value={m.id}>
+@@ -101,7 +102,7 @@ export default function ProjectOverviewPage() {
+                 variant="ghost"
+                 size="sm"
+                 onClick={() => window.open('http://localhost:8000/preview', '_blank')}
+-                className="flex items-center gap-1 px-2.5 font-medium text-[11.5px] border border-[var(--border)] hover:border-[var(--accent-edge)]"
++                className="flex items-center gap-1 px-2.5 font-medium text-micro border border-[var(--border)] hover:border-[var(--accent-edge)]"
+                 title="Open generated website in a separate new browser tab"
+               >
+                 <ExternalLink size={12} className="text-[var(--accent)]" />
+@@ -113,7 +114,7 @@ export default function ProjectOverviewPage() {
+ 
+         {/* Execution Error Banner */}
+         {errorMessage && (
+-          <div className="mx-5 mt-3 p-3 rounded-[var(--radius)] border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px] flex items-center justify-between flex-shrink-0">
++          <div className="mx-5 mt-3 p-3 rounded-panel border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
+             <span>⚠️ <strong>Execution Error:</strong> {errorMessage}</span>
+             <button onClick={clearError} className="font-bold ml-4 hover:underline">✕</button>
+           </div>
+@@ -126,13 +127,13 @@ export default function ProjectOverviewPage() {
+           <div className="ov-main col-start-1 row-start-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
+             
+             {/* Project Task & Start Execution Card */}
+-            <div className="master-task border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] space-y-3">
++            <div className="master-task border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] space-y-3">
+               <div className="flex items-center justify-between gap-4">
+                 <div className="min-w-0 flex-1">
+-                  <div className="font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
++                  <div className="font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
+                     PROJECT TASK
+                   </div>
+-                  <h2 className="text-[14.5px] font-medium text-[var(--text)] leading-snug truncate">
++                  <h2 className="text-strong font-medium text-[var(--text)] leading-snug truncate">
+                     {taskTitle || 'No active task submitted yet. Type your task below to start execution.'}
+                   </h2>
+                 </div>
+@@ -142,7 +143,7 @@ export default function ProjectOverviewPage() {
+                     variant="ghost"
+                     size="md"
+                     onClick={() => window.open('http://localhost:8000/preview', '_blank')}
+-                    className="flex items-center gap-1.5 px-3 font-medium text-[12.5px] border border-[var(--border)] hover:border-[var(--accent-edge)]"
++                    className="flex items-center gap-1.5 px-3 font-medium text-meta border border-[var(--border)] hover:border-[var(--accent-edge)]"
+                     title="Open generated website in a separate new browser page"
+                   >
+                     <ExternalLink size={13} className="text-[var(--accent)]" />
+@@ -157,7 +158,7 @@ export default function ProjectOverviewPage() {
+                       const taskToRun = taskInput.trim() || taskTitle.trim() || 'help me to build a simple home page'
+                       executeTask(taskToRun, currentWorkspace, selectedModel.id)
+                     }}
+-                    className="flex items-center gap-1.5 px-4 font-semibold text-[13px] shadow-sm"
++                    className="flex items-center gap-1.5 px-4 font-semibold text-ui shadow-sm"
+                   >
+                     {runStatus === 'planning' || runStatus === 'executing' ? (
+                       <>
+@@ -187,7 +188,7 @@ export default function ProjectOverviewPage() {
+                       }
+                     }}
+                     placeholder="Type a task prompt here (e.g. help me to build a simple home page)..."
+-                    className="flex-1 h-8 px-3 rounded-[var(--r-control)] bg-[var(--bg-inset)] border border-[var(--border)] text-[12.5px] text-[var(--text)] placeholder:text-[var(--faint)] outline-none focus:border-[var(--accent)]"
++                    className="flex-1 h-8 px-3 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-meta text-[var(--text)] placeholder:text-[var(--faint)] outline-none focus:border-[var(--accent)]"
+                   />
+                   <Button
+                     variant="ghost"
+@@ -202,25 +203,25 @@ export default function ProjectOverviewPage() {
+             </div>
+ 
+             {/* Parallel Agent DAG Visualizer */}
+-            <div className="dag-wrap flex-1 border border-[var(--border-soft)] rounded-[var(--radius)] p-4 bg-[var(--panel)] overflow-y-auto space-y-4">
++            <div className="dag-wrap flex-1 border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] overflow-y-auto space-y-4">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-2">
+                   <Zap size={15} className="text-[var(--accent)]" />
+-                  <h3 className="text-[13px] font-semibold text-[var(--text)]">Agent Workflow & Progress</h3>
++                  <h3 className="text-ui font-semibold text-[var(--text)]">Agent Workflow & Progress</h3>
+                 </div>
+-                <span className="font-mono text-[11px] text-[var(--faint)]">Click an agent node to view output</span>
++                <span className="font-mono text-micro text-[var(--faint)]">Click an agent node to view output</span>
+               </div>
+ 
+               {/* Live Execution Progress Card */}
+               {(runStatus === 'planning' || runStatus === 'executing') && (
+-                <div className="p-4 rounded-[var(--radius)] border border-[var(--accent-edge)] bg-[var(--panel-2)] shadow-sm space-y-3">
++                <div className="p-4 rounded-panel border border-[var(--accent-edge)] bg-[var(--panel-2)] shadow-sm space-y-3">
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2.5">
+                       <span className="relative flex h-3 w-3">
+                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75" />
+                         <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--accent)]" />
+                       </span>
+-                      <span className="font-semibold text-[13px] text-[var(--text)]">
++                      <span className="font-semibold text-ui text-[var(--text)]">
+                         {runStatus === 'planning' ? 'Planning & Decomposing Task…' : 'AI Agents Active in Backend'}
+                       </span>
+                     </div>
+@@ -231,7 +232,7 @@ export default function ProjectOverviewPage() {
+                   </div>
+ 
+                   <div className="w-full bg-[var(--panel-3)] h-1.5 rounded-full overflow-hidden relative">
+-                    <div className="bg-[var(--accent)] h-full rounded-full animate-pulse w-3/4 transition-all duration-500" />
++                    <div className="bg-[var(--accent)] h-full rounded-full animate-pulse w-3/4 transition-all duration-[var(--d-base)] ease-standard" />
+                   </div>
+ 
+                   {logs.length > 0 && (
+@@ -246,21 +247,21 @@ export default function ProjectOverviewPage() {
+               {runStatus === 'planning' && groupNumbers.length === 0 ? (
+                 <div className="p-8 text-center text-[var(--dim)] space-y-2 border border-[var(--border-soft)] rounded bg-[var(--panel-2)]">
+                   <Loader2 size={24} className="animate-spin text-[var(--accent)] mx-auto" />
+-                  <p className="text-[13px] font-medium text-[var(--text)]">Decomposing Master Task</p>
+-                  <p className="text-[11.5px] text-[var(--faint)] font-mono">SplitterAI LLM planner is constructing parallel worker DAG...</p>
++                  <p className="text-ui font-medium text-[var(--text)]">Decomposing Master Task</p>
++                  <p className="text-micro text-[var(--faint)] font-mono">SplitterAI LLM planner is constructing parallel worker DAG...</p>
+                 </div>
+               ) : groupNumbers.length === 0 ? (
+-                <div className="p-8 text-center text-[var(--faint)] space-y-2 border border-[var(--border-soft)] rounded bg-[var(--panel-2)] font-mono text-[12px]">
+-                  <Layers size={24} className="mx-auto opacity-40 text-[var(--faint)]" />
+-                  <p className="text-[13px] font-medium text-[var(--dim)]">No Active Agent Visualizer Nodes</p>
+-                  <p className="text-[11px]">When a task is launched, parallel worker nodes will render side-by-side below.</p>
+-                </div>
++                <EmptyState
++                  icon={<Layers size={24} />}
++                  title="No active agent nodes"
++                  detail="When a task is launched, parallel worker nodes will render side-by-side below."
++                />
+               ) : (
+                 groupNumbers.map((gNum) => {
+                   const groupSubtasks = groupedSubtasks[gNum]
+                   return (
+                     <div key={gNum} className="space-y-2">
+-                      <div className="dag-group-label font-mono text-[10px] text-[var(--faint)] tracking-wider uppercase font-bold">
++                      <div className="dag-group-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold">
+                         GROUP {gNum} (PARALLEL EXECUTION — {groupSubtasks.length} WORKERS)
+                       </div>
+ 
+@@ -275,19 +276,19 @@ export default function ProjectOverviewPage() {
+                             <div
+                               key={st.id}
+                               onClick={() => setSelectedAgentRole(st.role)}
+-                              className={`dag-node w-[180px] border rounded-[var(--radius)] p-3 bg-[var(--panel-2)] flex flex-col justify-between gap-2 cursor-pointer transition-all ${
++                              className={`dag-node w-[180px] border rounded-panel p-3 bg-[var(--panel-2)] flex flex-col justify-between gap-2 cursor-pointer transition-all ${
+                                 isSelected ? 'border-[var(--accent)] shadow-[0_0_0_1px_var(--accent)]' : 'border-[var(--border-soft)] hover:border-[var(--border)]'
+                               } ${isWorking ? 'working border-[var(--accent-edge)]' : isDone ? 'completed border-[var(--good-quiet)]' : ''}`}
+                             >
+                               <div className="dag-node-head flex items-center justify-between">
+                                 <div className="flex items-center gap-1.5">
+                                   <AgentIcon role={st.role} size={13} className="text-[var(--accent)]" />
+-                                  <span className="dag-node-name font-medium text-[12px] text-[var(--text)]">{meta.label}</span>
++                                  <span className="dag-node-name font-medium text-meta text-[var(--text)]">{meta.label}</span>
+                                 </div>
+                                 <StatusBadge status={st.status || 'pending'} />
+                               </div>
+ 
+-                              <p className="dag-node-task text-[11px] text-[var(--dim)] line-clamp-2 leading-relaxed">
++                              <p className="dag-node-task text-micro text-[var(--dim)] line-clamp-2 leading-relaxed">
+                                 {st.instruction}
+                               </p>
+                             </div>
+@@ -302,12 +303,12 @@ export default function ProjectOverviewPage() {
+           </div>
+ 
+           {/* Right Panel: File Explorer */}
+-          <div className="ov-files col-start-2 row-start-1 row-span-2 min-h-0 border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)] overflow-hidden">
++          <div className="ov-files col-start-2 row-start-1 row-span-2 min-h-0 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] overflow-hidden">
+             <FileExplorer workspace={currentWorkspace} />
+           </div>
+ 
+           {/* Bottom Panel: Terminal */}
+-          <div className="ov-terminal col-start-1 row-start-2 border border-[var(--border-soft)] rounded-[var(--radius)] bg-[var(--panel)] overflow-hidden">
++          <div className="ov-terminal col-start-1 row-start-2 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] overflow-hidden">
+             <TerminalPanel logs={logs} />
+           </div>
+         </div>
+diff --git a/src/pages/ProjectTabShell.tsx b/src/pages/ProjectTabShell.tsx
+index 81a1300..52b606d 100644
+--- a/src/pages/ProjectTabShell.tsx
++++ b/src/pages/ProjectTabShell.tsx
+@@ -69,7 +69,7 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
+                 onClick={() => navigate(tab.id)}
+                 aria-current={isActive ? 'page' : undefined}
+                 className={cx(
+-                  'relative flex items-center gap-1.5 h-7 px-2.5 rounded-[var(--r-control)]',
++                  'relative flex items-center gap-1.5 h-7 px-2.5 rounded-control',
+                   'text-meta font-medium whitespace-nowrap',
+                   'transition-colors duration-[var(--d-quick)] ease-standard',
+                   isActive
+diff --git a/src/pages/ProjectTasksPage.tsx b/src/pages/ProjectTasksPage.tsx
+index c7040bd..d3aff16 100644
+--- a/src/pages/ProjectTasksPage.tsx
++++ b/src/pages/ProjectTasksPage.tsx
+@@ -5,6 +5,8 @@ import { ROLE_META } from '../data'
+ import { CheckSquare, Clock, Cpu, FileText } from 'lucide-react'
+ import { StatusBadge } from '../components/Badges'
+ import PlanView from '../components/PlanView'
++import { EmptyState } from '../components/primitives/EmptyState'
++import { Panel } from '../components/primitives/Panel'
+ 
+ export default function ProjectTasksPage() {
+   const { subtasks, runStatus, taskTitle } = useApp()
+@@ -17,11 +19,11 @@ export default function ProjectTasksPage() {
+         {/* Top bar header inside page */}
+         <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--border-soft)] bg-[var(--bg)] flex-shrink-0">
+           <div>
+-            <h2 className="text-[16px] font-semibold text-[var(--text)] tracking-tight flex items-center gap-2">
++            <h2 className="text-strong font-semibold text-[var(--text)] tracking-tight flex items-center gap-2">
+               <CheckSquare size={17} className="text-[var(--accent)]" />
+               <span>Subtasks & Execution Steps</span>
+             </h2>
+-            <p className="text-[12px] text-[var(--faint)] mt-0.5">
++            <p className="text-meta text-[var(--faint)] mt-0.5">
+               {taskTitle ? `Task: "${taskTitle}"` : 'Decomposed parallel task nodes.'}
+             </p>
+           </div>
+@@ -31,7 +33,7 @@ export default function ProjectTasksPage() {
+               <button
+                 type="button"
+                 onClick={() => setActiveTab('dag')}
+-                className={`h-7 px-2.5 font-mono text-[11px] transition-colors cursor-pointer ${
++                className={`h-7 px-2.5 font-mono text-micro transition-colors cursor-pointer ${
+                   activeTab === 'dag' ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'text-[var(--dim)] hover:bg-[var(--panel)]'
+                 }`}
+               >
+@@ -40,7 +42,7 @@ export default function ProjectTasksPage() {
+               <button
+                 type="button"
+                 onClick={() => setActiveTab('list')}
+-                className={`h-7 px-2.5 font-mono text-[11px] transition-colors border-l border-[var(--border)] cursor-pointer ${
++                className={`h-7 px-2.5 font-mono text-micro transition-colors border-l border-[var(--border)] cursor-pointer ${
+                   activeTab === 'list' ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'text-[var(--dim)] hover:bg-[var(--panel)]'
+                 }`}
+               >
+@@ -48,7 +50,7 @@ export default function ProjectTasksPage() {
+               </button>
+             </div>
+ 
+-            <span className="text-[11.5px] font-mono px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-[var(--dim)]">
++            <span className="text-micro font-mono px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-[var(--dim)]">
+               {subtasks.length} Subtasks
+             </span>
+           </div>
+@@ -67,13 +69,13 @@ export default function ProjectTasksPage() {
+           ) : (
+             <div className="max-w-4xl mx-auto space-y-3">
+               {subtasks.length === 0 ? (
+-                <div className="border border-[var(--border-soft)] rounded-[var(--r-panel)] bg-[var(--panel)] p-12 text-center text-[var(--dim)] space-y-2">
+-                  <Clock size={32} className="mx-auto text-[var(--faint)] opacity-50" />
+-                  <h3 className="text-[14px] font-semibold text-[var(--text)]">No Subtasks Decomposed</h3>
+-                  <p className="text-[12px] text-[var(--faint)] font-mono">
+-                    Submit a master task prompt from Home or Project Overview to view generated steps.
+-                  </p>
+-                </div>
++                <Panel>
++                  <EmptyState
++                    icon={<Clock size={32} />}
++                    title="No subtasks decomposed yet"
++                    detail="Submit a master task prompt from Home or Project Overview to view generated steps."
++                  />
++                </Panel>
+               ) : (
+                 subtasks.map((st) => {
+                   const meta = ROLE_META[st.role] || ROLE_META.coder
+@@ -81,28 +83,28 @@ export default function ProjectTasksPage() {
+                   return (
+                     <div
+                       key={st.id}
+-                      className="border border-[var(--border-soft)] rounded-[var(--r-panel)] bg-[var(--panel)] p-4 flex items-start justify-between gap-4 hover:border-[var(--border)] transition-colors"
++                      className="border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] p-4 flex items-start justify-between gap-4 hover:border-[var(--border)] transition-colors"
+                     >
+                       <div className="space-y-2 flex-1 min-w-0">
+                         <div className="flex items-center gap-2.5">
+-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded font-mono bg-[var(--panel-2)] border border-[var(--border)] text-[var(--accent)]">
++                          <span className="text-micro font-bold px-2 py-0.5 rounded font-mono bg-[var(--panel-2)] border border-[var(--border)] text-[var(--accent)]">
+                             {st.id}
+                           </span>
+-                          <span className="text-[11.5px] font-mono text-[var(--dim)]">Group {st.group}</span>
++                          <span className="text-micro font-mono text-[var(--dim)]">Group {st.group}</span>
+                           <StatusBadge status={st.status || 'pending'} />
+                         </div>
+ 
+-                        <p className="text-[13px] font-medium text-[var(--text)] leading-relaxed">{st.instruction}</p>
++                        <p className="text-ui font-medium text-[var(--text)] leading-relaxed">{st.instruction}</p>
+ 
+                         {st.output && (
+-                          <div className="p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-[12px] font-mono text-[var(--text-2)] max-h-[120px] overflow-y-auto">
+-                            <span className="text-[var(--faint)] block text-[10px] uppercase tracking-wider mb-1">Output:</span>
++                          <div className="p-3 rounded bg-[var(--bg-inset)] border border-[var(--border)] text-meta font-mono text-[var(--text-2)] max-h-[120px] overflow-y-auto">
++                            <span className="text-[var(--faint)] block text-micro uppercase tracking-wider mb-1">Output:</span>
+                             {st.output}
+                           </div>
+                         )}
+                       </div>
+ 
+-                      <div className="flex flex-col items-end gap-1.5 text-[11.5px] font-mono text-[var(--dim)] flex-shrink-0">
++                      <div className="flex flex-col items-end gap-1.5 text-micro font-mono text-[var(--dim)] flex-shrink-0">
+                         <span className="flex items-center gap-1 text-[var(--accent)]">
+                           <Cpu size={13} />
+                           {st.model || 'gemini-3.5-flash'}
+diff --git a/src/pages/ProjectsPage.tsx b/src/pages/ProjectsPage.tsx
+index c307389..40e9d85 100644
+--- a/src/pages/ProjectsPage.tsx
++++ b/src/pages/ProjectsPage.tsx
+@@ -7,7 +7,10 @@ import { StatusBadge } from '../components/Badges'
+ import { Modal } from '../components/primitives/Modal'
+ import { Button } from '../components/primitives/Button'
+ import { TextField } from '../components/primitives/Field'
++import { EmptyState } from '../components/primitives/EmptyState'
++import { Panel } from '../components/primitives/Panel'
+ import { uploadWorkspace } from '../lib/api'
++import { PageHeader } from '../components/PageHeader'
+ 
+ export default function ProjectsPage() {
+   const navigate = useNavigate()
+@@ -95,35 +98,29 @@ export default function ProjectsPage() {
+   return (
+     <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
+       
+-      {/* Generic Topbar */}
+-      <div className="topbar h-[48px] border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
+-        <div className="topbar-left flex items-center gap-2.5">
+-          <h1 className="topbar-title font-bold text-[16px] text-[var(--text)] tracking-tight">Projects</h1>
+-          <span className="topbar-crumb font-mono text-[11.5px] text-[var(--faint)]">/ workspace</span>
+-        </div>
+-
+-        <div className="topbar-right flex items-center gap-2">
+-          <button
+-            onClick={() => {
+-              setSelectedZipFile(null)
+-              setUploadError(null)
+-              setIsImportModalOpen(true)
+-            }}
+-            className="bg-[var(--panel-2)] text-[var(--text)] font-medium text-xs px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:bg-[var(--panel-3)] hover:border-[var(--border-strong)] transition-all flex items-center gap-1.5 cursor-pointer"
+-          >
+-            <Upload size={13} className="text-[var(--accent)]" />
+-            <span>Import project</span>
+-          </button>
+-
+-          <button
+-            onClick={() => navigate('/console')}
+-            className="bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-xs px-3.5 py-1.5 rounded-md border border-[var(--accent)] hover:brightness-110 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+-          >
+-            <Plus size={13} />
+-            <span>New project</span>
+-          </button>
+-        </div>
+-      </div>
++      <PageHeader
++        title="Projects"
++        meta="/ workspace"
++        actions={
++          <>
++            <Button
++              variant="ghost"
++              size="sm"
++              icon={<Upload size={13} />}
++              onClick={() => {
++                setSelectedZipFile(null)
++                setUploadError(null)
++                setIsImportModalOpen(true)
++              }}
++            >
++              Import project
++            </Button>
++            <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => navigate('/')}>
++              New project
++            </Button>
++          </>
++        }
++      />
+ 
+       {/* Page Body */}
+       <div className="page-body flex-1 overflow-y-auto p-6">
+@@ -136,13 +133,13 @@ export default function ProjectsPage() {
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+               placeholder="Search projects…"
+-              className="bg-transparent border-none outline-none text-[var(--text)] text-[12px] w-full placeholder:text-[var(--faint)] font-sans"
++              className="bg-transparent border-none outline-none text-[var(--text)] text-meta w-full placeholder:text-[var(--faint)] font-sans"
+             />
+           </div>
+ 
+           <button
+-            onClick={() => setStatusFilter('all')}
+-            className={`chip-filter border text-[11.5px] px-2.5 py-1.5 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
++            onClick={() => setStatusFilter(statusFilter === 'all' ? 'working' : statusFilter === 'working' ? 'completed' : statusFilter === 'completed' ? 'failed' : 'all')}
++            className="chip-filter border border-[var(--border-soft)] text-[var(--dim)] hover:text-[var(--text)] hover:border-[var(--border)] text-micro px-2.5 py-1.5 rounded-md font-mono capitalize transition-colors cursor-pointer"
+           >
+             All
+           </button>
+@@ -168,43 +165,48 @@ export default function ProjectsPage() {
+ 
+         {/* Global Loading / Error State */}
+         {sessionsLoading ? (
+-          <div className="p-8 text-center text-[var(--dim)] font-mono text-[12px]">Loading workspace projects...</div>
++          <div className="p-8 flex items-center justify-center gap-2 text-[var(--dim)] font-mono text-meta">
++            <Loader2 size={14} className="animate-spin" />
++            <span>Loading workspace projects…</span>
++          </div>
+         ) : sessionsError ? (
+-          <div className="p-4 rounded-md border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px] flex items-center justify-between">
++          <div className="p-4 rounded-md border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between">
+             <span>⚠️ {sessionsError}</span>
+-            <button onClick={() => refetchSessions()} className="underline font-bold">Retry</button>
++            <button onClick={() => refetchSessions()} className="underline font-bold hover:text-[var(--text)] transition-colors">Retry</button>
+           </div>
+         ) : filtered.length === 0 ? (
+-          <div className="border border-[var(--border-soft)] rounded-[var(--radius)] p-12 text-center text-[var(--dim)] space-y-3 bg-[var(--panel)]">
+-            <p className="text-[14px] font-semibold text-[var(--text)]">No projects found</p>
+-            <p className="text-[12px] text-[var(--faint)] font-mono">Import an existing repository or create a new project from Home.</p>
+-            <div className="flex items-center justify-center gap-2 pt-1">
+-              <button
+-                onClick={() => {
+-                  setSelectedZipFile(null)
+-                  setUploadError(null)
+-                  setIsImportModalOpen(true)
+-                }}
+-                className="btn-secondary inline-flex items-center gap-1.5 text-[var(--text)] font-medium text-[12px] px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer"
+-              >
+-                <Upload size={13} />
+-                <span>Import Project (.zip)</span>
+-              </button>
+-              <button
+-                onClick={() => navigate('/console')}
+-                className="btn-primary inline-flex items-center gap-1.5 text-[var(--accent)] font-medium text-[12px] px-3.5 py-1.5 rounded-md border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer"
+-              >
+-                <Plus size={13} />
+-                <span>Create Project</span>
+-              </button>
+-            </div>
+-          </div>
++          <Panel>
++            <EmptyState
++              icon={<FileArchive size={32} />}
++              title="No projects found"
++              detail="Import an existing repository or create a new project from Home."
++              action={
++                <>
++                  <Button
++                    variant="ghost"
++                    size="sm"
++                    icon={<Upload size={13} />}
++                    onClick={() => {
++                      setSelectedZipFile(null)
++                      setUploadError(null)
++                      setIsImportModalOpen(true)
++                    }}
++                  >
++                    Import project (.zip)
++                  </Button>
++                  <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => navigate('/')}>
++                    Create project
++                  </Button>
++                </>
++              }
++            />
++          </Panel>
+         ) : (
+           /* Projects Table */
+-          <div className="table border border-[var(--border-soft)] rounded-[var(--radius)] overflow-hidden bg-[var(--panel)]">
++          <div className="table border border-[var(--border-soft)] rounded-panel overflow-hidden bg-[var(--panel)]">
+             
+             {/* Table Head */}
+-            <div className="trow head grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-2.5 border-b border-[var(--border-soft)] text-[var(--faint)] font-mono text-[10px] tracking-wider uppercase font-bold">
++            <div className="trow head grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-2.5 border-b border-[var(--border-soft)] text-[var(--faint)] font-mono text-micro tracking-wider uppercase font-bold">
+               <div>PROJECT</div>
+               <div>STATUS</div>
+               <div>AGENTS</div>
+@@ -223,22 +225,22 @@ export default function ProjectsPage() {
+                 <div
+                   key={s.id}
+                   onClick={() => navigate(`/projects/${s.id || 'default'}`)}
+-                  className="trow grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-3 border-b border-[var(--border-soft)] text-[12.5px] hover:bg-[var(--panel-2)] cursor-pointer transition-colors last:border-b-0"
++                  className="trow grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-3 border-b border-[var(--border-soft)] text-meta hover:bg-[var(--panel-2)] cursor-pointer transition-colors last:border-b-0"
+                 >
+                   <div>
+                     <div className="tproj-name font-medium text-[var(--text)]">{projName}</div>
+-                    <div className="tproj-path text-[var(--faint)] font-mono text-[10.5px] mt-0.5">{projPath}</div>
++                    <div className="tproj-path text-[var(--faint)] font-mono text-micro mt-0.5">{projPath}</div>
+                   </div>
+ 
+                   <div>
+                     <StatusBadge status={s.status || 'working'} />
+                   </div>
+ 
+-                  <div className="tmeta text-[var(--dim)] font-mono text-[11.5px]">
++                  <div className="tmeta text-[var(--dim)] font-mono text-micro">
+                     {agentCount} agents
+                   </div>
+ 
+-                  <div className="tmeta text-[var(--dim)] font-mono text-[11.5px]">
++                  <div className="tmeta text-[var(--dim)] font-mono text-micro">
+                     {createdAt ? new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
+                   </div>
+ 
+@@ -336,7 +338,7 @@ export default function ProjectsPage() {
+         }
+       >
+         <div className="space-y-4">
+-          <p className="text-[12px] text-[var(--dim)] leading-relaxed">
++          <p className="text-meta text-[var(--dim)] leading-relaxed">
+             Upload a <strong>.zip</strong> archive of your repository. It will be safely extracted into a sandboxed server workspace.
+           </p>
+ 
+@@ -360,11 +362,11 @@ export default function ProjectsPage() {
+               handleFileSelect(e.dataTransfer.files?.[0])
+             }}
+             onClick={() => fileInputRef.current?.click()}
+-            className={`border-2 border-dashed rounded-[var(--radius)] p-6 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2.5 ${
++            className={`border-2 border-dashed rounded-panel p-6 text-center cursor-pointer transition-colors flex flex-col items-center justify-center gap-2.5 ${
+               isDragOver
+-                ? 'border-[var(--accent)] bg-[var(--accent-dim)]'
++                ? 'border-[var(--accent)] bg-[var(--accent-quiet)]'
+                 : selectedZipFile
+-                ? 'border-[var(--good)] bg-[var(--good-dim)]'
++                ? 'border-[var(--good)] bg-[var(--good-quiet)]'
+                 : 'border-[var(--border-soft)] hover:border-[var(--border)] bg-[var(--panel-2)]'
+             }`}
+           >
+@@ -372,26 +374,26 @@ export default function ProjectsPage() {
+               <>
+                 <FileArchive size={28} className="text-[var(--good)]" />
+                 <div>
+-                  <p className="text-[13px] font-medium text-[var(--text)]">{selectedZipFile.name}</p>
+-                  <p className="text-[11px] font-mono text-[var(--faint)]">
++                  <p className="text-ui font-medium text-[var(--text)]">{selectedZipFile.name}</p>
++                  <p className="text-micro font-mono text-[var(--faint)]">
+                     {(selectedZipFile.size / (1024 * 1024)).toFixed(2)} MB
+                   </p>
+                 </div>
+-                <span className="text-[11px] text-[var(--accent)] underline mt-1">Click or drop another file to replace</span>
++                <span className="text-micro text-[var(--accent)] underline mt-1">Click or drop another file to replace</span>
+               </>
+             ) : (
+               <>
+                 <Upload size={28} className="text-[var(--faint)]" />
+                 <div>
+-                  <p className="text-[13px] font-medium text-[var(--text)]">Drag & drop your .zip file here</p>
+-                  <p className="text-[11px] font-mono text-[var(--faint)]">Supports single .zip archives up to 50MB</p>
++                  <p className="text-ui font-medium text-[var(--text)]">Drag & drop your .zip file here</p>
++                  <p className="text-micro font-mono text-[var(--faint)]">Supports single .zip archives up to 50MB</p>
+                 </div>
+               </>
+             )}
+           </div>
+ 
+           {uploadError && (
+-            <div className="p-3 rounded border border-[var(--bad)] bg-[var(--bad-dim)] text-[var(--bad)] text-[12px]">
++            <div className="p-3 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta">
+               ⚠️ {uploadError}
+             </div>
+           )}
+-- 
+2.43.0
+
