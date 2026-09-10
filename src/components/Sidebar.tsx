@@ -221,7 +221,7 @@ export default function Sidebar({
               'flex items-center justify-center rounded-control',
               'text-[var(--faint)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
               'transition-colors duration-[var(--d-quick)] ease-standard',
-              'w-6 h-6 flex-shrink-0',
+              'w-8 h-8 flex-shrink-0',
               !collapsed && 'ml-auto',
             )}
           >

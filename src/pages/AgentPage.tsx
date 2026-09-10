@@ -97,11 +97,11 @@ export function AgentPage() {
       </div>
 
       {/* Page Body Grid */}
-      <div className="page-body flex-1 overflow-hidden p-5">
-        <div className="aw-grid grid grid-cols-[1.4fr_1fr] gap-3.5 h-full">
+      <div className="page-body flex-1 overflow-y-auto lg:overflow-hidden p-5">
+        <div className="aw-grid grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-3.5 lg:h-full">
           
           {/* Left Panel: Activity Stream */}
-          <div className="panel border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden bg-[var(--panel)]">
+          <div className="panel border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden bg-[var(--panel)] min-h-[320px] lg:min-h-0">
             <div className="panel-head flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-soft)] font-mono text-micro tracking-wider text-[var(--faint)] uppercase font-bold">
               <span>LIVE ACTIVITY STREAM ({agentLogs.length})</span>
               <span>{meta.label} Worker</span>
@@ -148,7 +148,7 @@ export function AgentPage() {
           </div>
 
           {/* Right Panel: Workspace Files & Context */}
-          <div className="panel border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden bg-[var(--panel)]">
+          <div className="panel border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden bg-[var(--panel)] min-h-[320px] lg:min-h-0">
             <div className="panel-head flex items-center justify-between px-3.5 py-2.5 border-b border-[var(--border-soft)] font-mono text-micro tracking-wider text-[var(--faint)] uppercase font-bold">
               <span>MODIFIED FILES & CONTEXT</span>
               <span>Workspace Files</span>
@@ -156,7 +156,7 @@ export function AgentPage() {
 
             <div className="panel-body p-3.5 overflow-y-auto flex-1 font-mono text-meta">
               {workspaceFiles.length === 0 ? (
-                <div className="p-6 text-center text-[var(--faint)] italic">No workspace files indexed</div>
+                <EmptyState icon={<FileText size={24} />} title="No workspace files indexed" />
               ) : (
                 <div className="space-y-1">
                   {workspaceFiles.slice(0, 15).map((f) => (

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import AgentPage from './pages/AgentPage'
 import AgentsOverviewPage from './pages/AgentsOverviewPage'
@@ -26,9 +26,21 @@ import DownloadAppModal from './components/DownloadAppModal'
 function Layout() {
   const location = useLocation()
   const [downloadModalOpen, setDownloadModalOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 900,
+  )
   const { sessions } = useApp()
   const { selectedSessionId, setSelectedSessionId } = useUI()
+
+  // Auto-collapse the sidebar to icon-only below the tablet breakpoint so it
+  // never squeezes the content area on narrow viewports; the manual toggle
+  // still overrides this once the user has touched it.
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)')
+    const handleChange = (e: MediaQueryListEvent) => setSidebarCollapsed(e.matches)
+    mq.addEventListener('change', handleChange)
+    return () => mq.removeEventListener('change', handleChange)
+  }, [])
 
   return (
     <div className="flex h-screen w-screen bg-[var(--bg)] p-0 overflow-hidden relative">
