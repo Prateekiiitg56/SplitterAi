@@ -124,17 +124,16 @@ export default function Sidebar({
       {/* Navigation List */}
       <nav
         className={cx(
-          'flex-1 overflow-y-auto py-1.5 text-xs font-medium',
-          collapsed ? 'px-2' : 'px-2',
+          'flex-1 overflow-y-auto px-2 py-2 text-xs font-medium',
         )}
       >
         {/* Main Group */}
-        <div className="space-y-0">
+        <div className="space-y-1">
           <button
             type="button"
             onClick={() => navigate('/agents')}
             className={cx(
-              'w-full flex items-center gap-2 px-2 py-[3px] rounded-lg transition-all duration-150',
+              'flex h-8 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
               isRouteActive('/agents')
                 ? 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]'
                 : 'text-white/60 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
@@ -153,7 +152,7 @@ export default function Sidebar({
             type="button"
             onClick={() => navigate('/console')}
             className={cx(
-              'w-full flex items-center gap-2 px-2 py-[3px] rounded-lg transition-all duration-150',
+              'flex h-8 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
               isRouteActive('/console')
                 ? 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]'
                 : 'text-white/60 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
@@ -170,12 +169,12 @@ export default function Sidebar({
         {!collapsed ? (
           <div>
             <div className="mb-1 px-2 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]">Workspace</div>
-            <div className="space-y-0">
+            <div className="space-y-1">
                 <button
                   type="button"
                   onClick={() => navigate('/projects')}
                   className={cx(
-                    'w-full flex items-center gap-2 px-2 py-[3px] rounded-lg text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
+                    'flex h-8 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
                     isRouteActive('/projects') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
                   )}
                 >
@@ -187,7 +186,7 @@ export default function Sidebar({
                   type="button"
                   onClick={() => navigate('/flow')}
                   className={cx(
-                    'w-full flex items-center gap-2 px-2 py-[3px] rounded-lg text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
+                    'flex h-8 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
                     isRouteActive('/flow') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
                   )}
                 >
@@ -198,11 +197,27 @@ export default function Sidebar({
               </div>
           </div>
         ) : (
-          <div className="pt-4 mt-3 border-t border-white/10 space-y-1">
-            <button type="button" onClick={() => navigate('/projects')} title="Projects" className="w-full flex justify-center py-2 rounded-lg text-white/55 hover:bg-white/[0.07] hover:text-white transition-all">
+          <div className="mt-4 space-y-1 border-t border-white/10 pt-3">
+            <button
+              type="button"
+              onClick={() => navigate('/projects')}
+              title="Projects"
+              className={cx(
+                'flex h-9 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
+                isRouteActive('/projects') && 'bg-[#18294b] text-white shadow-[inset_2px_0_0_#60a5fa]',
+              )}
+            >
               <FolderKanban size={15} />
             </button>
-            <button type="button" onClick={() => navigate('/flow')} title="Workflow" className="w-full flex justify-center py-2 rounded-lg text-white/55 hover:bg-white/[0.07] hover:text-white transition-all">
+            <button
+              type="button"
+              onClick={() => navigate('/flow')}
+              title="Workflow"
+              className={cx(
+                'flex h-9 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
+                isRouteActive('/flow') && 'bg-[#18294b] text-white shadow-[inset_2px_0_0_#60a5fa]',
+              )}
+            >
               <GitBranch size={15} />
             </button>
           </div>
@@ -212,12 +227,12 @@ export default function Sidebar({
         {!collapsed && (
           <div>
             <div className="mb-1 mt-3.5 px-2 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]">Connect</div>
-            <div className="space-y-0">
+            <div className="space-y-1">
                 <button
                   type="button"
                   onClick={() => navigate('/integrations')}
                   className={cx(
-                    'w-full flex items-center gap-2 px-2 py-[3px] rounded-lg text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
+                    'flex h-8 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
                     isRouteActive('/integrations') && 'bg-[#18294b] text-white font-semibold shadow-[inset_2px_0_0_#60a5fa]',
                   )}
                 >
