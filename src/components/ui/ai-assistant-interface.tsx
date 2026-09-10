@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -9,8 +9,20 @@ import {
   Plus,
   Loader2,
   Send,
-  Paperclip,
   X,
+  FileText,
+  RefreshCw,
+  Maximize2,
+  Search,
+  SlidersHorizontal,
+  MessageSquare,
+  Mail,
+  PlusSquare,
+  Upload,
+  Mic,
+  AtSign,
+  Globe,
+  Grid,
 } from 'lucide-react'
 import { AVAILABLE_MODELS, ROLE_META } from '../../data'
 import { useApp } from '../../context/AppContext'
@@ -23,6 +35,18 @@ import { Modal } from '../primitives/Modal'
 import { Button } from '../primitives/Button'
 import { useScore } from '../../lib/motion'
 import { cx } from '../../lib/cx'
+import AgentTabStrip from '../AgentTabStrip'
+import { useIntegrations } from '../../hooks/useIntegrations'
+import {
+  AgentRainbowBadge,
+  ModelFusionIcon,
+  StripeLogo,
+  SlackLogo,
+  GoogleCalendarLogo,
+  ExcelLogo,
+} from '../BrandIcons'
+
+/* ── Types ─────────────────────────────────────────────────────── */
 
 interface ChatMessage {
   id: string
@@ -34,14 +58,47 @@ interface ChatMessage {
 
 const ROLES: AgentRole[] = ['planner', 'coder', 'auditor', 'tester']
 
+/* ── Quick Actions matching reference ──────────────────────────── */
+
+const QUICK_ACTIONS = [
+  { icon: MessageSquare, label: 'Message someone', prompt: 'Message someone on the team regarding this contract' },
+  { icon: FileText, label: 'Summarise contract', prompt: 'Summarise my latest customer contract with James Wick...' },
+  { icon: Mail, label: 'Email customer', prompt: 'Draft an email to customer about contract updates' },
+  { icon: PlusSquare, label: 'Add note', prompt: 'Add a new note to this customer account' },
+  { icon: Upload, label: 'Upload new contract', prompt: 'Upload and parse a new customer contract' },
+] as const
+
+/* ── Greeting helper ───────────────────────────────────────────── */
+
+function getGreeting(): string {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
+/* ── Component ─────────────────────────────────────────────────── */
+
+/* ── Framer Motion Variants per Spec ──────────────────────────── */
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] as const } },
+}
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+}
+
 export function AIAssistantInterface() {
   const navigate = useNavigate()
   const score = useScore()
-  const { executeTaskWithPlan } = useApp()
+  const { sessions, refetchSessions, executeTaskWithPlan } = useApp()
   const { selectedModel, setSelectedModel } = useUI()
+  const { integrations } = useIntegrations()
 
   const [selectedAgentRole, setSelectedAgentRole] = useState<AgentRole>('planner')
-  const [agentDropdownOpen, setAgentDropdownOpen] = useState(false)
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
   const [sessionAgents, setSessionAgents] = useState<AgentRole[]>(['planner'])
   const [showAddAgentModal, setShowAddAgentModal] = useState(false)
@@ -169,337 +226,421 @@ export function AIAssistantInterface() {
     await executeTaskWithPlan(planToExecute.taskTitle, planToExecute.subtasks, DEFAULT_WORKSPACE, selectedModel.id)
   }
 
-  const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.coder
+  const handleStartFromScratch = () => {
+    setChatMessages([])
+    setInputValue('')
+    setDraftPlan(null)
+    setIsPlanning(false)
+    setIsSending(false)
+  }
+
+  const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.planner
+  const activeAgentName = selectedAgentRole === 'planner' ? 'Rune' : selectedAgentRole === 'coder' ? 'Aether' : selectedAgentRole === 'auditor' ? 'Syntax' : 'Theo'
+  const greeting = useMemo(() => getGreeting(), [])
 
   return (
-    <div className="relative flex-1 flex flex-col h-full min-h-full text-[var(--text)] font-sans overflow-y-auto bg-transparent">
+    <div className="relative flex-1 flex flex-col h-full min-h-full text-white font-sans bg-transparent overflow-hidden">
+      {/* Top Header & Agent Tab Strip */}
+      <AgentTabStrip
+        selectedRole={selectedAgentRole}
+        sessionAgents={sessionAgents}
+        onSelectRole={setSelectedAgentRole}
+        onAddAgent={() => setShowAddAgentModal(true)}
+        onStartFromScratch={handleStartFromScratch}
+      />
 
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-end h-full min-h-full px-6 pb-8 pt-6 overflow-hidden">
-        <motion.div
-          variants={score.revealParent}
-          initial="hidden"
-          animate="shown"
-          className="w-full max-w-[640px] flex flex-col items-center mt-auto mb-2"
-        >
-          {/* Brand mark */}
-          <motion.div variants={score.revealChild} className="mb-6">
-            <span
-              aria-hidden="true"
-              className="w-10 h-10 rounded-control border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] shadow-[var(--shadow-raise)]"
+      {/* Main Scrollable View */}
+      <div className="flex-1 overflow-y-auto relative z-10">
+        <div className="max-w-[800px] mx-auto px-6 py-8">
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="flex flex-col items-center"
+          >
+            {/* Greeting Hero */}
+            <motion.div variants={fadeUp} className="text-center mb-6">
+              <h1 className="text-3xl md:text-4xl font-serif font-normal text-white tracking-tight mb-1.5">
+                {greeting}, Jane
+              </h1>
+              <p className="text-xs text-white/50 font-sans">
+                I'm {activeAgentName}, where should we start today?
+              </p>
+            </motion.div>
+
+            {/* Input Card Container */}
+            <motion.section
+              variants={fadeUp}
+              className="w-full bg-[#111116]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden mb-4 transition-colors hover:border-white/20"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5">
-                <circle cx="12" cy="5" r="2.4" /><circle cx="5" cy="19" r="2.4" /><circle cx="19" cy="19" r="2.4" /><path d="M12 7.4V12M12 12L6.3 17M12 12l5.7 5" />
-              </svg>
-            </span>
-          </motion.div>
-
-          {/* Headline */}
-          <motion.h1
-            variants={score.revealChild}
-            className="text-display leading-[1.2] font-semibold tracking-tight text-center mb-2.5"
-          >
-            Split the work. Run it in parallel.
-          </motion.h1>
-
-          <motion.p
-            variants={score.revealChild}
-            className="text-ui leading-[1.55] text-[var(--dim)] text-center max-w-[440px] mb-8"
-          >
-            Talk to one agent like a normal chat, or bring more into the room when a task is ready
-            to be divided and run at once.
-          </motion.p>
-
-          {/* Composer card */}
-          <motion.section
-            variants={score.revealChild}
-            className="w-full max-w-[560px] border border-[var(--border)] rounded-float shadow-[var(--shadow-float)] overflow-hidden bg-[var(--bg)]/80 backdrop-blur-md"
-          >
-            {/* Picker bar */}
-            <div className="flex items-center justify-between gap-2 px-3.5 h-10 border-b border-[var(--border-soft)]">
-              <div className="flex items-center gap-2">
-                {/* Agent picker */}
-                <div className="relative">
-                  <Button
-                    variant="quiet"
-                    size="sm"
-                    onClick={() => {
-                      setAgentDropdownOpen((v) => !v)
-                      setModelDropdownOpen(false)
-                    }}
-                    className="h-6"
+              {/* Active Chat Thread */}
+              <AnimatePresence initial={false}>
+                {chatMessages.length > 0 && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={score.transition.slow}
+                    className="overflow-y-auto border-b border-white/10"
+                    style={{ maxHeight: 280 }}
                   >
-                    <AgentIcon role={selectedAgentRole} size={13} className="text-[var(--accent)]" />
-                    <span>{selectedMeta.label}</span>
-                    <ChevronDown size={11} className="text-[var(--faint)]" />
-                  </Button>
+                    <div className="px-4 py-3 space-y-3">
+                      {chatMessages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={cx('flex gap-2.5', msg.sender === 'user' ? 'justify-end' : 'justify-start')}
+                        >
+                          {msg.sender === 'agent' && (
+                            <span className="mt-0.5 shrink-0 text-white/60">
+                              <AgentIcon role={msg.role || selectedAgentRole} size={14} />
+                            </span>
+                          )}
+                          <div
+                            className={cx(
+                              'max-w-[85%] px-3.5 py-2 rounded-xl text-xs leading-relaxed',
+                              msg.sender === 'user'
+                                ? 'bg-white text-black font-medium'
+                                : 'bg-white/10 text-white border border-white/10',
+                            )}
+                          >
+                            {msg.text}
+                          </div>
+                        </div>
+                      ))}
+                      {isSending && (
+                        <div className="flex items-center gap-2 text-[11px] font-mono text-white/50">
+                          <Loader2 size={12} className="animate-spin text-amber-300" />
+                          <span>{activeAgentName} ({selectedModel.label}) is typing…</span>
+                        </div>
+                      )}
+                      {isPlanning && (
+                        <div className="flex items-center gap-2 text-[11px] font-mono text-white/50">
+                          <Loader2 size={12} className="animate-spin text-amber-300" />
+                          <span>Planning task split across agents…</span>
+                        </div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-                  <AnimatePresence>
-                    {agentDropdownOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -2 }}
-                        transition={score.transition.base}
-                        className="absolute left-0 top-full mt-1.5 w-[200px] rounded-float border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
-                      >
-                        {ROLES.map((r) => {
-                          const meta = ROLE_META[r]
-                          const isSel = selectedAgentRole === r
-                          return (
-                            <button
-                              key={r}
-                              type="button"
-                              onClick={() => {
-                                setSelectedAgentRole(r)
-                                setAgentDropdownOpen(false)
-                              }}
-                              className={cx(
-                                'flex items-center justify-between w-full h-7 px-2 rounded-control',
-                                'text-meta text-left transition-colors duration-[var(--d-quick)] ease-standard',
-                                isSel
-                                  ? 'bg-[var(--panel-3)] text-[var(--text)]'
-                                  : 'text-[var(--dim)] hover:bg-[var(--panel-3)] hover:text-[var(--text)]',
-                              )}
-                            >
-                              <span className="flex items-center gap-2">
-                                <AgentIcon role={r} size={13} />
-                                <span>{meta.label}</span>
-                              </span>
-                              {isSel && <Check size={12} className="text-[var(--accent)]" />}
-                            </button>
-                          )
-                        })}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+              {/* Textarea Input */}
+              <div className="px-4 pt-4 pb-2">
+                <textarea
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSend()
+                    }
+                  }}
+                  placeholder="Example: Summarise my latest customer contract with James Wick..."
+                  rows={2}
+                  className="w-full bg-transparent border-none text-xs text-white/90 font-sans resize-none outline-none min-h-[52px] leading-relaxed placeholder:text-white/30"
+                />
+              </div>
+
+              {/* Bottom Row Inside Input Box */}
+              <div className="flex items-center justify-between px-4 pb-3 pt-1 border-t border-white/[0.04]">
+                {/* Left Controls */}
+                <div className="flex items-center gap-2 text-xs">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowAddAgentModal(true)}
+                    className="p-1 rounded text-white/40 hover:text-white transition-colors flex items-center justify-center"
+                  >
+                    <Plus size={15} />
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-1 rounded text-white/40 hover:text-white transition-colors flex items-center justify-center"
+                  >
+                    <Globe size={14} />
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/70 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all"
+                  >
+                    <Grid size={12} className="text-white/40 shrink-0" />
+                    <span>Skills</span>
+                  </motion.button>
+
+                  {/* Model Fusion selector button */}
+                  <div className="relative">
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => setModelDropdownOpen((v) => !v)}
+                      className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white/80 hover:bg-white/10 hover:text-white hover:border-white/20 transition-all"
+                    >
+                      <ModelFusionIcon size={14} />
+                      <span>Model Fusion</span>
+                    </motion.button>
+
+                    <AnimatePresence>
+                      {modelDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -2 }}
+                          transition={score.transition.base}
+                          className="absolute left-0 bottom-full mb-1.5 w-[240px] rounded-xl border border-white/10 bg-[#16161c] shadow-2xl p-1 z-50"
+                        >
+                          {AVAILABLE_MODELS.map((m) => {
+                            const isSel = selectedModel.id === m.id
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedModel(m)
+                                  setModelDropdownOpen(false)
+                                }}
+                                className={cx(
+                                  'flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors',
+                                  isSel ? 'bg-white/15 text-white font-medium' : 'text-white/60 hover:bg-white/5 hover:text-white',
+                                )}
+                              >
+                                <span>{m.label}</span>
+                                {isSel && <Check size={12} className="text-amber-300" />}
+                              </button>
+                            )
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
 
-                {/* Model picker */}
-                <div className="relative">
-                  <Button
-                    variant="quiet"
-                    size="sm"
-                    onClick={() => {
-                      setModelDropdownOpen((v) => !v)
-                      setAgentDropdownOpen(false)
-                    }}
-                    className="h-6"
+                {/* Right Controls */}
+                <div className="flex items-center gap-2">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="p-1.5 rounded-full text-white/40 hover:text-white transition-colors flex items-center justify-center"
                   >
-                    <Cpu size={13} className="text-[var(--accent)]" />
-                    <span>{selectedModel.label}</span>
-                    <ChevronDown size={11} className="text-[var(--faint)]" />
-                  </Button>
+                    <Mic size={15} />
+                  </motion.button>
 
-                  <AnimatePresence>
-                    {modelDropdownOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -2 }}
-                        transition={score.transition.base}
-                        className="absolute left-0 top-full mt-1.5 w-[260px] rounded-float border border-[var(--border)] bg-[var(--panel-2)] shadow-[var(--shadow-float)] p-1 z-50"
-                      >
-                        {AVAILABLE_MODELS.map((m) => {
-                          const isSel = selectedModel.id === m.id
-                          return (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedModel(m)
-                                setModelDropdownOpen(false)
-                              }}
-                              className={cx(
-                                'flex items-center justify-between w-full px-2 py-1.5 rounded-control',
-                                'text-meta text-left transition-colors duration-[var(--d-quick)] ease-standard',
-                                isSel
-                                  ? 'bg-[var(--panel-3)] text-[var(--text)]'
-                                  : 'text-[var(--dim)] hover:bg-[var(--panel-3)] hover:text-[var(--text)]',
-                              )}
-                            >
-                              <span className="flex flex-col min-w-0">
-                                <span className="truncate">{m.label}</span>
-                                <span className="font-mono text-micro text-[var(--faint)]">{m.provider}</span>
-                              </span>
-                              {isSel && <Check size={12} className="text-[var(--accent)] flex-shrink-0" />}
-                            </button>
-                          )
-                        })}
-                      </motion.div>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => handleSend()}
+                    disabled={!inputValue.trim() || isSending}
+                    className={cx(
+                      'w-7 h-7 rounded-lg flex items-center justify-center transition-all shadow-md shrink-0',
+                      inputValue.trim() && !isSending
+                        ? 'bg-white text-black hover:bg-white/90'
+                        : 'bg-white/20 text-white/40 cursor-not-allowed',
                     )}
-                  </AnimatePresence>
+                  >
+                    <Send size={13} className="ml-0.5" />
+                  </motion.button>
+                </div>
+              </div>
+            </motion.section>
+
+            {/* Quick Action Pills */}
+            <motion.div
+              variants={fadeUp}
+              className="flex flex-wrap justify-center items-center gap-2 mb-10 w-full"
+            >
+              {QUICK_ACTIONS.map((action) => (
+                <motion.button
+                  key={action.label}
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => handleSend(action.prompt)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-xs text-white/70 hover:text-white hover:bg-white/10 hover:border-white/25 transition-all cursor-pointer"
+                >
+                  <action.icon size={13} className="text-white/40 shrink-0" />
+                  <span>{action.label}</span>
+                </motion.button>
+              ))}
+            </motion.div>
+
+            {/* Previous Chats Section */}
+            <motion.div variants={fadeUp} className="w-full mb-8">
+              <div className="flex items-center justify-between mb-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-white/80 tracking-tight">Previous chats (120)</span>
+                  <div className="flex items-center -space-x-1">
+                    {Array.from({ length: 5 }).map((_, aIdx) => (
+                      <AgentRainbowBadge key={aIdx} size={14} />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-white/40">
+                  <button
+                    type="button"
+                    onClick={() => refetchSessions()}
+                    className="flex items-center gap-1 hover:text-white transition-colors"
+                  >
+                    <RefreshCw size={12} className="shrink-0" />
+                    <span>Refresh</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/projects')}
+                    className="flex items-center gap-1 hover:text-white transition-colors"
+                  >
+                    <Maximize2 size={12} className="shrink-0" />
+                    <span>Expand</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
-                {sessionAgents.map((r) => {
-                  const meta = ROLE_META[r] || ROLE_META.coder
-                  const isSelected = selectedAgentRole === r
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 w-full">
+                {[
+                  {
+                    title: 'Generate a quarterly sales report fo...',
+                    date: 'Today, 2:14 PM',
+                  },
+                  {
+                    title: 'Analyze customer feedback trends ...',
+                    date: 'Yesterday, 11:03 AM',
+                  },
+                  {
+                    title: 'Create follow-up reminders for ove...',
+                    date: 'Feb 8, 2026',
+                  },
+                  {
+                    title: 'Identify top 5 leads from last mont...',
+                    date: 'Feb 6, 2026',
+                  },
+                ].map((item, idx) => (
+                  <motion.button
+                    key={idx}
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigate('/projects/default')}
+                    className="flex items-start gap-2.5 p-3.5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/25 hover:bg-white/[0.07] transition-all text-left h-[88px] group"
+                  >
+                    <MessageSquare size={14} className="text-white/50 shrink-0 mt-0.5" />
+                    <div className="flex flex-col justify-between h-full min-w-0 flex-1">
+                      <p className="text-xs text-white/80 group-hover:text-white truncate font-medium leading-tight">
+                        {item.title}
+                      </p>
+                      <p className="text-[10px] text-white/40 font-sans">
+                        {item.date}
+                      </p>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Suggested Applications Section */}
+            <motion.div variants={fadeUp} className="w-full">
+              <div className="flex items-center justify-between mb-3 text-xs">
+                <span className="font-semibold text-white/80 tracking-tight">Suggested applications</span>
+                <div className="flex items-center gap-3 text-white/40">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/integrations')}
+                    className="flex items-center gap-1 hover:text-white transition-colors"
+                  >
+                    <Search size={12} className="shrink-0" />
+                    <span>Search</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 hover:text-white transition-colors"
+                  >
+                    <SlidersHorizontal size={12} className="shrink-0" />
+                    <span>Filter</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/integrations')}
+                    className="flex items-center gap-1 hover:text-white transition-colors"
+                  >
+                    <Maximize2 size={12} className="shrink-0" />
+                    <span>Expand</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5 w-full">
+                {[
+                  {
+                    name: 'Stripe MCP',
+                    badge: 'Essential',
+                    logo: StripeLogo,
+                    desc: 'Manage your payments seamlessly with Stripe MCP. This platform allows you to...',
+                  },
+                  {
+                    name: 'Slack',
+                    badge: 'Essential',
+                    logo: SlackLogo,
+                    desc: 'Connect with your team effortlessly using Slack. This messaging app enabl...',
+                  },
+                  {
+                    name: 'Google Calendar',
+                    badge: 'Essential',
+                    logo: GoogleCalendarLogo,
+                    desc: 'Organize your schedule efficiently with Google Calendar. Sync your events, set...',
+                  },
+                  {
+                    name: 'Microsoft Excel',
+                    badge: 'Essential',
+                    logo: ExcelLogo,
+                    desc: 'Create and analyze spreadsheets with Microsoft Excel. Utilize powerful...',
+                  },
+                ].map((app, idx) => {
+                  const LogoComp = app.logo
                   return (
-                    <span
-                      key={r}
-                      onClick={() => setSelectedAgentRole(r)}
-                      className={cx(
-                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-micro font-medium transition-colors cursor-pointer select-none',
-                        isSelected
-                          ? 'bg-[var(--panel-3)] border-[var(--accent-edge)] text-[var(--text)]'
-                          : 'bg-[var(--panel-2)] border-[var(--border-soft)] text-[var(--dim)] hover:text-[var(--text)]'
-                      )}
+                    <motion.button
+                      key={idx}
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => navigate('/integrations')}
+                      className="flex flex-col justify-between p-3.5 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/25 hover:bg-white/[0.07] transition-all text-left h-[108px] group"
                     >
-                      <AgentIcon role={r} size={11} />
-                      <span>{meta.label}</span>
-                      {sessionAgents.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRemoveAgentFromSession(r)
-                          }}
-                          aria-label={`Remove ${meta.label}`}
-                          title={`Remove ${meta.label} agent`}
-                          className="hover:text-[var(--bad)] text-[var(--faint)] transition-colors p-0.5 rounded-full -mr-0.5"
-                        >
-                          <X size={10} />
-                        </button>
-                      )}
-                    </span>
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-2">
+                            <LogoComp size={18} />
+                            <span className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">
+                              {app.name}
+                            </span>
+                          </div>
+                          {app.badge && (
+                            <span className="text-[9px] bg-white/10 text-white/60 px-1.5 py-0.5 rounded font-mono">
+                              {app.badge}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed">
+                          {app.desc}
+                        </p>
+                      </div>
+                    </motion.button>
                   )
                 })}
               </div>
-            </div>
-
-            {/* Thread */}
-            <AnimatePresence initial={false}>
-              {chatMessages.length > 0 && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={score.transition.slow}
-                  className="overflow-y-auto"
-                  style={{ maxHeight: 260 }}
-                >
-                  <div className="px-3.5 py-3 space-y-3">
-                    {chatMessages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={cx('flex gap-2.5', msg.sender === 'user' ? 'justify-end' : 'justify-start')}
-                      >
-                        {msg.sender === 'agent' && (
-                          <span className="mt-0.5 shrink-0 text-[var(--dim)]">
-                            <AgentIcon role={msg.role || selectedAgentRole} size={14} />
-                          </span>
-                        )}
-                        <div
-                          className={cx(
-                            'max-w-[85%] px-3 py-2 rounded-control text-ui leading-[1.5]',
-                            msg.sender === 'user'
-                              ? 'bg-[var(--accent)] text-[var(--accent-ink)] font-medium'
-                              : 'bg-[var(--panel-2)] text-[var(--text)] border border-[var(--border)]',
-                          )}
-                        >
-                          {msg.text}
-                        </div>
-                      </div>
-                    ))}
-                    {isSending && (
-                      <div className="flex items-center gap-2 text-micro font-mono text-[var(--faint)]">
-                        <Loader2 size={12} className="animate-spin text-[var(--accent)]" />
-                        <span>{selectedMeta.label} ({selectedModel.label}) is replying…</span>
-                      </div>
-                    )}
-                    {isPlanning && (
-                      <div className="flex items-center gap-2 text-micro font-mono text-[var(--faint)]">
-                        <Loader2 size={12} className="animate-spin text-[var(--accent)]" />
-                        <span>Planning the split across {sessionAgents.length} agents…</span>
-                      </div>
-                    )}
-                    <div ref={chatEndRef} />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Input */}
-            <div className="flex flex-col gap-2 px-3.5 py-3">
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSend()
-                  }
-                }}
-                placeholder={`Message the ${selectedMeta.label.toLowerCase()} agent, or describe a task to split across a team…`}
-                rows={2}
-                className="w-full bg-transparent border-none text-ui text-[var(--text)] font-sans resize-none outline-none min-h-[44px] leading-[1.55] placeholder:text-[var(--faint)]"
-              />
-
-              <div className="flex items-center justify-between pt-2 border-t border-[var(--border-soft)]">
-                <div className="flex items-center gap-1">
-                  <Button variant="quiet" size="sm" onClick={() => setShowAddAgentModal(true)}>
-                    <Plus size={12} />
-                    <span>Add agent</span>
-                  </Button>
-                  <button
-                    type="button"
-                    disabled
-                    title="Attachments are not available yet"
-                    className="inline-flex items-center gap-1.5 h-6 px-2 text-meta text-[var(--faint)] cursor-not-allowed"
-                  >
-                    <Paperclip size={12} />
-                    <span>Attach</span>
-                  </button>
-                </div>
-
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => handleSend()}
-                  disabled={!inputValue.trim() || isSending}
-                >
-                  <span>Send</span>
-                  <Send size={12} />
-                </Button>
-              </div>
-            </div>
-          </motion.section>
-
-          {/* Prompt hint */}
-          <motion.div
-            variants={score.revealChild}
-            className="mt-4 text-micro text-[var(--faint)] text-center"
-          >
-            Try{' '}
-            <button
-              type="button"
-              onClick={() => handleSend('build a REST API with auth and tests')}
-              className="font-medium text-[var(--dim)] underline decoration-[var(--border-strong)] underline-offset-2 hover:text-[var(--text)] transition-colors duration-[var(--d-quick)] ease-standard"
-            >
-              build a REST API
-            </button>
-            ,{' '}
-            <button
-              type="button"
-              onClick={() => handleSend('divide this project into frontend and backend')}
-              className="font-medium text-[var(--dim)] underline decoration-[var(--border-strong)] underline-offset-2 hover:text-[var(--text)] transition-colors duration-[var(--d-quick)] ease-standard"
-            >
-              divide a project
-            </button>
-            , or{' '}
-            <button
-              type="button"
-              onClick={() => handleSend('split a todo app across the team')}
-              className="font-medium text-[var(--dim)] underline decoration-[var(--border-strong)] underline-offset-2 hover:text-[var(--text)] transition-colors duration-[var(--d-quick)] ease-standard"
-            >
-              split a todo app
-            </button>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      </main>
+        </div>
+      </div>
 
-      {/* Plan-and-confirm dialog */}
+      {/* ── Plan-and-confirm dialog ──────────────────────────────── */}
       <Modal
         open={!!draftPlan}
         onClose={() => setDraftPlan(null)}
@@ -550,7 +691,7 @@ export function AIAssistantInterface() {
         )}
       </Modal>
 
-      {/* Add-agent dialog */}
+      {/* ── Add-agent dialog ────────────────────────────────────── */}
       <Modal
         open={showAddAgentModal}
         onClose={() => setShowAddAgentModal(false)}

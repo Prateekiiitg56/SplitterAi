@@ -56,11 +56,12 @@ function Layout() {
       />
 
       <div className="app flex flex-col flex-1 h-full w-full overflow-hidden relative z-10">
-        <TopBar onDownloadClick={() => setDownloadModalOpen(true)} />
+        {location.pathname !== '/console' && location.pathname !== '/' && <TopBar />}
         <div className="flex-1 overflow-hidden relative flex flex-col h-full">
           <ErrorBoundary key={location.pathname}>
             <Routes>
               {/* Console / Home */}
+              <Route path="/" element={<AIAssistantInterface />} />
               <Route path="/console" element={<AIAssistantInterface />} />
 
               {/* Projects & Runs */}
@@ -94,8 +95,8 @@ function Layout() {
 function AppRoutes() {
   const location = useLocation()
 
-  // Landing page is the root — standalone, no TopBar shell
-  if (location.pathname === '/' || location.pathname === '/welcome') {
+  // Welcome route renders standalone landing
+  if (location.pathname === '/welcome') {
     return <Landing />
   }
 

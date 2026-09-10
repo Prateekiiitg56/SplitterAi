@@ -1,17 +1,31 @@
+import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Home,
+  MessageSquare,
   FolderKanban,
   Bot,
   Blocks,
   GitBranch,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Search,
+  User,
+  MoreHorizontal,
+  Inbox,
+  CreditCard,
+  Users,
+  Repeat,
+  FileText,
+  CheckSquare,
+  Grid,
+  PanelLeft,
+  ChevronsUpDown,
 } from 'lucide-react'
 import { StatusDot } from './Badges'
 import { cx } from '../lib/cx'
 import type { SessionEntry } from '../types'
-import { useBackendHealth } from '../hooks/useBackendHealth'
 
 interface SidebarProps {
   collapsed?: boolean
@@ -23,14 +37,6 @@ interface SidebarProps {
   onToggleCollapse?: () => void
 }
 
-const NAV = [
-  { id: '/', label: 'Home', icon: Home },
-  { id: '/projects', label: 'Projects', icon: FolderKanban },
-  { id: '/agents', label: 'Agents', icon: Bot },
-  { id: '/integrations', label: 'Integrations', icon: Blocks },
-  { id: '/flow', label: 'Flow', icon: GitBranch },
-]
-
 export default function Sidebar({
   collapsed = false,
   sessions = [],
@@ -41,168 +47,289 @@ export default function Sidebar({
 }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isOnline } = useBackendHealth()
+  const [companyOpen, setCompanyOpen] = useState(true)
+  const [spacesOpen, setSpacesOpen] = useState(true)
 
-  const isActive = (id: string) =>
-    id === '/' ? location.pathname === '/' : location.pathname.startsWith(id)
+  const handleOpenCommandPalette = () => {
+    window.dispatchEvent(new CustomEvent('open-command-palette'))
+  }
 
+  const isRouteActive = (path: string) => {
+    if (path === '/console') return location.pathname === '/console' || location.pathname === '/'
+    return location.pathname.startsWith(path)
+  }
 
   return (
     <aside
       className={cx(
-        'h-full flex flex-col select-none bg-[var(--bg)]',
-        'border-r border-[var(--border-soft)] transition-[width] duration-[var(--d-base)] ease-standard',
-        collapsed ? 'w-16 min-w-16' : 'w-[212px] min-w-[212px]',
+        'h-full flex flex-col select-none bg-black/70 backdrop-blur-md z-20',
+        'border-r border-white/10 transition-[width] duration-200 ease-in-out',
+        collapsed ? 'w-16 min-w-16' : 'w-[230px] min-w-[230px]',
       )}
-      aria-label="Primary"
+      aria-label="Primary navigation"
     >
-      {/* Brand */}
+      {/* Workspace Header */}
       <div
         className={cx(
-          'flex items-center gap-2.5 h-14 px-4 flex-shrink-0 border-b border-[var(--border-soft)]',
+          'flex items-center justify-between h-12 px-3 border-b border-white/10 flex-shrink-0',
           collapsed && 'justify-center px-0',
         )}
       >
-        <span
-          className="w-6 h-6 rounded-control border border-[var(--border)] bg-[var(--panel)] flex items-center justify-center text-[var(--accent)] flex-shrink-0"
-          aria-hidden="true"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-            <circle cx="12" cy="5" r="2.4" /><circle cx="5" cy="19" r="2.4" /><circle cx="19" cy="19" r="2.4" /><path d="M12 7.4V12M12 12L6.3 17M12 12l5.7 5" />
-          </svg>
-        </span>
-        {!collapsed && (
-          <span className="font-semibold text-ui tracking-tight text-[var(--text)]">
-            Splitter
+        {!collapsed ? (
+          <button
+            type="button"
+            className="flex items-center gap-2 text-xs font-semibold text-white/90 hover:text-white transition-colors"
+          >
+            <span className="w-5 h-5 rounded-md bg-[#c026d3] flex items-center justify-center text-[11px] font-bold text-white shadow-sm shrink-0">
+              L
+            </span>
+            <span className="truncate max-w-[120px]">Locally inc.</span>
+            <ChevronsUpDown size={13} className="text-white/40 shrink-0" />
+          </button>
+        ) : (
+          <span className="w-6 h-6 rounded-md bg-[#c026d3] flex items-center justify-center text-xs font-bold text-white shadow-sm">
+            L
           </span>
         )}
-      </div>
 
-      {/* Nav */}
-      <nav
-        className={cx('flex-1 overflow-y-auto py-4', !collapsed && 'px-3')}
-        aria-label="Workspace"
-      >
-        {!collapsed && (
-          <p className="px-2 pb-2 text-meta font-medium text-[var(--faint)]">Workspace</p>
-        )}
-
-        <ul className="space-y-0.5">
-          {NAV.map(({ id, label, icon: Icon }) => {
-            const active = isActive(id)
-            return (
-              <li key={id}>
-                <button
-                  type="button"
-                  onClick={() => navigate(id)}
-                  title={collapsed ? label : undefined}
-                  aria-current={active ? 'page' : undefined}
-                  className={cx(
-                    'relative w-full flex items-center gap-2.5 rounded-control',
-                    'text-meta font-medium text-left transition-colors duration-[var(--d-quick)] ease-standard',
-                    collapsed ? 'justify-center h-9' : 'px-2 h-8',
-                    active
-                      ? 'bg-[var(--panel-2)] text-[var(--text)]'
-                      : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]',
-                  )}
-                >
-                  {/* Active indicator: the structure encodes which area you are in. */}
-                  {active && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-[var(--accent)]"
-                    />
-                  )}
-                  <Icon
-                    size={16}
-                    className={cx('flex-shrink-0', active ? 'text-[var(--accent)]' : 'text-[var(--faint)]')}
-                  />
-                  {!collapsed && <span className="truncate">{label}</span>}
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-
-        {/* Active sessions */}
-        <div className={cx('mt-6', collapsed && 'px-0')}>
-          {!collapsed && (
-            <p className="px-2 pb-2 text-meta font-medium text-[var(--faint)]">Active sessions</p>
-          )}
-          <ul className="space-y-0.5">
-            {sessions.length === 0 ? (
-              <li className={cx('text-micro text-[var(--faint)]', collapsed ? 'hidden' : 'px-2 py-1.5')}>
-                No active runs
-              </li>
-            ) : (
-              sessions.map((s) => {
-                const selected = selectedSession === s.id
-                const statusStr = (s.status || 'idle').toLowerCase()
-                return (
-                  <li key={s.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSelectSession(s.id)
-                        navigate(`/projects/${s.id || 'default'}`)
-                      }}
-                      title={collapsed ? s.task || 'Session' : undefined}
-                      className={cx(
-                        'relative w-full flex items-center gap-2.5 rounded-control',
-                        'text-meta transition-colors duration-[var(--d-quick)] ease-standard',
-                        collapsed ? 'justify-center h-9' : 'px-2 h-8',
-                        selected
-                          ? 'bg-[var(--panel-2)] text-[var(--text)]'
-                          : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]',
-                      )}
-                    >
-                      {selected && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-[var(--accent)]"
-                        />
-                      )}
-                      <StatusDot status={statusStr} />
-                      {!collapsed && (
-                        <span className="truncate">
-                          {s.task || (s.workspace || '').split(/[/\\]/).pop() || 'Untitled session'}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                )
-              })
-            )}
-          </ul>
-        </div>
-      </nav>
-
-      {/* Footer — the only thing here is the collapse toggle and the account. */}
-      <div
-        className={cx(
-          'flex items-center gap-2.5 border-t border-[var(--border-soft)] flex-shrink-0',
-          collapsed ? 'justify-center h-12 px-0' : 'h-12 px-3',
-        )}
-      >
-
-        {onToggleCollapse && (
+        {onToggleCollapse && !collapsed && (
           <button
             type="button"
             onClick={onToggleCollapse}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={cx(
-              'flex items-center justify-center rounded-control',
-              'text-[var(--faint)] hover:text-[var(--text)] hover:bg-[var(--panel-2)]',
-              'transition-colors duration-[var(--d-quick)] ease-standard',
-              'w-8 h-8 flex-shrink-0',
-              !collapsed && 'ml-auto',
-            )}
+            aria-label="Collapse sidebar"
+            className="p-1 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
           >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            <PanelLeft size={15} />
           </button>
         )}
       </div>
 
+      {/* Search Input Box */}
+      {!collapsed && (
+        <div className="px-3 pt-3 pb-2">
+          <button
+            type="button"
+            onClick={handleOpenCommandPalette}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/10 text-xs text-white/40 hover:text-white/70 hover:border-white/20 transition-all group"
+          >
+            <Search size={13} className="text-white/40 group-hover:text-white/60 shrink-0" />
+            <span className="flex-1 text-left">Search</span>
+            <kbd className="font-mono text-[10px] bg-white/[0.08] px-1.5 py-0.5 rounded text-white/50 border border-white/10">
+              ⌘ K
+            </kbd>
+          </button>
+        </div>
+      )}
+
+      {/* Navigation List */}
+      <nav className={cx('flex-1 overflow-y-auto py-2 space-y-4 text-xs font-medium', collapsed ? 'px-1.5' : 'px-3')}>
+        {/* Main Group */}
+        <div className="space-y-0.5">
+          <button
+            type="button"
+            onClick={() => navigate('/agents')}
+            className={cx(
+              'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md transition-colors',
+              isRouteActive('/agents') ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white',
+              collapsed && 'justify-center px-0',
+            )}
+          >
+            <Bot size={15} className="text-purple-400 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left">Agents</span>
+                <kbd className="font-mono text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-white/50">⌘ Y</kbd>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/console')}
+            className={cx(
+              'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md transition-colors',
+              isRouteActive('/console') ? 'bg-white/10 text-white font-semibold' : 'text-white/70 hover:bg-white/5 hover:text-white',
+              collapsed && 'justify-center px-0',
+            )}
+          >
+            <Home size={15} className="text-white/60 shrink-0" />
+            {!collapsed && <span className="flex-1 text-left">Home</span>}
+          </button>
+
+          <button
+            type="button"
+            className={cx(
+              'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/70 hover:bg-white/5 hover:text-white transition-colors',
+              collapsed && 'justify-center px-0',
+            )}
+          >
+            <Inbox size={15} className="text-white/60 shrink-0" />
+            {!collapsed && <span className="flex-1 text-left">Inbox</span>}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/console')}
+            className={cx(
+              'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/70 hover:bg-white/5 hover:text-white transition-colors',
+              collapsed && 'justify-center px-0',
+            )}
+          >
+            <MessageSquare size={15} className="text-white/60 shrink-0" />
+            {!collapsed && <span className="flex-1 text-left">Messages</span>}
+          </button>
+        </div>
+
+        {/* Company Group */}
+        {!collapsed ? (
+          <div>
+            <button
+              type="button"
+              onClick={() => setCompanyOpen(!companyOpen)}
+              className="w-full flex items-center justify-between px-2.5 py-1 text-[11px] font-semibold text-white/40 hover:text-white/70 transition-colors uppercase tracking-wider"
+            >
+              <span>Company</span>
+              <ChevronDown size={12} className={cx('transition-transform text-white/40', !companyOpen && '-rotate-90')} />
+            </button>
+            {companyOpen && (
+              <div className="mt-1 space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => navigate('/projects')}
+                  className={cx(
+                    'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/70 hover:bg-white/5 hover:text-white transition-colors',
+                    isRouteActive('/projects') && 'bg-white/10 text-white font-semibold',
+                  )}
+                >
+                  <CreditCard size={14} className="text-white/50 shrink-0" />
+                  <span className="flex-1 text-left">Balances</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/70 hover:bg-white/5 hover:text-white transition-colors"
+                >
+                  <Users size={14} className="text-white/50 shrink-0" />
+                  <span className="flex-1 text-left">Customers</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/flow')}
+                  className={cx(
+                    'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/70 hover:bg-white/5 hover:text-white transition-colors',
+                    isRouteActive('/flow') && 'bg-white/10 text-white font-semibold',
+                  )}
+                >
+                  <Repeat size={14} className="text-white/50 shrink-0" />
+                  <span className="flex-1 text-left">Transactions</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/70 hover:bg-white/5 hover:text-white transition-colors"
+                >
+                  <FileText size={14} className="text-white/50 shrink-0" />
+                  <span className="flex-1 text-left">Contracts</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/50 hover:bg-white/5 transition-colors"
+                >
+                  <GitBranch size={14} className="text-white/40 shrink-0" />
+                  <span className="flex-1 text-left truncate">Workflows</span>
+                  <span className="text-[9px] bg-white/10 text-white/40 px-1.5 py-0.5 rounded font-mono shrink-0">Soon</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/50 hover:bg-white/5 transition-colors"
+                >
+                  <CheckSquare size={14} className="text-white/40 shrink-0" />
+                  <span className="flex-1 text-left truncate">Tasks</span>
+                  <span className="text-[9px] bg-white/10 text-white/40 px-1.5 py-0.5 rounded font-mono shrink-0">Soon</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="pt-2 border-t border-white/5 space-y-1">
+            <button type="button" onClick={() => navigate('/projects')} className="w-full flex justify-center py-1.5 text-white/70 hover:text-white">
+              <FolderKanban size={15} />
+            </button>
+            <button type="button" onClick={() => navigate('/flow')} className="w-full flex justify-center py-1.5 text-white/70 hover:text-white">
+              <GitBranch size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* Spaces Group */}
+        {!collapsed && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setSpacesOpen(!spacesOpen)}
+              className="w-full flex items-center justify-between px-2.5 py-1 text-[11px] font-semibold text-white/40 hover:text-white/70 transition-colors uppercase tracking-wider"
+            >
+              <span>Spaces</span>
+              <ChevronDown size={12} className={cx('transition-transform text-white/40', !spacesOpen && '-rotate-90')} />
+            </button>
+            {spacesOpen && (
+              <div className="mt-1 space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => navigate('/integrations')}
+                  className={cx(
+                    'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/70 hover:bg-white/5 hover:text-white transition-colors',
+                    isRouteActive('/integrations') && 'bg-white/10 text-white font-semibold',
+                  )}
+                >
+                  <Grid size={14} className="text-white/50 shrink-0" />
+                  <span className="flex-1 text-left">Apps</span>
+                </button>
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-white/70 hover:bg-white/5 hover:text-white transition-colors"
+                >
+                  <Blocks size={14} className="text-white/50 shrink-0" />
+                  <span className="flex-1 text-left">More</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </nav>
+
+      {/* Footer Profile User Card */}
+      <div
+        className={cx(
+          'flex items-center justify-between h-12 px-3 border-t border-white/10 flex-shrink-0 bg-black/60',
+          collapsed && 'justify-center px-0',
+        )}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-400 via-rose-400 to-purple-500 p-0.5 shrink-0">
+            <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
+              <User size={12} className="text-white" />
+            </div>
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-white truncate">Jane Moore</p>
+            </div>
+          )}
+        </div>
+        {!collapsed && (
+          <button
+            type="button"
+            className="p-1 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        )}
+      </div>
     </aside>
   )
 }
+
