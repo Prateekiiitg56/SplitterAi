@@ -111,7 +111,7 @@ async def reviewer(state: GraphState) -> dict[str, Any]:
     if result.status == SubtaskStatus.error:
         current.error = result.error
         current.status = SubtaskStatus.error
-    return {"current": current}
+    return {"current": current, "route": "decision" if current.status == SubtaskStatus.error else "tester"}
 
 
 async def tester(state: GraphState) -> dict[str, Any]:
@@ -180,7 +180,10 @@ def build_graph():
         "finalize": "finalize",
     })
     graph.add_edge("coder", "reviewer")
-    graph.add_edge("reviewer", "tester")
+    graph.add_conditional_edges("reviewer", lambda state: state.get("route", "decision"), {
+        "tester": "tester",
+        "decision": "decision",
+    })
     graph.add_edge("tester", "decision")
     graph.add_edge("reviewer_agent", "decision")
     graph.add_edge("tester_agent", "decision")

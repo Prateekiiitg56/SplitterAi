@@ -47,6 +47,7 @@ from agentcli.db_supabase import is_supabase_enabled
 # Load .env — single source of truth is the project-root .env (see .env.example),
 # loaded explicitly so behavior doesn't depend on the server's working directory.
 import os
+from pathlib import Path
 root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
 load_dotenv(root_env)
 
@@ -214,12 +215,14 @@ async def preview_workspace(file_name: str = ""):
     target_file = file_name if file_name else "index.html"
     file_path = os.path.join(workspace_dir, target_file)
 
-    resolved_file = os.path.abspath(file_path)
-    resolved_ws = os.path.abspath(workspace_dir)
-    if not resolved_file.startswith(resolved_ws):
+    resolved_file = Path(file_path).resolve()
+    resolved_ws = Path(workspace_dir).resolve()
+    try:
+        resolved_file.relative_to(resolved_ws)
+    except ValueError:
         raise HTTPException(status_code=403, detail="Forbidden: path escapes workspace")
 
-    if not os.path.exists(file_path):
+    if not resolved_file.exists():
         if not file_name or file_name == "index.html":
             return HTMLResponse("""<!DOCTYPE html>
 <html>
@@ -228,7 +231,7 @@ async def preview_workspace(file_name: str = ""):
 </html>""")
         raise HTTPException(status_code=404, detail="File not found")
 
-    return FileResponse(file_path)
+    return FileResponse(resolved_file)
 
 
 @app.post("/plan")
@@ -534,7 +537,7 @@ async def upload_workspace(
 
     zip_bytes = await file.read()
     if len(zip_bytes) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Uploaded file exceeds 50MB limit.")
+        raise HTTPException(status_code=413, detail="Uploaded file exceeds 50MB limit.")
 
     try:
         from agentcli.workspace_import import extract_zip_to_workspace
