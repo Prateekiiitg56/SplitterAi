@@ -42,7 +42,7 @@ export default function ProjectOverviewPage() {
 
   return (
     <ProjectTabShell>
-      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-[var(--bg)] relative z-10 font-sans text-[var(--text)] select-none overflow-hidden">
+      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent relative z-10 font-sans text-[var(--text)] select-none overflow-hidden">
         
         {/* Top Bar */}
         <PageHeader

@@ -40,8 +40,8 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
   )
 
   return (
-    <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-[var(--bg)] relative z-10 font-sans text-[var(--text)]">
-      <div className="flex items-center justify-between gap-4 h-12 px-5 flex-shrink-0 border-b border-[var(--border-soft)] bg-[var(--bg)] select-none">
+    <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent relative z-10 font-sans text-[var(--text)]">
+      <div className="flex items-center justify-between gap-4 h-12 px-5 flex-shrink-0 border-b border-[var(--border-soft)] bg-transparent select-none">
         {/* Project identity */}
         <div className="flex items-center gap-2.5 min-w-0">
           <h1 className="text-strong font-semibold text-[var(--text)] tracking-tight truncate">

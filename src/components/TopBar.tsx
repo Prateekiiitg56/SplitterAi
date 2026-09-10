@@ -89,7 +89,7 @@ export default function TopBar({ onDownloadClick }: TopBarProps) {
   ]
 
   return (
-    <header className="h-12 w-full bg-[var(--panel)] border-b border-[var(--border)] px-3 flex items-center justify-between z-30 flex-shrink-0 select-none">
+    <header className="h-12 w-full bg-[var(--bg)]/80 backdrop-blur-md border-b border-[var(--border)] px-3 flex items-center justify-between z-30 flex-shrink-0 select-none">
       {/* Left: Workspace Switcher */}
       <div className="flex items-center gap-3 min-w-0" ref={workspaceRef}>
         <div className="relative">

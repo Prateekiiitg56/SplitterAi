@@ -172,14 +172,14 @@ export function AIAssistantInterface() {
   const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.coder
 
   return (
-    <div className="relative flex-1 flex flex-col min-h-0 text-[var(--text)] font-sans overflow-y-auto bg-gradient-to-b from-[#08090d]/90 via-[#08090d]/40 to-transparent">
+    <div className="relative flex-1 flex flex-col h-full min-h-full text-[var(--text)] font-sans overflow-y-auto bg-transparent">
 
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center min-h-0 px-6 py-10 overflow-hidden">
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-end h-full min-h-full px-6 pb-8 pt-6 overflow-hidden">
         <motion.div
           variants={score.revealParent}
           initial="hidden"
           animate="shown"
-          className="w-full max-w-[640px] flex flex-col items-center"
+          className="w-full max-w-[640px] flex flex-col items-center mt-auto mb-2"
         >
           {/* Brand mark */}
           <motion.div variants={score.revealChild} className="mb-6">
@@ -212,8 +212,7 @@ export function AIAssistantInterface() {
           {/* Composer card */}
           <motion.section
             variants={score.revealChild}
-            className="w-full max-w-[560px] border border-[var(--border)] rounded-float shadow-[var(--shadow-float)] overflow-hidden"
-            style={{ backgroundColor: 'rgba(15, 20, 32, 0.82)' }}
+            className="w-full max-w-[560px] border border-[var(--border)] rounded-float shadow-[var(--shadow-float)] overflow-hidden bg-[var(--bg)]/80 backdrop-blur-md"
           >
             {/* Picker bar */}
             <div className="flex items-center justify-between gap-2 px-3.5 h-10 border-b border-[var(--border-soft)]">

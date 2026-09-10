@@ -170,10 +170,7 @@
 html, body { height: 100%; width: 100%; }
 
 body {
-  /* A single cool cast from above rather than a decorative gradient wash:
-     it reads as light falling into the shell, and it is the only
-     non-flat thing about the background. */
-  background: radial-gradient(ellipse 1400px 760px at 50% -18%, #0D1421 0%, var(--bg) 58%);
+  background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
   font-size: var(--t-ui);

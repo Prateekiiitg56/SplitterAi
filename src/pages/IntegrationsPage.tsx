@@ -100,7 +100,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
+    <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
       
       <PageHeader
         title="Integrations"

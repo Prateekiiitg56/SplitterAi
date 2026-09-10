@@ -57,10 +57,10 @@ export function AgentPage() {
   }, [agentLogs.length])
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
+    <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
       
       {/* Topbar */}
-      <div className="topbar h-12 border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-[var(--bg)] flex-shrink-0">
+      <div className="topbar h-12 border-b border-[var(--border-soft)] flex items-center justify-between px-5 bg-transparent flex-shrink-0">
         <div className="topbar-left flex items-center gap-3">
           <Button variant="quiet" size="sm" icon={<ArrowLeft size={14} />} label="Back to Agents" onClick={() => navigate('/agents')} />
           <span className="topbar-title font-semibold text-strong">Agent Workspace</span>

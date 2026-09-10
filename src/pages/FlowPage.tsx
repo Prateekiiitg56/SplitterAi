@@ -261,7 +261,7 @@ export default function FlowPage() {
   const selectedNode = selectedNodeId ? nodes[selectedNodeId] : null
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 h-full bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
+    <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
       
       <input
         ref={fileInputRef}
@@ -312,7 +312,7 @@ export default function FlowPage() {
       <div
         ref={canvasRef}
         onPointerMove={handlePointerMove}
-        className="flow-canvas-wrap relative flex-1 overflow-auto bg-[var(--bg)] bg-[radial-gradient(circle,#161C29_1px,transparent_1px)] bg-[size:26px_26px]"
+        className="flow-canvas-wrap relative flex-1 overflow-auto bg-transparent bg-[radial-gradient(circle,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:26px_26px]"
       >
         <div className="flow-canvas relative w-[1400px] h-[900px]">
           

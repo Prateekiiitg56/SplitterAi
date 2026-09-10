@@ -15,9 +15,9 @@ export default function ProjectTasksPage() {
 
   return (
     <ProjectTabShell aria-label="Tasks Tab">
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-[var(--bg)] text-[var(--text)] font-sans select-none overflow-hidden">
-        {/* Top bar header inside page */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--border-soft)] bg-[var(--bg)] flex-shrink-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-transparent text-[var(--text)] font-sans select-none overflow-hidden">
+        {/* Header Bar */}
+        <div className="flex items-center justify-between px-6 py-3 border-b border-[var(--border-soft)] bg-transparent flex-shrink-0">
           <div>
             <h2 className="text-strong font-semibold text-[var(--text)] tracking-tight flex items-center gap-2">
               <CheckSquare size={17} className="text-[var(--accent)]" />
