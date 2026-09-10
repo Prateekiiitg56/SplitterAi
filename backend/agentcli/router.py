@@ -87,7 +87,11 @@ class AllModelsFailedError(Exception):
     def __init__(self, attempts: list[dict[str, Any]]):
         self.attempts = attempts
         models = [a["model"] for a in attempts]
-        super().__init__(f"All models failed: {models}")
+        details = "; ".join(
+            f"{attempt['model']}: {attempt.get('error', 'unknown error')}"
+            for attempt in attempts
+        )
+        super().__init__(f"All models failed: {models}. Details: {details}")
 
 
 async def call_model(
