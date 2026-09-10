@@ -1,6 +1,7 @@
 import { GitBranch, Users, GitMerge } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { cx } from '../lib/cx'
+import { useScore } from '../lib/motion'
 
 function DiagramSplit() {
   return (
@@ -70,16 +71,17 @@ const STEPS = [
 ]
 
 export default function HowItWorksSection() {
+  const score = useScore()
   return (
     <section className="px-6 py-16 md:py-20 max-w-[1000px] mx-auto">
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        whileInView={{ opacity: 1, y: 0 }}
+        initial="hidden"
+        whileInView="shown"
         viewport={{ once: true, margin: '-60px' }}
-        transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+        variants={score.revealChild}
         className="text-center mb-12"
       >
-        <p className="font-mono text-[11px] font-medium tracking-[0.15em] uppercase text-[var(--dim)] opacity-80 mb-3">
+        <p className="font-mono text-micro font-medium tracking-[0.15em] uppercase text-[var(--dim)] opacity-80 mb-3">
           Architecture
         </p>
         <h2 className="text-display font-bold tracking-tight text-[var(--text)]">
@@ -87,17 +89,20 @@ export default function HowItWorksSection() {
         </h2>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {STEPS.map((step, i) => {
+      <motion.div
+        initial="hidden"
+        whileInView="shown"
+        viewport={{ once: true, margin: '-40px' }}
+        variants={score.revealParent}
+        className="grid grid-cols-1 md:grid-cols-3 gap-4"
+      >
+        {STEPS.map((step) => {
           const Icon = step.icon
           const Diagram = step.diagram
           return (
             <motion.div
               key={step.num}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.45, delay: i * 0.1, ease: [0.32, 0.72, 0, 1] }}
+              variants={score.revealChild}
               className={cx(
                 'flex flex-col p-4 rounded-panel',
                 'bg-[var(--panel)] border border-[var(--border)]',
@@ -121,7 +126,7 @@ export default function HowItWorksSection() {
             </motion.div>
           )
         })}
-      </div>
+      </motion.div>
     </section>
   )
 }

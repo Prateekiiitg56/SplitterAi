@@ -37,7 +37,15 @@ export function AgentIcon({ role, size = 16, className = "" }: { role: AgentRole
 
 
 
-export function StatusDot({ status }: { status: AgentStatus | SubtaskStatus | string }) {
+const STATUS_LABELS: Record<string, string> = {
+  working: 'running',
+  done: 'completed',
+  failed: 'failed',
+  paused: 'waiting',
+  idle: 'idle',
+}
+
+export function StatusDot({ status, announce = true }: { status: AgentStatus | SubtaskStatus | string; announce?: boolean }) {
   const s = (status || '').toLowerCase()
   let dotClass = 'idle'
 
@@ -46,7 +54,13 @@ export function StatusDot({ status }: { status: AgentStatus | SubtaskStatus | st
   else if (s === 'failed' || s === 'error') dotClass = 'failed'
   else if (s === 'paused' || s === 'waiting' || s === 'queued') dotClass = 'paused'
 
-  return <span className={`dot ${dotClass}`} />
+  if (!announce) return <span className={`dot ${dotClass}`} aria-hidden="true" />
+
+  return (
+    <span className="inline-flex" role="img" aria-label={`Status: ${STATUS_LABELS[dotClass]}`}>
+      <span className={`dot ${dotClass}`} aria-hidden="true" />
+    </span>
+  )
 }
 
 export interface StatusBadgeProps {
@@ -81,7 +95,7 @@ export function StatusBadge({ status, compact = false, size = 'md', className = 
   if (compact) {
     return (
       <span className={`inline-flex items-center justify-center relative ${className}`} title={`Status: ${label}`}>
-        <StatusDot status={status} />
+        <StatusDot status={status} announce={false} />
         {isRunning && <span className="absolute inset-0 rounded-full animate-ping bg-[var(--accent)] opacity-40 pointer-events-none" />}
         <span className="sr-only">Status: {label}</span>
       </span>
@@ -91,7 +105,7 @@ export function StatusBadge({ status, compact = false, size = 'md', className = 
   return (
     <span className={`status-badge ${statusClass} ${sizeClasses} ${className}`}>
       <span className="relative flex items-center justify-center">
-        <StatusDot status={status} />
+        <StatusDot status={status} announce={false} />
         {isRunning && <span className="absolute inset-0 rounded-full animate-ping bg-[var(--accent)] opacity-40 pointer-events-none" />}
       </span>
       <span className="font-mono uppercase tracking-wider text-micro">{label}</span>

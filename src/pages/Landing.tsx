@@ -63,15 +63,16 @@ export default function Landing() {
             {/* Eyebrow */}
             <motion.p
               variants={score.revealChild}
-              className="font-mono text-[11px] font-medium tracking-[0.15em] uppercase text-[var(--dim)] opacity-80 mb-4"
+              className="font-mono text-micro font-medium tracking-[0.15em] uppercase text-[var(--dim)] opacity-80 mb-4"
             >
               Multi-agent orchestration
             </motion.p>
 
-            {/* Headline */}
+            {/* Headline — base uses --t-hero (the one place it's spec'd for),
+               scaled up further on larger viewports for marketing impact */}
             <motion.h1
               variants={score.revealChild}
-              className="text-[34px] sm:text-[46px] md:text-[54px] leading-[1.1] font-bold tracking-tight text-[var(--text)] max-w-[580px] mb-5"
+              className="text-hero sm:text-[46px] md:text-[54px] leading-[1.1] font-bold tracking-tight text-[var(--text)] max-w-[580px] mb-5"
             >
               Direct a team of AI agents through one console
             </motion.h1>
@@ -79,7 +80,7 @@ export default function Landing() {
             {/* Subhead */}
             <motion.p
               variants={score.revealChild}
-              className="text-[16px] sm:text-[17px] font-normal leading-[1.55] text-[var(--text-2)] max-w-[560px] mb-8"
+              className="text-strong sm:text-[17px] font-normal leading-[1.55] text-[var(--text-2)] max-w-[560px] mb-8"
             >
               Free-tier models. Sandboxed workspace. Parallel execution.
               Split complex tasks across Planner, Coder, Auditor, and Tester agents — all orchestrated from a single interface.
@@ -92,7 +93,7 @@ export default function Landing() {
                 onClick={() => navigate('/console')}
                 className={cx(
                   'inline-flex items-center justify-center gap-2.5 h-11 px-7 rounded-[8px]',
-                  'bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-[14px]',
+                  'bg-[var(--accent)] text-[var(--accent-ink)] font-semibold text-strong',
                   'shadow-[0_0_24px_rgba(72,180,255,0.22)] hover:brightness-110 hover:shadow-[0_0_28px_rgba(72,180,255,0.35)]',
                   'active:scale-[0.985] transition-all duration-[var(--d-quick)] ease-standard',
                 )}
@@ -108,7 +109,7 @@ export default function Landing() {
                   'inline-flex items-center justify-center gap-2 h-11 px-7 rounded-[8px]',
                   'border border-[var(--border-strong)] text-[var(--text-2)] bg-transparent',
                   'hover:bg-[var(--panel-2)] hover:border-[var(--text-2)] hover:text-[var(--text)]',
-                  'font-medium text-[14px] active:scale-[0.985] transition-all duration-[var(--d-quick)] ease-standard',
+                  'font-medium text-strong active:scale-[0.985] transition-all duration-[var(--d-quick)] ease-standard',
                 )}
               >
                 View on GitHub
@@ -128,7 +129,7 @@ export default function Landing() {
               ].map(({ label, status }) => (
                 <span
                   key={label}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border-soft)] bg-[var(--panel-2)]/80 text-[12px] font-mono text-[var(--dim)] shadow-sm backdrop-blur-sm"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[var(--border-soft)] bg-[var(--panel-2)]/80 text-meta font-mono text-[var(--dim)] shadow-sm backdrop-blur-sm"
                 >
                   <StatusDot status={status} />
                   {label}

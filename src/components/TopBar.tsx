@@ -38,8 +38,18 @@ export default function TopBar() {
         setQuotaOpen(false)
       }
     }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setWorkspaceOpen(false)
+        setQuotaOpen(false)
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [])
 
   // Trigger global command palette shortcut
@@ -82,45 +92,47 @@ export default function TopBar() {
             onClick={() => setWorkspaceOpen(!workspaceOpen)}
             className="flex items-center gap-2 px-2.5 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] hover:border-[var(--accent)] transition-colors text-left"
             title={DEFAULT_WORKSPACE}
+            aria-haspopup="true"
+            aria-expanded={workspaceOpen}
           >
             <FolderGit2 size={15} className="text-[var(--accent)] flex-shrink-0" />
-            <span className="font-mono text-xs font-medium text-[var(--text)] truncate max-w-[180px]">
+            <span className="font-mono text-meta font-medium text-[var(--text)] truncate max-w-[180px]">
               {DEFAULT_WORKSPACE.split(/[/\\]/).pop() || 'Workspace'}
             </span>
-            <ChevronDown size={13} className={`text-[var(--dim)] transition-transform duration-200 ${workspaceOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size={13} className={`text-[var(--dim)] transition-transform duration-[var(--d-quick)] ease-standard ${workspaceOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Workspace Dropdown */}
           {workspaceOpen && (
-            <div className="absolute top-full left-0 mt-1 w-72 bg-[var(--panel)] border border-[var(--border)] rounded-md shadow-xl p-2 z-50">
-              <div className="text-[10.5px] font-mono text-[var(--faint)] uppercase px-2 py-1 tracking-wider border-b border-[var(--border)] mb-1">
+            <div role="menu" className="absolute top-full left-0 mt-1 w-72 bg-[var(--panel)] border border-[var(--border)] rounded-panel shadow-xl p-2 z-50">
+              <div className="text-micro font-mono text-[var(--faint)] uppercase px-2 py-1 tracking-wider border-b border-[var(--border)] mb-1">
                 Active Workspace
               </div>
               <div className="px-2 py-1.5 rounded bg-[var(--panel-2)] border border-[var(--border)] mb-2">
-                <div className="font-mono text-xs font-semibold text-[var(--accent)] truncate">{DEFAULT_WORKSPACE}</div>
-                <div className="flex items-center gap-1.5 mt-1 text-[11px] text-[var(--dim)]">
+                <div className="font-mono text-meta font-semibold text-[var(--accent)] truncate">{DEFAULT_WORKSPACE}</div>
+                <div className="flex items-center gap-1.5 mt-1 text-micro text-[var(--dim)]">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
                   <span>Sandboxed Local Environment</span>
                 </div>
               </div>
 
-              <div className="text-[10.5px] font-mono text-[var(--faint)] uppercase px-2 py-1 tracking-wider border-b border-[var(--border)] mb-1">
+              <div className="text-micro font-mono text-[var(--faint)] uppercase px-2 py-1 tracking-wider border-b border-[var(--border)] mb-1">
                 Recent Sessions ({sessions.length})
               </div>
               <div className="max-h-48 overflow-y-auto space-y-1">
                 {sessions.slice(0, 5).map(session => (
                   <div
                     key={session.id}
-                    className="p-2 rounded hover:bg-[var(--panel-2)] transition-colors cursor-pointer text-xs flex items-center justify-between"
+                    className="p-2 rounded hover:bg-[var(--panel-2)] transition-colors cursor-pointer text-meta flex items-center justify-between"
                   >
                     <div className="truncate">
                       <div className="font-medium text-[var(--text)] truncate">{session.task}</div>
-                      <div className="font-mono text-[10px] text-[var(--faint)] flex items-center gap-1 mt-0.5">
+                      <div className="font-mono text-micro text-[var(--faint)] flex items-center gap-1 mt-0.5">
                         <Clock size={10} />
                         {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
-                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${session.status === 'done' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-sky-500/10 text-sky-400'}`}>
+                    <span className={`text-micro font-mono px-1.5 py-0.5 rounded ${session.status === 'done' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-sky-500/10 text-sky-400'}`}>
                       {session.status}
                     </span>
                   </div>
@@ -134,11 +146,11 @@ export default function TopBar() {
       {/* Center Quick Search Button */}
       <button
         onClick={handleOpenCommandPalette}
-        className="hidden md:flex items-center gap-2 px-3 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--border-strong)] text-[var(--dim)] hover:text-[var(--text)] transition-colors text-xs"
+        className="hidden md:flex items-center gap-2 px-3 py-1 rounded bg-[var(--bg-inset)] border border-[var(--border)] hover:border-[var(--border-strong)] text-[var(--dim)] hover:text-[var(--text)] transition-colors text-meta"
       >
         <Search size={13} className="text-[var(--faint)]" />
         <span>Search commands & files...</span>
-        <kbd className="font-mono text-[10px] bg-[var(--panel-2)] px-1.5 py-0.5 rounded text-[var(--text-2)] border border-[var(--border)] ml-3">
+        <kbd className="font-mono text-micro bg-[var(--panel-2)] px-1.5 py-0.5 rounded text-[var(--text-2)] border border-[var(--border)] ml-3">
           ⌘K
         </kbd>
       </button>
@@ -146,11 +158,12 @@ export default function TopBar() {
       {/* Right Controls */}
       <div className="flex items-center gap-2">
         {/* WS Connection Indicator */}
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-[11px] font-mono">
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] text-micro font-mono">
           <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
           <span className="hidden lg:inline text-[var(--text-2)]">
             {wsConnected ? 'CONNECTED' : 'STANDBY'}
           </span>
+          <span className="sr-only">WebSocket {wsConnected ? 'connected' : 'on standby'}</span>
         </div>
 
         {/* Quota Popover */}
@@ -159,24 +172,27 @@ export default function TopBar() {
             onClick={() => setQuotaOpen(!quotaOpen)}
             className="p-1.5 rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
             title="API Quotas & Usage"
+            aria-label="API Quotas & Usage"
+            aria-haspopup="true"
+            aria-expanded={quotaOpen}
           >
             <Gauge size={17} />
           </button>
 
           {quotaOpen && (
-            <div className="absolute top-full right-0 mt-1 w-64 bg-[var(--panel)] border border-[var(--border)] rounded-md shadow-xl p-3 z-50">
+            <div role="menu" className="absolute top-full right-0 mt-1 w-64 bg-[var(--panel)] border border-[var(--border)] rounded-panel shadow-xl p-3 z-50">
               <div className="flex items-center justify-between border-b border-[var(--border)] pb-2 mb-2">
-                <span className="font-mono text-xs font-semibold text-[var(--text)] flex items-center gap-1.5">
+                <span className="font-mono text-meta font-semibold text-[var(--text)] flex items-center gap-1.5">
                   <Cpu size={14} className="text-[var(--accent)]" /> Model Quotas
                 </span>
-                <button onClick={() => setQuotaOpen(false)} className="text-[var(--faint)] hover:text-[var(--text)]">
+                <button onClick={() => setQuotaOpen(false)} className="text-[var(--faint)] hover:text-[var(--text)]" aria-label="Close">
                   <X size={13} />
                 </button>
               </div>
               <div className="space-y-3">
                 {quotaUsage.map(q => (
-                  <div key={q.provider} className="text-xs">
-                    <div className="flex justify-between font-mono text-[11px] text-[var(--dim)] mb-1">
+                  <div key={q.provider} className="text-meta">
+                    <div className="flex justify-between font-mono text-micro text-[var(--dim)] mb-1">
                       <span>{q.provider}</span>
                       <span>{q.used}%</span>
                     </div>
@@ -195,6 +211,7 @@ export default function TopBar() {
           to="/integrations"
           className="p-1.5 rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
           title="Integrations"
+          aria-label="Integrations"
         >
           <Plug size={17} />
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)]" />
@@ -205,6 +222,8 @@ export default function TopBar() {
           onClick={() => setSettingsOpen(!settingsOpen)}
           className="p-1.5 rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors"
           title="Settings"
+          aria-label="Settings"
+          aria-expanded={settingsOpen}
         >
           <Settings size={17} />
         </button>
