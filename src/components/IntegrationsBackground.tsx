@@ -236,6 +236,7 @@ export default function IntegrationsBackground() {
 
     /* Resize */
     function onResize() {
+      if (!el) return;
       const nw = el.clientWidth;
       const nh = el.clientHeight;
       camera.aspect = nw / nh;

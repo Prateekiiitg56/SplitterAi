@@ -251,6 +251,7 @@ export default function NeuralMotes() {
 
     /* ── Resize handler ──────────────────────────────────────── */
     function onResize() {
+      if (!el) return;
       const w = el.clientWidth;
       const h = el.clientHeight;
       camera.aspect = w / h;
