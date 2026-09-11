@@ -12,6 +12,7 @@ import {
   Repeat,
   Grid,
   PanelLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { cx } from '../lib/cx'
 import type { SessionEntry } from '../types'
@@ -25,6 +26,44 @@ interface SidebarProps {
   currentPath: string
   onToggleCollapse?: () => void
 }
+
+/* ── Nav item helper ───────────────────────────────────────────────── */
+
+function NavItem({
+  icon: Icon,
+  label,
+  active,
+  collapsed,
+  iconColor = 'text-white/50',
+  onClick,
+}: {
+  icon: any
+  label: string
+  active: boolean
+  collapsed: boolean
+  iconColor?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={collapsed ? label : undefined}
+      className={cx(
+        'flex w-full items-center gap-3 rounded-lg transition-all duration-150',
+        collapsed ? 'h-9 justify-center px-0' : 'h-9 px-2.5',
+        active
+          ? 'bg-[rgba(30,120,255,0.14)] border border-[rgba(30,140,255,0.55)] text-white font-semibold'
+          : 'border border-transparent text-white/60 hover:bg-white/[0.06] hover:text-white',
+      )}
+    >
+      <Icon size={15} className={cx('shrink-0', active ? 'text-[var(--accent)]' : iconColor)} />
+      {!collapsed && <span className="flex-1 text-left text-[12.5px] truncate">{label}</span>}
+    </button>
+  )
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────── */
 
 export default function Sidebar({
   collapsed = false,
@@ -50,23 +89,23 @@ export default function Sidebar({
     <aside
       className={cx(
         'h-full flex flex-col select-none bg-black/70 backdrop-blur-md z-20',
-        'border-r border-white/10 transition-[width] duration-200 ease-in-out',
-        collapsed ? 'w-16 min-w-16' : 'w-[190px] min-w-[190px]',
+        'border-r border-white/[0.08] transition-[width] duration-200 ease-in-out',
+        collapsed ? 'w-14 min-w-14' : 'w-[200px] min-w-[200px]',
       )}
       aria-label="Primary navigation"
     >
-      {/* Workspace Header */}
+      {/* ── Workspace Header ─────────────────────────────────────── */}
       <div
         className={cx(
-          'flex h-12 items-center justify-between border-b border-white/10 px-2 flex-shrink-0',
-          collapsed && 'flex-col justify-center gap-2 px-0 py-2 h-auto min-h-12',
+          'flex items-center justify-between border-b border-white/[0.08] flex-shrink-0',
+          collapsed ? 'flex-col justify-center gap-2 px-0 py-3 h-auto min-h-14' : 'h-14 px-3',
         )}
       >
         {!collapsed ? (
           <img
             src="/splitterai-logo.png"
             alt="SplitterAI"
-            className="h-6 w-auto max-w-[120px] cursor-pointer object-contain object-left transition-opacity hover:opacity-80"
+            className="h-6 w-auto max-w-[110px] cursor-pointer object-contain object-left transition-opacity hover:opacity-80"
             onClick={() => navigate('/welcome')}
           />
         ) : (
@@ -84,7 +123,7 @@ export default function Sidebar({
                 onClick={onToggleCollapse}
                 aria-label="Expand sidebar"
                 title="Expand sidebar"
-                className="flex h-8 w-8 items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/[0.08] transition-colors"
               >
                 <PanelLeft size={14} />
               </button>
@@ -97,176 +136,99 @@ export default function Sidebar({
             type="button"
             onClick={onToggleCollapse}
             aria-label="Collapse sidebar"
-            className="flex h-8 w-8 items-center justify-center rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/[0.08] transition-colors"
           >
             <PanelLeft size={15} />
           </button>
         )}
       </div>
 
-      {/* Search Input Box */}
+      {/* ── Search ─────────────────────────────────────────────────── */}
       {!collapsed && (
-        <div className="px-2 py-4">
+        <div className="px-2.5 pt-3 pb-1.5">
           <button
             type="button"
             onClick={handleOpenCommandPalette}
             aria-label="Search workspace"
-            className="group relative flex h-10 w-full items-center gap-2 overflow-hidden rounded-lg border border-white/10 bg-white/[0.045] px-2 text-left text-xs text-white/45 shadow-[0_8px_24px_rgba(0,0,0,0.16)] transition-all duration-150 hover:border-white/20 hover:bg-white/[0.08] hover:text-white/80 focus-visible:border-[var(--accent)] focus-visible:bg-white/[0.08]"
+            className="group relative flex h-8 w-full items-center gap-2 overflow-hidden rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 text-left text-[11.5px] text-white/45 transition-all duration-150 hover:border-white/[0.15] hover:bg-white/[0.07] hover:text-white/80 focus-visible:border-[var(--accent)]"
           >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-white/45 transition-colors group-hover:bg-white/10 group-hover:text-white/75">
-              <Search size={13} />
-            </span>
-            <span className="flex-1 truncate font-medium tracking-[0.01em]">Search workspace</span>
+            <Search size={13} className="shrink-0 text-white/40 group-hover:text-white/70 transition-colors" />
+            <span className="flex-1 truncate font-medium">Search...</span>
+            <kbd className="hidden lg:inline-flex items-center rounded bg-white/[0.06] px-1 py-0.2 text-[9px] font-mono text-white/30 border border-white/[0.06]">
+              ⌘K
+            </kbd>
           </button>
         </div>
       )}
 
-      {/* Navigation List */}
-      <nav
-        className={cx(
-          'flex-1 overflow-y-auto px-2 py-2 text-xs font-medium',
-        )}
-      >
-        {/* Main Group */}
-        <div className="space-y-1">
-          <button
-            type="button"
-            onClick={() => navigate('/agents')}
-            className={cx(
-              'flex h-10 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
-              isRouteActive('/agents')
-                ? 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]'
-                : 'text-white/60 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
-              collapsed && 'justify-center px-0',
-            )}
-          >
-            <Bot size={15} className="text-purple-400 shrink-0" />
-            {!collapsed && (
-              <>
-                <span className="flex-1 text-left">Agents</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate('/console')}
-            className={cx(
-              'flex h-10 w-full items-center gap-2 rounded-lg px-2 transition-all duration-150',
-              isRouteActive('/console')
-                ? 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]'
-                : 'text-white/60 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
-              collapsed && 'justify-center px-0',
-            )}
-          >
-            <Home size={15} className="text-white/60 shrink-0" />
-            {!collapsed && <span className="flex-1 text-left">Home</span>}
-          </button>
-
+      {/* ── Navigation ─────────────────────────────────────────────── */}
+      <nav className="flex-1 overflow-y-auto px-2 py-2 text-[12.5px] font-medium space-y-4">
+        {/* Main */}
+        <div className="space-y-0.5">
+          <NavItem icon={Bot}  label="Agents" active={isRouteActive('/agents')}  collapsed={collapsed} iconColor="text-purple-400" onClick={() => navigate('/agents')} />
+          <NavItem icon={Home} label="Home"   active={isRouteActive('/console')} collapsed={collapsed} onClick={() => navigate('/console')} />
         </div>
 
-        {/* Company Group */}
+        {/* Workspace group */}
         {!collapsed ? (
           <div>
-            <div className="mb-2 px-2 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]">Workspace</div>
-            <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => navigate('/projects')}
-                  className={cx(
-                    'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
-                    isRouteActive('/projects') && 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]',
-                  )}
-                >
-                  <CreditCard size={14} className="text-white/50 shrink-0" />
-                  <span className="flex-1 text-left">Projects</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigate('/flow')}
-                  className={cx(
-                    'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
-                    isRouteActive('/flow') && 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]',
-                  )}
-                >
-                  <Repeat size={14} className="text-white/50 shrink-0" />
-                  <span className="flex-1 text-left">Workflow</span>
-                </button>
-
-              </div>
+            <div className="mb-1.5 px-2.5 text-[9.5px] font-bold text-white/30 uppercase tracking-[0.14em]">Workspace</div>
+            <div className="space-y-0.5">
+              <NavItem icon={FolderKanban} label="Projects" active={isRouteActive('/projects')} collapsed={collapsed} onClick={() => navigate('/projects')} />
+              <NavItem icon={Repeat}       label="Workflow" active={isRouteActive('/flow')}     collapsed={collapsed} onClick={() => navigate('/flow')} />
+            </div>
           </div>
         ) : (
-          <div className="mt-6 space-y-2 border-t border-white/10 pt-4">
-            <button
-              type="button"
-              onClick={() => navigate('/projects')}
-              title="Projects"
-              className={cx(
-                'flex h-10 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
-                isRouteActive('/projects') && 'bg-[var(--accent-quiet)] text-white shadow-[inset_2px_0_0_var(--accent)]',
-              )}
-            >
-              <FolderKanban size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/flow')}
-              title="Workflow"
-              className={cx(
-                'flex h-10 w-full items-center justify-center rounded-lg text-white/55 transition-all hover:bg-white/[0.07] hover:text-white',
-                isRouteActive('/flow') && 'bg-[var(--accent-quiet)] text-white shadow-[inset_2px_0_0_var(--accent)]',
-              )}
-            >
-              <GitBranch size={15} />
-            </button>
+          <div className="space-y-0.5 border-t border-white/[0.08] pt-3">
+            <NavItem icon={FolderKanban} label="Projects" active={isRouteActive('/projects')} collapsed={collapsed} onClick={() => navigate('/projects')} />
+            <NavItem icon={Repeat}       label="Workflow" active={isRouteActive('/flow')}     collapsed={collapsed} onClick={() => navigate('/flow')} />
           </div>
         )}
 
-        {/* Integrations */}
-        {!collapsed && (
+        {/* Connect group */}
+        {!collapsed ? (
           <div>
-            <div className="mb-2 mt-6 px-2 text-[10px] font-semibold text-white/35 uppercase tracking-[0.14em]">Connect</div>
-            <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => navigate('/integrations')}
-                  className={cx(
-                    'flex h-10 w-full items-center gap-2 rounded-lg px-2 text-white/60 transition-all duration-150 hover:bg-white/[0.07] hover:text-white hover:translate-x-0.5',
-                    isRouteActive('/integrations') && 'bg-[var(--accent-quiet)] text-white font-semibold shadow-[inset_2px_0_0_var(--accent)]',
-                  )}
-                >
-                  <Grid size={14} className="text-white/50 shrink-0" />
-                  <span className="flex-1 text-left">Apps</span>
-                </button>
-              </div>
+            <div className="mb-1.5 px-2.5 text-[9.5px] font-bold text-white/30 uppercase tracking-[0.14em]">Connect</div>
+            <div className="space-y-0.5">
+              <NavItem icon={Grid} label="Apps" active={isRouteActive('/integrations')} collapsed={collapsed} onClick={() => navigate('/integrations')} />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-0.5 border-t border-white/[0.08] pt-3">
+            <NavItem icon={Grid} label="Apps" active={isRouteActive('/integrations')} collapsed={collapsed} onClick={() => navigate('/integrations')} />
           </div>
         )}
       </nav>
 
-      {/* Footer Profile User Card */}
+      {/* ── Footer Profile ──────────────────────────────────────── */}
       <div
         className={cx(
-          'flex h-12 items-center justify-between border-t border-white/10 px-2 flex-shrink-0 bg-black/60',
-          collapsed && 'justify-center px-0',
+          'flex items-center border-t border-white/[0.08] flex-shrink-0 bg-black/40',
+          collapsed ? 'justify-center px-0 py-2.5' : 'gap-2 px-2.5 py-2.5',
         )}
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-400 via-rose-400 to-purple-500 p-0.5 shrink-0">
-            <div className="w-full h-full rounded-full bg-black flex items-center justify-center">
-              <User size={12} className="text-white" />
-            </div>
+        {/* Avatar */}
+        <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 via-rose-400 to-purple-500 p-[2px] shrink-0">
+          <div className="w-full h-full rounded-full bg-[#0a0e18] flex items-center justify-center">
+            <span className="text-[9px] font-bold text-white">PS</span>
           </div>
         </div>
+
         {!collapsed && (
-          <button
-            type="button"
-            aria-label="Open account menu"
-            title="Account menu"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <MoreHorizontal size={14} />
-          </button>
+          <>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11.5px] font-medium text-white/90 truncate">Prateek Singh</div>
+              <div className="text-[9.5px] text-white/35 font-mono truncate">prateek@workspace.dev</div>
+            </div>
+            <button
+              type="button"
+              aria-label="Open account menu"
+              title="Account menu"
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-white/30 hover:text-white/70 hover:bg-white/[0.08] transition-colors shrink-0"
+            >
+              <ChevronRight size={13} />
+            </button>
+          </>
         )}
       </div>
     </aside>

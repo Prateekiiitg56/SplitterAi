@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { cx } from '../lib/cx'
 import { ElementsCollection } from '../shaders/elements/ElementsCollection'
+import NeuralMotes from '../components/NeuralMotes'
 import '../shaders/threeui.css'
 
 const GITHUB_URL = 'https://github.com/Prateekiiitg56/SplitterAi'
@@ -45,6 +46,7 @@ export default function Landing() {
           brightness={0.9}
           opacity={0.8}
         />
+        <NeuralMotes />
       </div>
 
       <div className="relative z-10 min-h-screen bg-gradient-to-b from-[var(--bg)]/80 via-transparent to-[var(--bg)]/95">
@@ -102,7 +104,7 @@ export default function Landing() {
 
       {/* ══════════════ Section 3 — Footer CTA + footer ══════════════ */}
       <section className="relative z-10 flex min-h-[calc(100vh-88px)] flex-col items-center justify-end px-6 pb-32 pt-20 text-center">
-        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[min(62vw,560px)] w-[min(62vw,560px)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[var(--accent)]/10 shadow-[0_0_120px_rgba(72,180,255,0.08)]" />
+
         <button
           type="button"
           onClick={() => navigate('/console')}

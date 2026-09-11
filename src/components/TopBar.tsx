@@ -84,7 +84,7 @@ export default function TopBar() {
   ]
 
   return (
-    <header className="h-12 w-full bg-[var(--bg)]/80 backdrop-blur-md border-b border-[var(--border)] px-3 flex items-center justify-between z-30 flex-shrink-0 select-none">
+    <header className="h-14 w-full bg-[var(--bg)]/80 backdrop-blur-md border-b border-white/[0.08] px-4 flex items-center justify-between z-30 flex-shrink-0 select-none">
       {/* Left: Workspace Switcher */}
       <div className="flex items-center gap-3 min-w-0" ref={workspaceRef}>
         <div className="relative">
@@ -146,22 +146,22 @@ export default function TopBar() {
       {/* Center Quick Search Button */}
       <button
         onClick={handleOpenCommandPalette}
-        className="hidden md:flex h-8 items-center gap-2 rounded bg-[var(--bg-inset)] px-3 border border-[var(--border)] hover:border-[var(--border-strong)] text-[var(--dim)] hover:text-[var(--text)] transition-colors text-meta"
+        className="hidden md:flex h-9 w-[480px] max-w-[50%] items-center gap-2 rounded-lg bg-white/[0.04] px-3.5 border border-white/[0.08] hover:border-white/[0.15] text-white/40 hover:text-white/70 transition-colors text-[13px]"
       >
-        <Search size={13} className="text-[var(--faint)]" />
-        <span>Search commands & files...</span>
-        <kbd className="font-mono text-micro bg-[var(--panel-2)] px-1.5 py-0.5 rounded text-[var(--text-2)] border border-[var(--border)] ml-3">
-          ⌘K
+        <Search size={14} className="text-white/30" />
+        <span className="flex-1 text-left">Search commands & files...</span>
+        <kbd className="font-mono text-[10px] bg-white/[0.06] px-1.5 py-0.5 rounded text-white/30 border border-white/[0.06]">
+          Ctrl K
         </kbd>
       </button>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {/* WS Connection Indicator */}
-        <div className="hidden sm:flex h-8 items-center gap-1.5 rounded bg-[var(--panel-2)] px-3 border border-[var(--border)] text-micro font-mono">
+        <div className="hidden sm:flex h-8 items-center gap-2 rounded-lg bg-white/[0.04] px-3 border border-white/[0.08] text-[11px] font-mono">
           <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-          <span className="hidden lg:inline text-[var(--text-2)]">
-            {wsConnected ? 'CONNECTED' : 'STANDBY'}
+          <span className="hidden lg:inline text-white/60">
+            {wsConnected ? 'Connected' : 'Standby'}
           </span>
           <span className="sr-only">WebSocket {wsConnected ? 'connected' : 'on standby'}</span>
         </div>
@@ -220,13 +220,18 @@ export default function TopBar() {
         {/* Settings Toggle */}
         <button
           onClick={() => setSettingsOpen(!settingsOpen)}
-          className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/[0.06] text-white/35 hover:text-white transition-colors"
           title="Settings"
           aria-label="Settings"
           aria-expanded={settingsOpen}
         >
           <Settings size={17} />
         </button>
+
+        {/* User Avatar */}
+        <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[11px] font-bold text-[var(--accent-ink)] ml-1">
+          PS
+        </div>
       </div>
     </header>
   )
