@@ -27,9 +27,8 @@ import ConstellationBackground from './components/ConstellationBackground'
 function Layout() {
   const location = useLocation()
   const [downloadModalOpen, setDownloadModalOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth < 900,
-  )
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const { sessions } = useApp()
   const { selectedSessionId, setSelectedSessionId } = useUI()
 
@@ -37,7 +36,9 @@ function Layout() {
   // never squeezes the content area on narrow viewports; the manual toggle
   // still overrides this once the user has touched it.
   useEffect(() => {
+    setMounted(true)
     const mq = window.matchMedia('(max-width: 900px)')
+    setSidebarCollapsed(mq.matches)
     const handleChange = (e: MediaQueryListEvent) => setSidebarCollapsed(e.matches)
     mq.addEventListener('change', handleChange)
     return () => mq.removeEventListener('change', handleChange)
@@ -46,17 +47,18 @@ function Layout() {
   return (
     <div className="app-shell flex h-screen w-screen p-0 overflow-hidden relative">
       <ConstellationBackground />
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        sessions={sessions}
-        selectedSession={selectedSessionId || ''}
-        onSelectSession={setSelectedSessionId}
-        currentPath={location.pathname}
-        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
-      />
+      {mounted && (
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          sessions={sessions}
+          selectedSession={selectedSessionId || ''}
+          onSelectSession={setSelectedSessionId}
+          currentPath={location.pathname}
+          onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+        />
+      )}
 
-      <div className="app flex flex-col flex-1 h-full w-full overflow-hidden relative z-10">
-        {location.pathname !== '/console' && location.pathname !== '/' && <TopBar />}
+      <div className="main-col flex flex-col flex-1 h-full w-full overflow-hidden relative z-10">
         <div className="flex-1 overflow-hidden relative flex flex-col h-full">
           <ErrorBoundary key={location.pathname}>
             <Routes>

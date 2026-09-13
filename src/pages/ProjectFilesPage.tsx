@@ -6,7 +6,7 @@ export default function ProjectFilesPage() {
   const { currentWorkspace } = useApp()
   return (
     <ProjectTabShell>
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-transparent">
+      <div className="files-wrap flex-1 min-h-0 min-w-0">
         <FileExplorer workspace={currentWorkspace} />
       </div>
     </ProjectTabShell>

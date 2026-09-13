@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { StatusBadge, AgentIcon } from '../components/Badges'
 import { useApp } from '../context/AppContext'
 import { ROLE_META } from '../data'
-import { X, Layers, Upload, Play, AlertTriangle } from 'lucide-react'
+import { Upload, AlertTriangle, GitBranch, Bot, Cpu, Layers } from 'lucide-react'
 import type { AgentRole, Subtask } from '../types'
 import { importN8nWorkflow } from '../lib/api'
-import { PageHeader } from '../components/PageHeader'
+import ProjectTabShell from './ProjectTabShell'
 import { Button } from '../components/primitives/Button'
 
 interface FlowNodeData {
@@ -27,7 +27,7 @@ interface FlowNodeData {
 export default function FlowPage() {
   const navigate = useNavigate()
   const { executeTaskWithPlan, currentWorkspace } = useApp()
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>('alpha')
   const [importError, setImportError] = useState<string | null>(null)
   const [importedTaskTitle, setImportedTaskTitle] = useState<string>('n8n Workflow Execution')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -42,7 +42,7 @@ export default function FlowPage() {
       status: 'completed',
       task: 'Task Instruction: Build authentication system with JWT',
       progress: 100,
-      color: 'var(--accent)',
+      color: 'var(--role-planner)',
       x: 40,
       y: 180,
       group: 1,
@@ -56,7 +56,7 @@ export default function FlowPage() {
       status: 'working',
       task: 'Implementing JWT authentication endpoint',
       progress: 82,
-      color: 'var(--accent)',
+      color: 'var(--role-coder)',
       x: 320,
       y: 40,
       group: 2,
@@ -73,7 +73,7 @@ export default function FlowPage() {
       status: 'working',
       task: 'Building login & signup UI form components',
       progress: 64,
-      color: 'var(--accent)',
+      color: 'var(--role-coder)',
       x: 320,
       y: 200,
       group: 2,
@@ -90,7 +90,7 @@ export default function FlowPage() {
       status: 'idle',
       task: 'Review code security & test suite',
       progress: 0,
-      color: 'var(--faint)',
+      color: 'var(--role-auditor)',
       x: 620,
       y: 120,
       group: 3,
@@ -99,14 +99,13 @@ export default function FlowPage() {
   })
 
   // Graph edges
-  const [edges, setEdges] = useState<[string, string][]>([
+  const [edges] = useState<[string, string][]>([
     ['master', 'alpha'],
     ['master', 'delta'],
     ['alpha', 'auditor'],
     ['delta', 'auditor'],
   ])
 
-  const canvasRef = useRef<HTMLDivElement>(null)
   const [svgPaths, setSvgPaths] = useState<{ id: string; path: string; className: string }[]>([])
 
   // Dragging logic
@@ -152,17 +151,17 @@ export default function FlowPage() {
       const to = nodes[toId]
       if (!from || !to) return { id: `${fromId}-${toId}`, path: '', className: '' }
 
-      const p1 = { x: from.x + 184, y: from.y + 40 }
+      const p1 = { x: from.x + 190, y: from.y + 40 }
       const p2 = { x: to.x, y: to.y + 40 }
       const dx = Math.max(60, (p2.x - p1.x) * 0.5)
 
       const pathStr = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`
-      const edgeClass = from.status === 'working' ? 'active-edge' : from.status === 'completed' ? 'done-edge' : ''
+      const strokeColor = from.status === 'working' ? 'var(--accent)' : from.status === 'completed' ? 'var(--good)' : 'var(--border)'
 
       return {
         id: `${fromId}-${toId}`,
         path: pathStr,
-        className: edgeClass,
+        className: strokeColor,
       }
     })
 
@@ -184,9 +183,6 @@ export default function FlowPage() {
       setImportedTaskTitle(title)
 
       const newNodes: Record<string, FlowNodeData> = {}
-      const newEdges: [string, string][] = []
-
-      // Group layout indexing
       const groupCount: Record<number, number> = {}
 
       res.subtasks.forEach((st) => {
@@ -196,297 +192,184 @@ export default function FlowPage() {
 
         const posX = 40 + (g - 1) * 260
         const posY = 60 + indexInGroup * 140
-
-        const roleStr = (st.role as AgentRole) || 'unassigned'
-        const meta = ROLE_META[roleStr] || ROLE_META.unassigned
+        const roleStr = (st.role as AgentRole) || 'coder'
 
         newNodes[st.id] = {
           id: st.id,
-          title: `${st.id.toUpperCase()} • ${meta.label}`,
+          title: `${roleStr.toUpperCase()} — ${st.id}`,
           role: roleStr,
           agentRole: roleStr,
           status: 'idle',
           task: st.instruction,
           progress: 0,
-          color: meta.color,
+          color: ROLE_META[roleStr]?.color || 'var(--accent)',
           x: posX,
           y: posY,
           group: g,
-          activity: [['—', 'Imported from n8n workflow']],
+          activity: [['—', 'Imported from n8n JSON']],
         }
       })
 
-      // Generate visual DAG edges between sequential group nodes
-      const nodeKeys = Object.keys(newNodes)
-      nodeKeys.forEach((id1) => {
-        const n1 = newNodes[id1]
-        nodeKeys.forEach((id2) => {
-          const n2 = newNodes[id2]
-          if (n2.group === n1.group + 1) {
-            newEdges.push([id1, id2])
-          }
-        })
-      })
-
       setNodes(newNodes)
-      setEdges(newEdges)
-      setSelectedNodeId(null)
+      setSelectedNodeId(Object.keys(newNodes)[0] || null)
+
+      const planSubtasks: Subtask[] = res.subtasks.map((s) => ({
+        id: s.id,
+        role: (s.role as AgentRole) || 'coder',
+        group: s.group || 1,
+        instruction: s.instruction,
+        status: 'pending',
+        steps: 0,
+      }))
+
+      await executeTaskWithPlan(title, planSubtasks, currentWorkspace)
     } catch (err: any) {
-      setImportError(err.message || 'Failed to import n8n workflow JSON.')
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      setImportError(err.message || 'Failed to parse or import n8n workflow file.')
     }
-  }
-
-  // Count unassigned nodes
-  const unassignedCount = Object.values(nodes).filter((n) => n.agentRole === 'unassigned').length
-
-  // Launch confirmed plan
-  const handleLaunchPlan = async () => {
-    if (unassignedCount > 0) return
-
-    const subtasksToLaunch: Subtask[] = Object.values(nodes).map((n) => ({
-      id: n.id,
-      role: n.agentRole === 'unassigned' ? 'coder' : n.agentRole,
-      group: n.group || 1,
-      instruction: n.task,
-      status: 'pending',
-      steps: 0,
-    }))
-
-    await executeTaskWithPlan(importedTaskTitle, subtasksToLaunch, currentWorkspace)
-    navigate('/projects/default')
   }
 
   const selectedNode = selectedNodeId ? nodes[selectedNodeId] : null
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
-      
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      <PageHeader
-        title="Agent Flow Canvas"
-        meta={`(${importedTaskTitle})`}
-        actions={
-          <>
-            <Button variant="ghost" size="sm" icon={<Upload size={13} />} onClick={() => fileInputRef.current?.click()}>
-              Import n8n workflow
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<Play size={13} />}
-              disabled={unassignedCount > 0}
-              onClick={handleLaunchPlan}
-            >
-              Confirm & launch plan
-            </Button>
-          </>
-        }
-      />
+    <ProjectTabShell>
+      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent select-none overflow-hidden">
+        {importError && (
+          <div className="p-3 m-3 border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between rounded-panel">
+            <span>
+              <strong>Import Error:</strong> {importError}
+            </span>
+            <button onClick={() => setImportError(null)} className="font-bold hover:underline">
+              ✕
+            </button>
+          </div>
+        )}
 
-      {/* Error or Warning Banners */}
-      {importError && (
-        <div className="mx-5 mt-3 p-3 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
-          <span>⚠️ <strong>Import Error:</strong> {importError}</span>
-          <button onClick={() => setImportError(null)} className="font-bold hover:underline">✕</button>
-        </div>
-      )}
+        <div className="flow-wrap">
+          {/* Canvas Area */}
+          <div
+            className="flow-canvas"
+            onPointerMove={handlePointerMove}
+            onPointerUp={() => setDraggingId(null)}
+          >
+            {/* SVG Connecting Lines */}
+            <svg className="flow-svg-lines">
+              {svgPaths.map((sp) => (
+                <path
+                  key={sp.id}
+                  d={sp.path}
+                  fill="none"
+                  stroke={sp.className}
+                  strokeWidth="2"
+                  strokeDasharray={sp.className === 'var(--accent)' ? '6,6' : undefined}
+                />
+              ))}
+            </svg>
 
-      {unassignedCount > 0 && !importError && (
-        <div className="mx-5 mt-3 p-2.5 rounded border border-[var(--warn)] bg-[var(--warn-quiet)] text-[var(--warn)] text-meta flex items-center gap-2 flex-shrink-0">
-          <AlertTriangle size={14} className="flex-shrink-0" />
-          <span>
-            <strong>Role Required:</strong> {unassignedCount} node(s) have role <code>"unassigned"</code>. Click a node to assign its role before launching.
-          </span>
-        </div>
-      )}
+            {/* Nodes */}
+            {Object.values(nodes).map((node) => {
+              const isSelected = selectedNodeId === node.id
+              return (
+                <div
+                  key={node.id}
+                  onPointerDown={(e) => handlePointerDown(node.id, e)}
+                  onPointerUp={(e) => handlePointerUp(node.id, e)}
+                  className={`fnode ${isSelected ? 'selected' : ''}`}
+                  style={{ left: node.x, top: node.y }}
+                >
+                  <div className="fn-top">
+                    <span style={{ color: node.color, display: 'inline-flex' }}>
+                      <AgentIcon role={node.agentRole} size={13} />
+                    </span>
+                    <span className="fn-title">{node.title}</span>
+                  </div>
+                  <div className="fn-task">{node.task}</div>
+                  <div className="fn-progress-track">
+                    <div className="fn-progress-fill" style={{ width: `${node.progress}%`, backgroundColor: node.color }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
 
-      {/* Canvas Wrap */}
-      <div
-        ref={canvasRef}
-        onPointerMove={handlePointerMove}
-        className="flow-canvas-wrap relative flex-1 overflow-auto bg-transparent bg-[radial-gradient(circle,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:26px_26px]"
-      >
-        <div className="flow-canvas relative w-[1400px] h-[900px]">
-          
-          {/* SVG Connection Lines */}
-          <svg className="flow-svg absolute inset-0 w-full h-full pointer-events-none overflow-visible">
-            {svgPaths.map((ep) => (
-              <path
-                key={ep.id}
-                d={ep.path}
-                className={`fill-none stroke-[var(--border)] stroke-[1.4] transition-all ${
-                  ep.className === 'active-edge' ? 'stroke-[var(--accent)]' : ep.className === 'done-edge' ? 'stroke-[#1A3A38]' : ''
-                }`}
+          {/* Right Inspector Panel */}
+          <div className="flow-side">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="m-0">Node Inspector</h3>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleFileChange}
               />
-            ))}
-          </svg>
-
-          {/* Flow Nodes */}
-          {Object.values(nodes).map((node) => {
-            const isSelected = selectedNodeId === node.id
-            const isUnassigned = node.agentRole === 'unassigned'
-
-            return (
-              <div
-                key={node.id}
-                style={{ left: `${node.x}px`, top: `${node.y}px` }}
-                onPointerDown={(e) => handlePointerDown(node.id, e)}
-                onPointerUp={(e) => handlePointerUp(node.id, e)}
-                className={`flow-node absolute w-[184px] border rounded-panel bg-[var(--panel)] p-3 cursor-grab select-none shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-colors ${
-                  isUnassigned
-                    ? 'border-[var(--warn)] bg-[var(--panel)]'
-                    : isSelected
-                    ? 'border-[var(--accent)] shadow-[0_0_0_1px_var(--accent)]'
-                    : 'border-[var(--border-soft)] hover:border-[var(--border)]'
-                }`}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Upload size={12} />}
+                onClick={() => fileInputRef.current?.click()}
               >
-                {/* Ports */}
-                <div className="flow-port in absolute left-[-5px] top-1/2 -translate-y-1/2 w-[7px] h-[7px] rounded-full bg-[var(--border)] border-2 border-[var(--panel)]" />
-                <div className="flow-port out absolute right-[-5px] top-1/2 -translate-y-1/2 w-[7px] h-[7px] rounded-full bg-[var(--border)] border-2 border-[var(--panel)]" />
+                Import n8n
+              </Button>
+            </div>
 
-                {/* Node Top */}
-                <div className="flow-node-top flex items-center gap-2 mb-2">
-                  <div className={`flow-node-avatar w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 ${
-                    isUnassigned ? 'border-[var(--warn)] text-[var(--warn)]' : 'border-[var(--border)] text-[var(--accent)]'
-                  }`}>
-                    <AgentIcon role={node.agentRole === 'unassigned' ? 'planner' : node.agentRole} size={12} />
+            {selectedNode ? (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <span style={{ color: selectedNode.color, display: 'inline-flex' }}>
+                    <AgentIcon role={selectedNode.agentRole} size={16} />
+                  </span>
+                  <h3 className="m-0 text-title">{selectedNode.title}</h3>
+                </div>
+                <div className="sub">Group {selectedNode.group} Worker Node</div>
+
+                <div className="space-y-1 mb-4">
+                  <div className="kv-row">
+                    <span className="k">Node ID</span>
+                    <span className="v">{selectedNode.id}</span>
                   </div>
-                  <div className="min-w-0">
-                    <div className="flow-node-name font-medium text-meta text-[var(--text)] truncate">{node.title}</div>
-                    <div className={`flow-node-role font-mono text-micro truncate ${isUnassigned ? 'text-[var(--warn)] font-bold' : 'text-[var(--faint)]'}`}>
-                      {node.role}
-                    </div>
+                  <div className="kv-row">
+                    <span className="k">Role</span>
+                    <span className="v uppercase">{selectedNode.role}</span>
+                  </div>
+                  <div className="kv-row">
+                    <span className="k">Status</span>
+                    <span className="v">
+                      <StatusBadge status={selectedNode.status} size="sm" />
+                    </span>
+                  </div>
+                  <div className="kv-row">
+                    <span className="k">Progress</span>
+                    <span className="v">{selectedNode.progress}%</span>
                   </div>
                 </div>
 
-                {/* Node Task */}
-                <div className="flow-node-task text-micro text-[var(--dim)] line-clamp-2 leading-relaxed mb-2">
-                  {node.task}
-                </div>
-
-                <StatusBadge status={node.status} />
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Slide-out Detail Drawer (Editable) */}
-        <div
-          className={`flow-drawer absolute top-4 right-4 bottom-4 w-[320px] bg-[var(--panel)] border border-[var(--border-soft)] rounded-panel flex flex-col overflow-hidden shadow-2xl transition-transform duration-[var(--d-slow)] ease-standard z-20 ${
-            selectedNode ? 'translate-x-0' : 'translate-x-[120%]'
-          }`}
-        >
-          {selectedNode && (
-            <>
-              <div className="flow-drawer-head flex items-center justify-between p-4 border-b border-[var(--border-soft)]">
-                <div>
-                  <h3 className="flow-drawer-title text-strong font-semibold text-[var(--text)]">{selectedNode.title}</h3>
-                  <div className="flow-drawer-role font-mono text-micro text-[var(--faint)]">Group {selectedNode.group}</div>
-                </div>
-                <button onClick={() => setSelectedNodeId(null)} className="text-[var(--faint)] hover:text-[var(--text)] cursor-pointer">
-                  <X size={15} />
-                </button>
-              </div>
-
-              <div className="flow-drawer-body p-4 overflow-y-auto flex-1 space-y-4">
-                {/* Editable Agent Role */}
-                <div>
-                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1 block">
-                    ASSIGNED AGENT ROLE
-                  </label>
-                  <select
-                    value={selectedNode.agentRole}
-                    onChange={(e) => {
-                      const newRole = e.target.value as AgentRole
-                      const meta = ROLE_META[newRole] || ROLE_META.unassigned
-                      setNodes((prev) => ({
-                        ...prev,
-                        [selectedNode.id]: {
-                          ...prev[selectedNode.id],
-                          agentRole: newRole,
-                          role: newRole,
-                          title: `${selectedNode.id.toUpperCase()} • ${meta.label}`,
-                          color: meta.color,
-                        },
-                      }))
-                    }}
-                    className={`w-full bg-[var(--bg-inset)] border rounded px-3 py-2 font-mono text-meta cursor-pointer focus:outline-none ${
-                      selectedNode.agentRole === 'unassigned' ? 'border-[var(--warn)] text-[var(--warn)] font-bold' : 'border-[var(--border)] text-[var(--text)]'
-                    }`}
-                  >
-                    <option value="unassigned">⚠️ unassigned (role required)</option>
-                    <option value="planner">planner</option>
-                    <option value="coder">coder</option>
-                    <option value="auditor">auditor</option>
-                    <option value="tester">tester</option>
-                  </select>
-                </div>
-
-                {/* Editable Instruction Task */}
-                <div>
-                  <label className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1 block">
-                    SUBTASK INSTRUCTION
-                  </label>
-                  <textarea
-                    value={selectedNode.task}
-                    onChange={(e) => {
-                      const newTask = e.target.value
-                      setNodes((prev) => ({
-                        ...prev,
-                        [selectedNode.id]: {
-                          ...prev[selectedNode.id],
-                          task: newTask,
-                        },
-                      }))
-                    }}
-                    rows={4}
-                    className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded p-2 text-meta text-[var(--text)] font-sans focus:outline-none focus:border-[var(--accent)] resize-none"
-                  />
-                </div>
-
-                <div>
-                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
-                    STATUS & PROGRESS
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <StatusBadge status={selectedNode.status} />
-                    <span className="font-mono text-micro text-[var(--dim)]">{selectedNode.progress}%</span>
-                  </div>
-
-                  <div className="progress-track h-[3px] rounded-full bg-[var(--border-soft)] overflow-hidden">
-                    <div
-                      className="progress-fill h-full rounded-full transition-all duration-[var(--d-base)] ease-standard"
-                      style={{ width: `${selectedNode.progress}%`, backgroundColor: selectedNode.color }}
-                    />
+                <div className="mb-4">
+                  <div className="k text-micro font-mono uppercase mb-1">Instruction Task</div>
+                  <div className="p-2.5 rounded bg-[var(--bg-inset)] border border-[var(--border-soft)] text-meta text-[var(--text-2)] font-sans leading-relaxed">
+                    {selectedNode.task}
                   </div>
                 </div>
 
                 <div>
-                  <div className="flow-drawer-section-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
-                    REAL-TIME ACTIVITY
-                  </div>
-                  <div className="space-y-1">
-                    {selectedNode.activity.map((act, i) => (
-                      <div key={i} className="activity-item flex gap-3 text-micro py-2 border-b border-[var(--border-soft)] last:border-b-0">
-                        <div className="activity-time font-mono text-micro text-[var(--faint)] whitespace-nowrap">{act[0]}</div>
-                        <div className="activity-text text-[var(--dim)] leading-relaxed" dangerouslySetInnerHTML={{ __html: act[1] }} />
+                  <div className="k text-micro font-mono uppercase mb-2">Node Activity Log</div>
+                  <div className="space-y-1.5 font-mono text-micro">
+                    {selectedNode.activity.map(([time, msg], i) => (
+                      <div key={i} className="flex gap-2 p-1.5 rounded bg-[var(--panel)] border border-[var(--border-soft)]">
+                        <span className="text-[var(--faint)]">{time}</span>
+                        <span className="text-[var(--text)]">{msg}</span>
                       </div>
                     ))}
                   </div>
                 </div>
+              </>
+            ) : (
+              <div className="text-center p-6 text-[var(--faint)] text-meta font-mono">
+                Click any node on the graph canvas to inspect its parameters.
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </ProjectTabShell>
   )
 }

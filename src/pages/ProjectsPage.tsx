@@ -1,14 +1,12 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { Search, Plus, Trash2, Edit2, Upload, FileArchive, Loader2 } from 'lucide-react'
+import { Search, Plus, Trash2, Edit2, Upload, FileArchive, Loader2, Folder } from 'lucide-react'
 import type { SessionEntry } from '../types'
 import { StatusBadge } from '../components/Badges'
 import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
 import { TextField } from '../components/primitives/Field'
-import { EmptyState } from '../components/primitives/EmptyState'
-import { Panel } from '../components/primitives/Panel'
 import { uploadWorkspace } from '../lib/api'
 import { PageHeader } from '../components/PageHeader'
 
@@ -97,8 +95,8 @@ export default function ProjectsPage() {
 
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
-      
       <PageHeader
+        icon={<Folder size={16} />}
         title="Projects"
         meta="/ workspace"
         actions={
@@ -123,152 +121,160 @@ export default function ProjectsPage() {
       />
 
       {/* Page Body */}
-      <div className="page-body flex-1 overflow-y-auto p-6">
-        
-        {/* Search & Filter Row */}
-        <div className="search-row flex flex-wrap items-center gap-3 mb-4">
-          <div className="search-box flex h-8 flex-1 max-w-[320px] items-center gap-2 border border-[var(--border-soft)] rounded-md px-3 bg-[var(--panel)] text-[var(--faint)]">
-            <Search size={13} />
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search projects…"
-              className="bg-transparent border-none outline-none text-[var(--text)] text-meta w-full placeholder:text-[var(--faint)] font-sans"
-            />
-          </div>
-
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setStatusFilter('working')}
-            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
-          >
-            Working
-          </button>
-          <button
-            onClick={() => setStatusFilter('completed')}
-            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'completed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
-          >
-            Completed
-          </button>
-          <button
-            onClick={() => setStatusFilter('failed')}
-            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
-          >
-            Failed
-          </button>
-        </div>
-
-        {/* Global Loading / Error State */}
-        {sessionsLoading ? (
-          <div className="p-8 flex items-center justify-center gap-2 text-[var(--dim)] font-mono text-meta">
-            <Loader2 size={14} className="animate-spin" />
-            <span>Loading workspace projects…</span>
-          </div>
-        ) : sessionsError ? (
-          <div className="p-4 rounded-md border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between">
-            <span>⚠️ {sessionsError}</span>
-            <button onClick={() => refetchSessions()} className="underline font-bold hover:text-[var(--text)] transition-colors">Retry</button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <Panel>
-            <EmptyState
-              icon={<FileArchive size={32} />}
-              title="No projects found"
-              detail="Import an existing repository or create a new project from Home."
-              action={
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={<Upload size={13} />}
-                    onClick={() => {
-                      setSelectedZipFile(null)
-                      setUploadError(null)
-                      setIsImportModalOpen(true)
-                    }}
-                  >
-                    Import project (.zip)
-                  </Button>
-                  <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => navigate('/')}>
-                    Create project
-                  </Button>
-                </>
-              }
-            />
-          </Panel>
-        ) : (
-          /* Projects Table */
-          <div className="table border border-[var(--border-soft)] rounded-panel overflow-hidden bg-[var(--panel)]">
-            
-            {/* Table Head */}
-            <div className="trow head grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-2.5 border-b border-[var(--border-soft)] text-[var(--faint)] font-mono text-micro tracking-wider uppercase font-bold">
-              <div>PROJECT</div>
-              <div>STATUS</div>
-              <div>AGENTS</div>
-              <div>LAST ACTIVE</div>
-              <div>ACTIONS</div>
+      <div className="page-body flex-1 overflow-y-auto">
+        <div className="projects-body">
+          {/* Toolbar */}
+          <div className="toolbar">
+            <div className="field" style={{ flex: 1 }}>
+              <Search size={13} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search projects…"
+              />
             </div>
 
-            {/* Table Rows */}
-            {filtered.map((s) => {
-              const projName = s.task || s.workspace.split(/[/\\]/).pop() || 'Untitled Project'
-              const projPath = s.workspace || '~/dev/splitter-ai'
-              const agentCount = s.subtaskCount || 4
-              const createdAt = s.createdAt
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`chip ${statusFilter === 'all' ? 'active' : ''}`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('working')}
+                className={`chip ${statusFilter === 'working' ? 'active' : ''}`}
+              >
+                Working
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('completed')}
+                className={`chip ${statusFilter === 'completed' ? 'active' : ''}`}
+              >
+                Completed
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('failed')}
+                className={`chip ${statusFilter === 'failed' ? 'active' : ''}`}
+              >
+                Failed
+              </button>
+            </div>
 
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => navigate(`/projects/${s.id || 'default'}`)}
-                  className="trow grid grid-cols-[2.2fr_1fr_0.8fr_1fr_0.4fr] items-center px-4 py-3 border-b border-[var(--border-soft)] text-meta hover:bg-[var(--panel-2)] cursor-pointer transition-colors last:border-b-0"
-                >
-                  <div>
-                    <div className="tproj-name font-medium text-[var(--text)]">{projName}</div>
-                    <div className="tproj-path text-[var(--faint)] font-mono text-micro mt-0.5">{projPath}</div>
-                  </div>
-
-                  <div>
-                    <StatusBadge status={s.status || 'working'} />
-                  </div>
-
-                  <div className="tmeta text-[var(--dim)] font-mono text-micro">
-                    {agentCount} agents
-                  </div>
-
-                  <div className="tmeta text-[var(--dim)] font-mono text-micro">
-                    {createdAt ? new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setEditingSession(s)
-                        setRenameValue(projName)
-                      }}
-                      className="text-[var(--faint)] hover:text-[var(--text)] p-1 transition-colors cursor-pointer"
-                      title="Rename"
-                    >
-                      <Edit2 size={13} />
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(s.id, e)}
-                      className="text-[var(--faint)] hover:text-[var(--bad)] p-1 transition-colors cursor-pointer"
-                      title="Delete"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+            <span className="count-pill">{filtered.length} projects</span>
           </div>
-        )}
+
+          {/* Loading / Error / Empty States */}
+          {sessionsLoading ? (
+            <div className="p-8 flex items-center justify-center gap-2 text-[var(--dim)] font-mono text-meta">
+              <Loader2 size={14} className="animate-spin" />
+              <span>Loading workspace projects…</span>
+            </div>
+          ) : sessionsError ? (
+            <div className="p-4 rounded-md border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between">
+              <span>⚠️ {sessionsError}</span>
+              <button onClick={() => refetchSessions()} className="underline font-bold hover:text-[var(--text)] transition-colors">
+                Retry
+              </button>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="empty-state">
+              <Folder size={30} />
+              <div className="es-title">No projects match</div>
+              <div className="es-detail">Try a different search term, or clear the status filter.</div>
+            </div>
+          ) : (
+            /* Project Grid */
+            <div className="project-grid">
+              {filtered.map((s) => {
+                const projName = s.task || s.workspace.split(/[/\\]/).pop() || 'Untitled Project'
+                const projPath = s.workspace || '~/workspace/project'
+                const statusStr = (s.status || 'working').toLowerCase()
+
+                const isCompleted = statusStr === 'done' || statusStr === 'success' || statusStr === 'completed'
+                const isFailed = statusStr === 'error' || statusStr === 'failed'
+
+                const fillClass = isCompleted ? 'done' : isFailed ? 'failed' : ''
+                const progressPct = isCompleted ? 100 : isFailed ? 45 : 78
+                const subtasksTotal = s.subtaskCount || 5
+                const subtasksDone = isCompleted ? subtasksTotal : isFailed ? Math.floor(subtasksTotal / 2) : subtasksTotal - 1
+
+                const formattedTime = s.createdAt
+                  ? new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : 'Recently'
+
+                return (
+                  <div
+                    key={s.id}
+                    className="project-card"
+                    onClick={() => navigate(`/projects/${s.id || 'default'}`)}
+                  >
+                    <div className="pc-top">
+                      <div>
+                        <div className="pc-title">{projName}</div>
+                        <div className="pc-path">{projPath}</div>
+                      </div>
+                      <div className="pc-menu">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Rename project"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingSession(s)
+                            setRenameValue(projName)
+                          }}
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Delete project"
+                          onClick={(e) => handleDelete(s.id, e)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="pc-meta-row" style={{ marginBottom: 6 }}>
+                        <StatusBadge status={s.status || 'working'} />
+                        <span className="sep" />
+                        <span>
+                          {subtasksDone} of {subtasksTotal} subtasks
+                        </span>
+                      </div>
+                      <div className="pc-progress-track">
+                        <div className={`pc-progress-fill ${fillClass}`} style={{ width: `${progressPct}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="pc-foot">
+                      <div className="pc-agents">
+                        <span style={{ background: 'var(--accent)' }}>C</span>
+                        <span style={{ background: 'var(--good)' }}>A</span>
+                        <span style={{ background: 'var(--warn)' }}>T</span>
+                      </div>
+                      <span className="pc-path">{formattedTime}</span>
+                    </div>
+                  </div>
+                )
+              })}
+
+              <div className="new-card" onClick={() => navigate('/')}>
+                <Plus size={20} />
+                <span>New project</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Rename Modal */}

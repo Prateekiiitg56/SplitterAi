@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { DEFAULT_WORKSPACE } from '../config'
+import { StatusBadge } from './Badges'
 
 export default function TopBar() {
   const location = useLocation()
@@ -78,19 +79,19 @@ export default function TopBar() {
 
   // Provider quotas mock/data
   const quotaUsage = [
-    { provider: 'OpenAI (GPT-4o)', used: 64, limit: 100, color: 'bg-emerald-500' },
-    { provider: 'Gemini 1.5 Pro', used: 28, limit: 100, color: 'bg-sky-500' },
-    { provider: 'Claude 3.5 Sonnet', used: 85, limit: 100, color: 'bg-amber-500' }
+    { provider: 'OpenAI (GPT-4o)', used: 64, limit: 100, color: 'var(--good)' },
+    { provider: 'Gemini 1.5 Pro', used: 28, limit: 100, color: 'var(--accent)' },
+    { provider: 'Claude 3.5 Sonnet', used: 85, limit: 100, color: 'var(--warn)' }
   ]
 
   return (
-    <header className="h-14 w-full bg-[var(--bg)]/80 backdrop-blur-md border-b border-white/[0.08] px-4 flex items-center justify-between z-30 flex-shrink-0 select-none">
+    <header className="h-12 w-full bg-[var(--bg)]/90 backdrop-blur-md border-b border-[var(--border-soft)] px-4 flex items-center justify-between z-30 flex-shrink-0 select-none">
       {/* Left: Workspace Switcher */}
       <div className="flex items-center gap-3 min-w-0" ref={workspaceRef}>
         <div className="relative">
           <button
             onClick={() => setWorkspaceOpen(!workspaceOpen)}
-            className="flex h-8 items-center gap-2 rounded bg-[var(--panel-2)] px-3 border border-[var(--border)] hover:border-[var(--accent)] transition-colors text-left"
+            className="flex h-8 items-center gap-2 rounded-control bg-[var(--panel-2)] px-3 border border-[var(--border)] hover:border-[var(--accent)] transition-colors text-left"
             title={DEFAULT_WORKSPACE}
             aria-haspopup="true"
             aria-expanded={workspaceOpen}
@@ -108,10 +109,10 @@ export default function TopBar() {
               <div className="text-micro font-mono text-[var(--faint)] uppercase px-2 py-1 tracking-wider border-b border-[var(--border)] mb-1">
                 Active Workspace
               </div>
-              <div className="px-2 py-1.5 rounded bg-[var(--panel-2)] border border-[var(--border)] mb-2">
+              <div className="px-2 py-1.5 rounded-control bg-[var(--panel-2)] border border-[var(--border)] mb-2">
                 <div className="font-mono text-meta font-semibold text-[var(--accent)] truncate">{DEFAULT_WORKSPACE}</div>
                 <div className="flex items-center gap-1.5 mt-1 text-micro text-[var(--dim)]">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                  <span className="w-2 h-2 rounded-full bg-[var(--good)] inline-block" />
                   <span>Sandboxed Local Environment</span>
                 </div>
               </div>
@@ -123,7 +124,7 @@ export default function TopBar() {
                 {sessions.slice(0, 5).map(session => (
                   <div
                     key={session.id}
-                    className="p-2 rounded hover:bg-[var(--panel-2)] transition-colors cursor-pointer text-meta flex items-center justify-between"
+                    className="p-2 rounded-control hover:bg-[var(--panel-2)] transition-colors cursor-pointer text-meta flex items-center justify-between"
                   >
                     <div className="truncate">
                       <div className="font-medium text-[var(--text)] truncate">{session.task}</div>
@@ -132,9 +133,7 @@ export default function TopBar() {
                         {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
-                    <span className={`text-micro font-mono px-1.5 py-0.5 rounded ${session.status === 'done' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-sky-500/10 text-sky-400'}`}>
-                      {session.status}
-                    </span>
+                    <StatusBadge status={session.status} compact size="sm" />
                   </div>
                 ))}
               </div>
@@ -146,21 +145,21 @@ export default function TopBar() {
       {/* Center Quick Search Button */}
       <button
         onClick={handleOpenCommandPalette}
-        className="hidden md:flex h-9 w-[480px] max-w-[50%] items-center gap-2 rounded-lg bg-white/[0.04] px-3.5 border border-white/[0.08] hover:border-white/[0.15] text-white/40 hover:text-white/70 transition-colors text-[13px]"
+        className="hidden md:flex h-9 w-[480px] max-w-[50%] items-center gap-2 rounded-lg bg-[var(--panel-2)] px-3.5 border border-[var(--border-soft)] hover:border-[var(--border)] text-[var(--dim)] hover:text-[var(--text)] transition-colors text-meta"
       >
-        <Search size={14} className="text-white/30" />
-        <span className="flex-1 text-left">Search commands & files...</span>
-        <kbd className="font-mono text-[10px] bg-white/[0.06] px-1.5 py-0.5 rounded text-white/30 border border-white/[0.06]">
+        <Search size={14} className="text-[var(--faint)]" />
+        <span className="flex-1 text-left">Search commands & files…</span>
+        <kbd className="font-mono text-micro bg-[var(--border-soft)] px-1.5 py-0.5 rounded text-[var(--faint)] border border-[var(--border-soft)]">
           Ctrl K
         </kbd>
       </button>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {/* WS Connection Indicator */}
-        <div className="hidden sm:flex h-8 items-center gap-2 rounded-lg bg-white/[0.04] px-3 border border-white/[0.08] text-[11px] font-mono">
-          <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-          <span className="hidden lg:inline text-white/60">
+        <div className="hidden sm:flex h-8 items-center gap-2 rounded-lg bg-[var(--panel-2)] px-3 border border-[var(--border-soft)] text-micro font-mono">
+          <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-[var(--good)] animate-pulse' : 'bg-[var(--warn)]'}`} />
+          <span className="hidden lg:inline text-[var(--dim)]">
             {wsConnected ? 'Connected' : 'Standby'}
           </span>
           <span className="sr-only">WebSocket {wsConnected ? 'connected' : 'on standby'}</span>
@@ -170,7 +169,7 @@ export default function TopBar() {
         <div className="relative" ref={quotaRef}>
           <button
             onClick={() => setQuotaOpen(!quotaOpen)}
-            className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
+            className="flex h-8 w-8 items-center justify-center rounded-control hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
             title="API Quotas & Usage"
             aria-label="API Quotas & Usage"
             aria-haspopup="true"
@@ -185,7 +184,7 @@ export default function TopBar() {
                 <span className="font-mono text-meta font-semibold text-[var(--text)] flex items-center gap-1.5">
                   <Cpu size={14} className="text-[var(--accent)]" /> Model Quotas
                 </span>
-                <button onClick={() => setQuotaOpen(false)} className="flex h-8 w-8 items-center justify-center text-[var(--faint)] hover:text-[var(--text)] rounded transition-colors" aria-label="Close">
+                <button onClick={() => setQuotaOpen(false)} className="flex h-8 w-8 items-center justify-center text-[var(--faint)] hover:text-[var(--text)] rounded-control transition-colors" aria-label="Close">
                   <X size={13} />
                 </button>
               </div>
@@ -197,7 +196,7 @@ export default function TopBar() {
                       <span>{q.used}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-[var(--panel-2)] rounded-full overflow-hidden">
-                      <div className={`h-full ${q.color}`} style={{ width: `${q.used}%` }} />
+                      <div className="h-full rounded-full" style={{ width: `${q.used}%`, backgroundColor: q.color }} />
                     </div>
                   </div>
                 ))}
@@ -209,7 +208,7 @@ export default function TopBar() {
         {/* Integrations Link */}
         <Link
           to="/integrations"
-          className="flex h-8 w-8 items-center justify-center rounded hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
+          className="flex h-8 w-8 items-center justify-center rounded-control hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
           title="Integrations"
           aria-label="Integrations"
         >
@@ -220,7 +219,7 @@ export default function TopBar() {
         {/* Settings Toggle */}
         <button
           onClick={() => setSettingsOpen(!settingsOpen)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/[0.06] text-white/35 hover:text-white transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-control hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors"
           title="Settings"
           aria-label="Settings"
           aria-expanded={settingsOpen}
@@ -229,7 +228,7 @@ export default function TopBar() {
         </button>
 
         {/* User Avatar */}
-        <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[11px] font-bold text-[var(--accent-ink)] ml-1">
+        <div className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-micro font-bold text-[var(--accent-ink)] ml-1">
           PS
         </div>
       </div>

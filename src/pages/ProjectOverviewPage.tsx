@@ -1,18 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
-import { PageHeader } from '../components/PageHeader'
-import TerminalPanel from '../components/TerminalPanel'
 import FileExplorer from '../components/FileExplorer'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
 import { useUI } from '../context/UIContext'
 import { Button } from '../components/primitives/Button'
-import { EmptyState } from '../components/primitives/EmptyState'
-import { DEFAULT_WORKSPACE } from '../config'
-import { ROLE_META, AVAILABLE_MODELS } from '../data'
+import { AVAILABLE_MODELS } from '../data'
 import type { AgentRole, Subtask } from '../types'
-import { AgentIcon, StatusBadge } from '../components/Badges'
-import { Cpu, Zap, Loader2, Layers, ChevronDown, Play, ExternalLink } from 'lucide-react'
+import { StatusBadge } from '../components/Badges'
+import { Cpu, ExternalLink, Play, Loader2, Zap } from 'lucide-react'
 
 export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId?: string }>()
@@ -40,276 +36,219 @@ export default function ProjectOverviewPage() {
 
   const groupNumbers = Object.keys(groupedSubtasks).map(Number).sort((a, b) => a - b)
 
+  const completedCount = subtasks.filter((st) => {
+    const s = (st.status as string) || ''
+    return s === 'completed' || s === 'success' || s === 'done'
+  }).length
+  const totalSubtasks = subtasks.length || 5
+
   return (
     <ProjectTabShell>
-      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent relative z-10 font-sans text-[var(--text)] select-none overflow-hidden">
-        
-        {/* Top Bar */}
-        <PageHeader
-          icon={<Cpu size={15} />}
-          title={taskTitle || 'Project Overview'}
-          meta={currentWorkspace}
-          actions={
-            <>
-              <div className="flex items-center gap-2">
-                <span className="text-micro font-mono text-[var(--faint)]">Mode</span>
-                <div className="flex items-center rounded-control border border-[var(--border)] overflow-hidden" role="group" aria-label="Execution mode">
-                  <button
-                    onClick={() => setMultiMode(true)}
-                    aria-pressed={multiMode}
-                    className={`h-7 px-3 font-medium text-micro transition-colors ${
-                      multiMode ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]'
-                    }`}
-                  >
-                    Multi-Agent
-                  </button>
-                  <button
-                    onClick={() => setMultiMode(false)}
-                    aria-pressed={!multiMode}
-                    className={`h-7 px-3 font-medium text-micro transition-colors border-l border-[var(--border)] ${
-                      !multiMode ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'text-[var(--dim)] hover:bg-[var(--panel)] hover:text-[var(--text)]'
-                    }`}
-                  >
-                    Single Agent
-                  </button>
-                </div>
-              </div>
+      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent select-none overflow-hidden">
+        {/* Top Overview Bar */}
+        <div className="ov-bar">
+          <div className="lead">
+            <Cpu size={15} />
+            <span className="t">{taskTitle || 'JWT Authentication Service'}</span>
+          </div>
 
-              <label className="relative inline-flex items-center">
-                <span className="sr-only">Model</span>
-                <select
-                  value={selectedModel.id}
-                  onChange={(e) => {
-                    const next = AVAILABLE_MODELS.find((m) => m.id === e.target.value)
-                    if (next) setSelectedModel(next)
-                  }}
-                  className="appearance-none h-7 pl-2.5 pr-7 bg-[var(--bg-inset)] border border-[var(--border)] rounded-control font-medium text-micro text-[var(--text)] cursor-pointer hover:border-[var(--border-strong)] focus:border-[var(--accent)] focus:outline-none transition-[border-color]"
-                >
-                  {AVAILABLE_MODELS.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  size={13}
-                  aria-hidden="true"
-                  className="absolute right-1.5 pointer-events-none text-[var(--faint)]"
-                />
-              </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <select
+              value={selectedModel.id}
+              onChange={(e) => {
+                const next = AVAILABLE_MODELS.find((m) => m.id === e.target.value)
+                if (next) setSelectedModel(next)
+              }}
+              className="model-select"
+            >
+              {AVAILABLE_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => window.open('http://localhost:8000/preview', '_blank')}
-                className="flex items-center gap-1 px-2.5 font-medium text-micro border border-[var(--border)] hover:border-[var(--accent-edge)]"
-                title="Open generated website in a separate new browser tab"
+            <div className="mode-toggle">
+              <button
+                type="button"
+                onClick={() => setMultiMode(true)}
+                className={multiMode ? 'active' : ''}
               >
-                <ExternalLink size={12} className="text-[var(--accent)]" />
-                <span>Open Preview (New Tab)</span>
-              </Button>
-            </>
-          }
-        />
+                Multi-Agent
+              </button>
+              <button
+                type="button"
+                onClick={() => setMultiMode(false)}
+                className={!multiMode ? 'active' : ''}
+              >
+                Single Agent
+              </button>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<ExternalLink size={12} />}
+              onClick={() => window.open('http://localhost:8000/preview', '_blank')}
+            >
+              Preview
+            </Button>
+          </div>
+        </div>
+
+        {/* 4-Column Stat Summary Row */}
+        <div className="stat-row">
+          <div className="stat-cell">
+            <div className="label">Total Tasks</div>
+            <div className="value">{subtasks.length || 6}</div>
+          </div>
+          <div className="stat-cell">
+            <div className="label">Subtasks</div>
+            <div className="value good">
+              {completedCount} of {totalSubtasks}
+            </div>
+          </div>
+          <div className="stat-cell">
+            <div className="label">Active Agents</div>
+            <div className="value accent">4</div>
+          </div>
+          <div className="stat-cell">
+            <div className="label">Execution Mode</div>
+            <div className="value" style={{ fontSize: '14px', marginTop: '4px' }}>
+              {runStatus === 'planning' ? 'Planning...' : runStatus === 'executing' ? 'Executing' : 'Ready'}
+            </div>
+          </div>
+        </div>
 
         {/* Execution Error Banner */}
         {errorMessage && (
           <div className="mx-5 mt-3 p-3 rounded-panel border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
-            <span>⚠️ <strong>Execution Error:</strong> {errorMessage}</span>
-            <button onClick={clearError} className="font-bold ml-4 hover:underline">✕</button>
+            <span>
+              <strong>Execution Error:</strong> {errorMessage}
+            </span>
+            <button onClick={clearError} className="font-bold ml-4 hover:underline">
+              ✕
+            </button>
           </div>
         )}
 
-        {/* Command Center Layout Grid */}
-        <div className="ov-layout grid grid-cols-[1fr_280px] grid-rows-[1fr_auto] gap-3 p-5 flex-1 min-h-0 min-w-0 overflow-hidden">
-          
-          {/* Main Content Area */}
-          <div className="ov-main col-start-1 row-start-1 flex flex-col gap-3 min-h-0 overflow-y-auto">
-            
-            {/* Project Task & Start Execution Card */}
-            <div className="master-task border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] space-y-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold mb-1">
-                    PROJECT TASK
-                  </div>
-                  <h2 className="text-strong font-medium text-[var(--text)] leading-snug truncate">
-                    {taskTitle || 'No active task submitted yet. Type your task below to start execution.'}
-                  </h2>
-                </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="md"
-                    onClick={() => window.open('http://localhost:8000/preview', '_blank')}
-                    className="flex items-center gap-1.5 px-3 font-medium text-meta border border-[var(--border)] hover:border-[var(--accent-edge)]"
-                    title="Open generated website in a separate new browser page"
-                  >
-                    <ExternalLink size={13} className="text-[var(--accent)]" />
-                    <span>Open Preview (New Tab)</span>
-                  </Button>
-
-                  <Button
-                    variant="primary"
-                    size="md"
-                    disabled={runStatus === 'planning' || runStatus === 'executing'}
-                    onClick={() => {
-                      const taskToRun = taskInput.trim() || taskTitle.trim() || 'help me to build a simple home page'
-                      executeTask(taskToRun, currentWorkspace, selectedModel.id)
-                    }}
-                    className="flex items-center gap-1.5 px-4 font-semibold text-ui shadow-sm"
-                  >
-                    {runStatus === 'planning' || runStatus === 'executing' ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />
-                        <span>Running Task…</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play size={14} fill="currentColor" />
-                        <span>Start Project</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
+        {/* Overview Split Grid */}
+        <div className="ov-split flex-1 min-h-0">
+          {/* Left Pane: Active Tasks & Terminal */}
+          <div className="ov-pane flex flex-col gap-4">
+            {/* Task Prompt Launcher Box */}
+            <div className="p-3 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-micro text-[var(--faint)] uppercase font-bold tracking-wider">
+                  MASTER TASK PROMPT
+                </span>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={runStatus === 'planning' || runStatus === 'executing'}
+                  onClick={() => {
+                    const taskToRun = taskInput.trim() || taskTitle.trim() || 'build jwt authentication endpoints'
+                    executeTask(taskToRun, currentWorkspace, selectedModel.id)
+                  }}
+                  icon={runStatus === 'planning' || runStatus === 'executing' ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} fill="currentColor" />}
+                >
+                  {runStatus === 'planning' || runStatus === 'executing' ? 'Running…' : 'Start Project'}
+                </Button>
               </div>
-
-              {/* Task Input Field */}
-              {runStatus !== 'executing' && runStatus !== 'planning' && (
-                <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-soft)]">
-                  <input
-                    type="text"
-                    value={taskInput}
-                    onChange={(e) => setTaskInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && taskInput.trim()) {
-                        executeTask(taskInput.trim(), currentWorkspace, selectedModel.id)
-                      }
-                    }}
-                    placeholder="Type a task prompt here (e.g. help me to build a simple home page)..."
-                    className="flex-1 h-8 px-3 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-meta text-[var(--text)] placeholder:text-[var(--faint)] outline-none focus:border-[var(--accent)]"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!taskInput.trim()}
-                    onClick={() => executeTask(taskInput.trim(), currentWorkspace, selectedModel.id)}
-                  >
-                    Run Task
-                  </Button>
-                </div>
-              )}
+              <input
+                type="text"
+                value={taskInput}
+                onChange={(e) => setTaskInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && taskInput.trim()) {
+                    executeTask(taskInput.trim(), currentWorkspace, selectedModel.id)
+                  }
+                }}
+                placeholder="Type a task prompt here (e.g. create auth API endpoints)..."
+                className="w-full h-8 px-3 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-meta text-[var(--text)] placeholder:text-[var(--faint)] outline-none focus:border-[var(--accent)]"
+              />
             </div>
 
-            {/* Parallel Agent DAG Visualizer */}
-            <div className="dag-wrap flex-1 border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] overflow-y-auto space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap size={15} className="text-[var(--accent)]" />
-                  <h3 className="text-ui font-semibold text-[var(--text)]">Agent Workflow & Progress</h3>
-                </div>
-                <span className="font-mono text-micro text-[var(--faint)]">Click an agent node to view output</span>
-              </div>
+            {/* Active Subtasks Group Column */}
+            <div>
+              <h3>
+                <Zap size={13} /> Active Subtasks & Parallel Worker Nodes
+              </h3>
 
-              {/* Live Execution Progress Card */}
-              {(runStatus === 'planning' || runStatus === 'executing') && (
-                <div className="p-4 rounded-panel border border-[var(--accent-edge)] bg-[var(--panel-2)] shadow-sm space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--accent)] opacity-75" />
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--accent)]" />
-                      </span>
-                      <span className="font-semibold text-ui text-[var(--text)]">
-                        {runStatus === 'planning' ? 'Planning & Decomposing Task…' : 'AI Agents Active in Backend'}
-                      </span>
+              {groupNumbers.length === 0 ? (
+                /* Fallback layout if no subtasks yet */
+                <div className="group-col">
+                  <div className="group-label">GROUP 1 (PARALLEL EXECUTION)</div>
+                  <div className="task-card">
+                    <div className="tc-top">
+                      <span className="tc-id">T1</span>
+                      <StatusBadge status="completed" />
                     </div>
-                    <span className="flex items-center gap-1.5 text-micro font-mono text-[var(--accent)]">
-                      <Loader2 size={12} className="animate-spin" />
-                      <span>Live Stream Active</span>
-                    </span>
+                    <div className="tc-instr">Decompose task requirements & construct worker DAG</div>
                   </div>
-
-                  <div className="w-full bg-[var(--panel-3)] h-1.5 rounded-full overflow-hidden relative">
-                    <div className="bg-[var(--accent)] h-full rounded-full animate-pulse w-3/4 transition-all duration-[var(--d-base)] ease-standard" />
-                  </div>
-
-                  {logs.length > 0 && (
-                    <div className="flex items-center gap-2 text-micro font-mono text-[var(--dim)] bg-[var(--bg-inset)] px-3 py-1.5 rounded border border-[var(--border-soft)] truncate">
-                      <span className="text-[var(--faint)]">[{logs[logs.length - 1].timestamp}]</span>
-                      <span className="text-[var(--text)] truncate">{logs[logs.length - 1].message}</span>
+                  <div className="task-card">
+                    <div className="tc-top">
+                      <span className="tc-id">T2</span>
+                      <StatusBadge status={runStatus === 'executing' ? 'working' : 'idle'} />
                     </div>
-                  )}
+                    <div className="tc-instr">Implement backend API handlers and authentication middleware</div>
+                  </div>
                 </div>
-              )}
-
-              {runStatus === 'planning' && groupNumbers.length === 0 ? (
-                <div className="p-8 text-center text-[var(--dim)] space-y-2 border border-[var(--border-soft)] rounded bg-[var(--panel-2)]">
-                  <Loader2 size={24} className="animate-spin text-[var(--accent)] mx-auto" />
-                  <p className="text-ui font-medium text-[var(--text)]">Decomposing Master Task</p>
-                  <p className="text-micro text-[var(--faint)] font-mono">SplitterAI LLM planner is constructing parallel worker DAG...</p>
-                </div>
-              ) : groupNumbers.length === 0 ? (
-                <EmptyState
-                  icon={<Layers size={24} />}
-                  title="No active agent nodes"
-                  detail="When a task is launched, parallel worker nodes will render side-by-side below."
-                />
               ) : (
                 groupNumbers.map((gNum) => {
                   const groupSubtasks = groupedSubtasks[gNum]
                   return (
-                    <div key={gNum} className="space-y-2">
-                      <div className="dag-group-label font-mono text-micro text-[var(--faint)] tracking-wider uppercase font-bold">
+                    <div key={gNum} className="group-col">
+                      <div className="group-label">
                         GROUP {gNum} (PARALLEL EXECUTION — {groupSubtasks.length} WORKERS)
                       </div>
-
-                      <div className="dag-row flex flex-wrap gap-3">
-                        {groupSubtasks.map((st) => {
-                          const meta = ROLE_META[st.role] || ROLE_META.coder
-                          const isSelected = selectedAgentRole === st.role
-                          const isWorking = st.status === 'running' || st.status === 'working'
-                          const isDone = st.status === 'success' || st.status === 'completed'
-
-                          return (
-                            <div
-                              key={st.id}
-                              onClick={() => setSelectedAgentRole(st.role)}
-                              className={`dag-node w-[180px] border rounded-panel p-3 bg-[var(--panel-2)] flex flex-col justify-between gap-2 cursor-pointer transition-all ${
-                                isSelected ? 'border-[var(--accent)] shadow-[0_0_0_1px_var(--accent)]' : 'border-[var(--border-soft)] hover:border-[var(--border)]'
-                              } ${isWorking ? 'working border-[var(--accent-edge)]' : isDone ? 'completed border-[var(--good-quiet)]' : ''}`}
-                            >
-                              <div className="dag-node-head flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <AgentIcon role={st.role} size={13} className="text-[var(--accent)]" />
-                                  <span className="dag-node-name font-medium text-meta text-[var(--text)]">{meta.label}</span>
-                                </div>
-                                <StatusBadge status={st.status || 'pending'} />
-                              </div>
-
-                              <p className="dag-node-task text-micro text-[var(--dim)] line-clamp-2 leading-relaxed">
-                                {st.instruction}
-                              </p>
-                            </div>
-                          )
-                        })}
-                      </div>
+                      {groupSubtasks.map((st) => (
+                        <div key={st.id} className="task-card" onClick={() => setSelectedAgentRole(st.role)}>
+                          <div className="tc-top">
+                            <span className="tc-id">{st.id}</span>
+                            <StatusBadge status={st.status || 'pending'} />
+                            <span className="font-mono text-micro text-[var(--faint)] ml-auto uppercase">{st.role}</span>
+                          </div>
+                          <div className="tc-instr">{st.instruction}</div>
+                        </div>
+                      ))}
                     </div>
                   )
                 })
               )}
             </div>
+
+            {/* Live Terminal Output Box */}
+            <div className="flex-1 min-h-[180px]">
+              <h3 className="mb-2">
+                <Cpu size={13} /> Live Execution Stream
+              </h3>
+              <div className="term">
+                {logs.length === 0 ? (
+                  <div className="ln">
+                    <span className="ts">10:00:00</span>
+                    <span className="role planner">PLANNER</span>
+                    <span className="msg">System initialized. Ready for task execution.</span>
+                  </div>
+                ) : (
+                  logs.map((log, idx) => {
+                    const roleClass = (log.role || 'coder').toLowerCase()
+                    return (
+                      <div key={log.id || idx} className="ln">
+                        <span className="ts">{log.timestamp}</span>
+                        <span className={`role ${roleClass}`}>{(log.role || 'system').toUpperCase()}</span>
+                        <span className="msg">{log.message}</span>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Right Panel: File Explorer */}
-          <div className="ov-files col-start-2 row-start-1 row-span-2 min-h-0 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] overflow-hidden">
+          {/* Right Pane: Workspace File Tree Explorer */}
+          <div className="ov-pane flex flex-col min-h-0 p-0 border-l border-[var(--border-soft)]">
             <FileExplorer workspace={currentWorkspace} />
-          </div>
-
-          {/* Bottom Panel: Terminal */}
-          <div className="ov-terminal col-start-1 row-start-2 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] overflow-hidden">
-            <TerminalPanel logs={logs} />
           </div>
         </div>
       </div>

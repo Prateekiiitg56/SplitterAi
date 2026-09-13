@@ -4,10 +4,9 @@ import { useApp } from '../context/AppContext'
 import { ROLE_META, AVAILABLE_MODELS } from '../data'
 import type { AgentRole, AgentStatus, ModelOption } from '../types'
 import { AgentIcon, StatusBadge } from '../components/Badges'
-import { Search, Plus, X } from 'lucide-react'
+import { Search, Plus, Bot } from 'lucide-react'
 import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
-import { TextAreaField, SelectField } from '../components/primitives/Field'
 import { PageHeader } from '../components/PageHeader'
 
 export default function AgentsOverviewPage() {
@@ -119,11 +118,19 @@ export default function AgentsOverviewPage() {
     setModalTask('')
   }
 
+  const getProgressColor = (status: AgentStatus) => {
+    if (status === 'completed') return 'var(--good)'
+    if (status === 'working') return 'var(--accent)'
+    if (status === 'failed') return 'var(--bad)'
+    return 'var(--border-soft)'
+  }
+
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
-      
       <PageHeader
+        icon={<Bot size={16} />}
         title="Agents"
+        meta="/ roster"
         actions={
           <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowLaunchModal(true)}>
             Launch agent
@@ -132,181 +139,187 @@ export default function AgentsOverviewPage() {
       />
 
       {/* Page Body */}
-      <div className="page-body flex-1 overflow-y-auto p-6">
-        
-        {/* Search & Filter Row */}
-        <div className="search-row flex flex-wrap items-center gap-3 mb-4">
-          <div className="search-box flex h-8 flex-1 max-w-[300px] items-center gap-2 border border-[var(--border-soft)] rounded-md px-3 bg-[var(--panel)] text-[var(--faint)]">
-            <Search size={13} />
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search agents…"
-              className="bg-transparent border-none outline-none text-[var(--text)] text-meta w-full placeholder:text-[var(--faint)] font-sans"
-            />
+      <div className="page-body flex-1 overflow-y-auto">
+        <div className="agents-page">
+          {/* Toolbar */}
+          <div className="toolbar">
+            <div className="field" style={{ flex: 1 }}>
+              <Search size={13} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search agents…"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`chip ${statusFilter === 'all' ? 'active' : ''}`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('working')}
+                className={`chip ${statusFilter === 'working' ? 'active' : ''}`}
+              >
+                Working
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('idle')}
+                className={`chip ${statusFilter === 'idle' ? 'active' : ''}`}
+              >
+                Idle
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('failed')}
+                className={`chip ${statusFilter === 'failed' ? 'active' : ''}`}
+              >
+                Failed
+              </button>
+            </div>
+
+            <span className="count-pill">{filteredAgents.length} agents</span>
           </div>
 
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'all' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setStatusFilter('working')}
-            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'working' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
-          >
-            Working
-          </button>
-          <button
-            onClick={() => setStatusFilter('idle')}
-            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'idle' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
-          >
-            Idle
-          </button>
-          <button
-            onClick={() => setStatusFilter('failed')}
-            className={`chip-filter flex h-8 items-center border text-micro px-3 rounded-md font-mono transition-colors cursor-pointer ${statusFilter === 'failed' ? 'border-[var(--border)] text-[var(--text)] bg-[var(--panel-2)]' : 'border-[var(--border-soft)] text-[var(--faint)]'}`}
-          >
-            Failed
-          </button>
-        </div>
+          {/* Roster Grid */}
+          <div className="roster">
+            {filteredAgents.map((agent) => {
+              const meta = ROLE_META[agent.role] || ROLE_META.coder
 
-        {/* Agent Grid */}
-        <div className="agent-grid grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
-          {filteredAgents.map((agent) => {
-            const meta = ROLE_META[agent.role]
-
-            return (
-              <div
-                key={agent.role}
-                onClick={() => navigate(`/agents/${agent.role}`)}
-                className="agent-card border border-[var(--border-soft)] rounded-panel p-4 bg-[var(--panel)] flex min-h-full flex-col gap-4 hover:border-[var(--border-strong)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.28)] cursor-pointer transition-all"
-              >
-                {/* Agent Card Top */}
-                <div className="agent-card-top flex items-center justify-between">
-                  <div className="agent-id flex items-center gap-2.5">
-                    <div
-                      className="agent-avatar w-7 h-7 rounded-md border border-[var(--border)] flex items-center justify-center flex-shrink-0"
-                      style={{ color: meta.color }}
-                    >
-                      <AgentIcon role={agent.role} size={14} />
+              return (
+                <div
+                  key={agent.role}
+                  className="agent-card"
+                  onClick={() => navigate(`/agents/${agent.role}`)}
+                >
+                  <div className="ac-top">
+                    <div className="ac-glyph" style={{ color: meta.color }}>
+                      <AgentIcon role={agent.role} size={17} />
                     </div>
-
                     <div>
-                      <div className="agent-name font-medium text-meta text-[var(--text)]">{agent.title}</div>
-                      <div className="agent-role text-micro font-mono text-[var(--faint)]">{agent.desc}</div>
+                      <div className="ac-name">{agent.title}</div>
+                      <div className="ac-desc">{agent.desc}</div>
+                    </div>
+                    <div style={{ marginLeft: 'auto' }}>
+                      <StatusBadge status={agent.status} />
                     </div>
                   </div>
 
-                  <StatusBadge status={agent.status} />
-                </div>
+                  <div className="ac-task">
+                    {agent.currentTask ? agent.currentTask : 'Idle — ready for task assignment'}
+                  </div>
 
-                {/* Agent Task */}
-                <div className="agent-task text-meta text-[var(--dim)] line-clamp-2">
-                  Current task: <b className="text-[var(--text)] font-medium">{agent.currentTask || 'Idle — ready for task assignment'}</b>
-                </div>
+                  <div className="ac-progress-track">
+                    <div
+                      className="ac-progress-fill"
+                      style={{
+                        width: `${agent.progress}%`,
+                        backgroundColor: getProgressColor(agent.status),
+                      }}
+                    />
+                  </div>
 
-                {/* Progress Track */}
-                <div className="progress-track h-[3px] rounded-full bg-[var(--border-soft)] overflow-hidden">
-                  <div
-                    className="progress-fill h-full rounded-full transition-all duration-[var(--d-base)] ease-standard"
-                    style={{
-                      width: `${agent.progress}%`,
-                      backgroundColor: agent.status === 'completed' ? 'var(--good)' : agent.status === 'working' ? 'var(--accent)' : 'var(--faint)',
-                    }}
-                  />
+                  <div className="ac-foot">
+                    <span className="ac-model">{agent.modelChain}</span>
+                    <div className="ac-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/agents/${agent.role}`)
+                        }}
+                      >
+                        Open
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-quiet sm"
+                        onClick={(e) => handlePause(agent.role, e)}
+                      >
+                        {agent.status === 'paused' ? 'Resume' : 'Pause'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-quiet sm"
+                        onClick={(e) => handleStop(agent.role, e)}
+                      >
+                        Stop
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              )
+            })}
+          </div>
 
-                {/* Actions */}
-                <div className="agent-card-actions flex gap-3 text-micro text-[var(--faint)] pt-1 border-t border-[var(--border-soft)]">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/agents/${agent.role}`)
-                    }}
-                    className="hover:text-[var(--text)] transition-colors cursor-pointer"
-                  >
-                    Open
-                  </button>
-                  <button
-                    onClick={(e) => handlePause(agent.role, e)}
-                    className="hover:text-[var(--text)] transition-colors cursor-pointer"
-                  >
-                    {agent.status === 'paused' ? 'Resume' : 'Pause'}
-                  </button>
-                  <button
-                    onClick={(e) => handleStop(agent.role, e)}
-                    className="hover:text-[var(--bad)] transition-colors cursor-pointer"
-                  >
-                    Stop
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+          {/* Launch Strip Banner */}
+          <div className="launch-strip">
+            <div>
+              <div className="lt">Need a custom worker team?</div>
+              <div className="ld">Configure roles, task priorities and dependency chains for complex multi-agent runs.</div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost sm"
+              onClick={() => navigate('/projects/default/agents')}
+            >
+              Open builder
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Launch Agent Modal */}
-      {showLaunchModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-[var(--panel)] border border-[var(--border)] rounded-panel p-5 max-w-[420px] w-full space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[var(--border-soft)] pb-2">
-              <h3 className="text-strong font-semibold text-[var(--text)] flex items-center gap-2">
-                <Plus size={15} className="text-[var(--accent)]" />
-                Launch Worker Agent
-              </h3>
-              <button onClick={() => setShowLaunchModal(false)} className="text-[var(--faint)] hover:text-[var(--text)] cursor-pointer">
-                <X size={15} />
-              </button>
-            </div>
+      <Modal
+        open={showLaunchModal}
+        onClose={() => setShowLaunchModal(false)}
+        title="Launch Worker Agent"
+        width={420}
+        footer={
+          <>
+            <Button variant="ghost" size="md" onClick={() => setShowLaunchModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="md" onClick={handleLaunchSubmit} disabled={!modalTask.trim()}>
+              Launch
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-micro font-mono text-[var(--faint)] block mb-1">Target Agent Role</label>
+            <select
+              value={modalRole}
+              onChange={(e) => setModalRole(e.target.value as AgentRole)}
+              className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded-control px-3 py-2 text-meta text-[var(--text)] font-mono outline-none cursor-pointer"
+            >
+              <option value="coder">Coder Agent (Code Generation)</option>
+              <option value="auditor">Auditor Agent (Security & Review)</option>
+              <option value="tester">Tester Agent (Unit Test Suite)</option>
+              <option value="planner">Planner Agent (Architecture DAG)</option>
+            </select>
+          </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-micro font-mono text-[var(--faint)] block mb-1">Target Agent Role</label>
-                <select
-                  value={modalRole}
-                  onChange={(e) => setModalRole(e.target.value as AgentRole)}
-                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded px-3 py-2 text-meta text-[var(--text)] font-mono outline-none cursor-pointer"
-                >
-                  <option value="coder">Coder Agent (Code Generation)</option>
-                  <option value="auditor">Auditor Agent (Security & Review)</option>
-                  <option value="tester">Tester Agent (Unit Test Suite)</option>
-                  <option value="planner">Planner Agent (Architecture DAG)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-micro font-mono text-[var(--faint)] block mb-1">Instruction Task</label>
-                <textarea
-                  value={modalTask}
-                  onChange={(e) => setModalTask(e.target.value)}
-                  placeholder="e.g. Implement authentication module with unit tests..."
-                  rows={3}
-                  className="w-full bg-[var(--panel-2)] border border-[var(--border)] rounded p-2.5 text-meta text-[var(--text)] font-sans outline-none resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border-soft)]">
-              <button
-                onClick={() => setShowLaunchModal(false)}
-                className="px-3 py-1.5 rounded border border-[var(--border)] text-meta text-[var(--dim)] hover:text-[var(--text)] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleLaunchSubmit}
-                disabled={!modalTask.trim()}
-                className="px-4 py-1.5 rounded bg-[var(--accent)] text-[var(--bg)] font-semibold text-meta cursor-pointer disabled:opacity-50"
-              >
-                Launch Agent Task
-              </button>
-            </div>
+          <div>
+            <label className="text-micro font-mono text-[var(--faint)] block mb-1">Instruction Task</label>
+            <textarea
+              value={modalTask}
+              onChange={(e) => setModalTask(e.target.value)}
+              placeholder="e.g. Implement authentication module with unit tests..."
+              rows={3}
+              className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded-control p-2.5 text-meta text-[var(--text)] font-sans outline-none resize-none"
+            />
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }
