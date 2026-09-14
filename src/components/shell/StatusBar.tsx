@@ -1,0 +1,86 @@
+import type { ReactNode } from 'react'
+import { Folder, Cpu, Layers } from 'lucide-react'
+import { cx } from '../../lib/cx'
+import { useApp } from '../../context/AppContext'
+import { useUI } from '../../context/UIContext'
+
+/**
+ * StatusBar — the 22px footer.
+ *
+ * Everything on it is real: the workspace comes from AppContext, the live count
+ * is derived from the sessions AppContext already holds, and the model is the
+ * one currently selected in UIContext. Nothing here fetches — the bar renders on
+ * every route, so adding a request would have meant a network call per
+ * navigation.
+ */
+
+function ItemShell({ children, tone }: { children: ReactNode; tone?: 'live' }) {
+  return (
+    <div
+      className={cx(
+        'flex items-center gap-[5px] h-full px-1.5',
+        'transition-colors duration-[var(--d-quick)] hover:bg-[var(--ide-hover)]',
+        tone === 'live' ? 'text-[var(--ide-good)]' : undefined,
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+export function StatusBar() {
+  const { sessions, currentWorkspace, runStatus } = useApp()
+  const { selectedModel } = useUI()
+
+  const liveCount = sessions.filter((s) => s.status === 'executing' || s.status === 'planning').length
+  const workspaceName = currentWorkspace.split(/[/\\]/).filter(Boolean).pop() ?? currentWorkspace
+  const modelLabel = selectedModel.id.split('/').pop() ?? selectedModel.label
+
+  return (
+    <div
+      className="h-[22px] flex-shrink-0 flex items-center justify-between px-2.5
+                 bg-[var(--ide-deep)] border-t border-[var(--ide-border-soft)]
+                 text-[11px] text-[var(--ide-text-dim)] select-none"
+    >
+      <div className="flex items-center gap-3.5 h-full min-w-0">
+        <ItemShell>
+          <Folder size={12} aria-hidden="true" />
+          <span className="truncate max-w-[220px]" title={currentWorkspace}>
+            {workspaceName}
+          </span>
+        </ItemShell>
+        {liveCount > 0 ? (
+          <ItemShell tone="live">
+            <span
+              aria-hidden="true"
+              className="w-1.5 h-1.5 rounded-full bg-[var(--ide-accent)] animate-pulse motion-reduce:animate-none"
+            />
+            <span>
+              {liveCount} {liveCount === 1 ? 'project' : 'projects'} live
+            </span>
+          </ItemShell>
+        ) : (
+          <ItemShell>
+            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-[var(--ide-text-faint)]" />
+            <span>{runStatus === 'idle' ? 'Idle' : runStatus}</span>
+          </ItemShell>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3.5 h-full">
+        <ItemShell>
+          <Cpu size={12} aria-hidden="true" />
+          <span className="font-mono" title={selectedModel.label}>
+            {modelLabel}
+          </span>
+        </ItemShell>
+        <ItemShell>
+          <Layers size={12} aria-hidden="true" />
+          <span>
+            {sessions.length} {sessions.length === 1 ? 'project' : 'projects'}
+          </span>
+        </ItemShell>
+      </div>
+    </div>
+  )
+}

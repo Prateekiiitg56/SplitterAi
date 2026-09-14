@@ -106,6 +106,43 @@
   --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
 
+  /* ── IDE shell surfaces — the Cursor-style chrome ─────────────────────
+     Additive tokens for the redesigned app shell (title bar, activity bar,
+     explorer, editor tabs, status bar, chat panel). The app's own blue-black
+     surfaces above are untouched; these neutral grays sit only under the new
+     shell. Mirrored in @theme below as --color-ide-* so both the
+     bg-[var(--ide-deep)] form and the bg-ide-deep utility resolve.          */
+  --ide-editor: #1e1e1e;        /* main content / editor surface           */
+  --ide-deep: #181818;          /* titlebar, activity bar, explorer, status */
+  --ide-raised: #252526;        /* cards, inputs, inactive chips            */
+  --ide-raised-2: #2d2d2d;      /* higher hover / pressed                  */
+  --ide-border: #2b2b2b;        /* default IDE edge                        */
+  --ide-border-soft: #232323;   /* faint IDE divider                       */
+
+  --ide-text: #cccccc;          /* primary IDE text                        */
+  --ide-text-hi: #f0f0f0;       /* emphasised IDE text                     */
+  --ide-text-dim: #8f8f8f;      /* secondary IDE text                      */
+  --ide-text-faint: #6b6b6b;    /* de-emphasised IDE text                  */
+
+  --ide-hover: #2a2a2a;         /* tree-row / status-item hover            */
+  --ide-track: #333333;         /* progress track inside the shell         */
+
+  /* The Cursor accent + its tints. Declared as tokens so no component
+     hardcodes the hex; .ide-shell rebinds --accent/--accent-quiet/
+     --accent-edge/--accent-ink to these, so every reused primitive
+     (Button primary, Field focus, StatusDot, StatusBadge, ::selection, the
+     focus ring) adopts the blue inside the authenticated app only. The
+     standalone Landing renders outside .ide-shell and keeps #48B4FF.       */
+  --ide-accent: #3b9dff;
+  --ide-accent-dim: #2c72b3;
+  --ide-accent-quiet: rgba(59, 157, 255, 0.12);
+  --ide-accent-edge: #2c72b3;
+  --ide-accent-ink: #04101c;
+
+  --ide-good: #4ec9b0;
+  --ide-bad: #f14c4c;
+  --ide-warn: #cca700;
+
   /* ── Legacy aliases ───────────────────────────────────────────────────
      Pages not yet migrated still reference these names (error banners,
      tinted fills). Kept so nothing renders an invalid colour mid-migration.
@@ -161,6 +198,22 @@
   --color-ide-text-hi: #f0f0f0;     /* emphasised IDE text                  */
   --color-ide-text-dim: #8f8f8f;    /* secondary IDE text                   */
   --color-ide-text-faint: #6b6b6b;  /* de-emphasised IDE text               */
+
+  --color-ide-hover: #2a2a2a;       /* tree-row / status-item hover         */
+  --color-ide-track: #333333;       /* progress track inside the shell      */
+
+  /* The Cursor accent + its tints. Declared here so no component hardcodes
+     the hex; the shell root rebinds --accent/--accent-quiet/--accent-edge to
+     these so reused primitives (Button primary, Field focus, StatusDot,
+     StatusBadge, ::selection, focus ring) adopt the blue inside the app only. */
+  --color-ide-accent: #3b9dff;
+  --color-ide-accent-dim: #2c72b3;
+  --color-ide-accent-quiet: rgba(59, 157, 255, 0.12);
+  --color-ide-accent-ink: #04101c;
+
+  --color-ide-good: #4ec9b0;
+  --color-ide-bad: #f14c4c;
+  --color-ide-warn: #cca700;
 
   --text-micro: 11px;
   --text-meta: 12px;
@@ -221,6 +274,38 @@ body {
   pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.22));
 }
+
+/* ── IDE shell root ────────────────────────────────────────────────────
+   The only plain CSS the Cursor-style shell needs. Everything else is
+   Tailwind utilities on the components in src/components/shell/.
+
+   Two jobs:
+   1. Rebind the accent to the Cursor blue for the whole authenticated app.
+      Because the primitives (Button, Field, StatusDot, StatusBadge) already
+      read var(--accent), they pick the new blue up with no edits — and the
+      standalone Landing renders outside .ide-shell, so it keeps #48B4FF.
+   2. Recolour the scrollbars to VS Code's neutral gray inside the shell.  */
+
+.ide-shell {
+  --accent: var(--ide-accent);
+  --accent-ink: var(--ide-accent-ink);
+  --accent-quiet: var(--ide-accent-quiet);
+  --accent-edge: var(--ide-accent-edge);
+
+  color: var(--ide-text);
+  background: var(--ide-editor);
+}
+
+.ide-shell ::-webkit-scrollbar { width: 11px; height: 11px; }
+.ide-shell ::-webkit-scrollbar-track { background: transparent; }
+.ide-shell ::-webkit-scrollbar-thumb {
+  background: #3c3c3c;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.ide-shell ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; background-clip: content-box; }
+.ide-shell * { scrollbar-color: #3c3c3c transparent; }
 
 /* ── Sidebar ───────────────────────────────────────────────────────── */
 
