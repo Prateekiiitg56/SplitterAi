@@ -119,10 +119,15 @@
   --ide-border: #2b2b2b;        /* default IDE edge                        */
   --ide-border-soft: #232323;   /* faint IDE divider                       */
 
-  --ide-text: #cccccc;          /* primary IDE text                        */
-  --ide-text-hi: #f0f0f0;       /* emphasised IDE text                     */
-  --ide-text-dim: #8f8f8f;      /* secondary IDE text                      */
-  --ide-text-faint: #6b6b6b;    /* de-emphasised IDE text                  */
+  --ide-text: #cccccc;          /* primary IDE text        9.5:1 on raised */
+  --ide-text-hi: #f0f0f0;       /* emphasised IDE text    13.4:1           */
+  /* These two sit one step lighter than the reference, which used #8f8f8f
+     and #6b6b6b. #6b6b6b reaches only ~3.2:1 on the editor surface and it
+     carries real text here — breadcrumb trail, workspace paths, timestamps.
+     Lifted so both pass WCAG AA while keeping a visible two-step ramp, the
+     same correction the app palette above documents for --faint.           */
+  --ide-text-dim: #9d9d9d;      /* secondary IDE text      6.1:1           */
+  --ide-text-faint: #8a8a8a;    /* de-emphasised IDE text  4.8:1  AA ✓     */
 
   --ide-hover: #2a2a2a;         /* tree-row / status-item hover            */
   --ide-track: #333333;         /* progress track inside the shell         */
@@ -292,6 +297,15 @@ body {
   --accent-quiet: var(--ide-accent-quiet);
   --accent-edge: var(--ide-accent-edge);
 
+  /* The semantic status trio, retuned to VSCode's. The app's greens and blues
+     were already within a hair of the IDE set, but --bad was a warm pink
+     (#FF6E82) that read as a different design language next to the grays.
+     Rebinding here means StatusBadge/StatusDot pick these up unedited, and
+     Landing — which renders outside .ide-shell — keeps the original palette. */
+  --good: var(--ide-good);
+  --bad: var(--ide-bad);
+  --bad-quiet: rgba(241, 76, 76, 0.13);
+
   color: var(--ide-text);
   background: var(--ide-editor);
 }
@@ -306,6 +320,11 @@ body {
 }
 .ide-shell ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; background-clip: content-box; }
 .ide-shell * { scrollbar-color: #3c3c3c transparent; }
+
+/* The failed badge hardcodes a pink border that the --bad rebinding above
+   can't reach; re-state it in the IDE's red so the fill and edge agree. */
+.ide-shell .status-badge.failed,
+.ide-shell .status-badge.error { border-color: rgba(241, 76, 76, 0.3); }
 
 /* ── Sidebar ───────────────────────────────────────────────────────── */
 
