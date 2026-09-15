@@ -98,7 +98,13 @@ export function Breadcrumb({ crumbs }: { crumbs: string[] }) {
     >
       {crumbs.map((crumb, i) => (
         <span key={`${crumb}-${i}`} className="flex items-center gap-1.5 min-w-0">
-          {i > 0 && <ChevronRight size={11} className="flex-shrink-0 text-[#444]" aria-hidden="true" />}
+          {i > 0 && (
+            <ChevronRight
+              size={11}
+              className="flex-shrink-0 text-[var(--ide-muted)]"
+              aria-hidden="true"
+            />
+          )}
           <span
             className={cx('truncate', i === crumbs.length - 1 && 'text-[var(--ide-text-dim)]')}
             aria-current={i === crumbs.length - 1 ? 'page' : undefined}

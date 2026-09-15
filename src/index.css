@@ -131,6 +131,8 @@
 
   --ide-hover: #2a2a2a;         /* tree-row / status-item hover            */
   --ide-track: #333333;         /* progress track inside the shell         */
+  --ide-edge-hover: #3d3d3d;    /* card / control edge on hover            */
+  --ide-muted: #555555;         /* NON-TEXT ONLY: separators, dim fills    */
 
   /* The Cursor accent + its tints. Declared as tokens so no component
      hardcodes the hex; .ide-shell rebinds --accent/--accent-quiet/
@@ -201,11 +203,13 @@
   --color-ide-border-soft: #232323; /* faint IDE divider                    */
   --color-ide-text: #cccccc;        /* primary IDE text                     */
   --color-ide-text-hi: #f0f0f0;     /* emphasised IDE text                  */
-  --color-ide-text-dim: #8f8f8f;    /* secondary IDE text                   */
-  --color-ide-text-faint: #6b6b6b;  /* de-emphasised IDE text               */
+  --color-ide-text-dim: #9d9d9d;    /* secondary IDE text      6.1:1        */
+  --color-ide-text-faint: #8a8a8a;  /* de-emphasised IDE text  4.8:1  AA ✓  */
 
   --color-ide-hover: #2a2a2a;       /* tree-row / status-item hover         */
   --color-ide-track: #333333;       /* progress track inside the shell      */
+  --color-ide-edge-hover: #3d3d3d;  /* card / control edge on hover         */
+  --color-ide-muted: #555555;       /* NON-TEXT ONLY: separators, dim fills */
 
   /* The Cursor accent + its tints. Declared here so no component hardcodes
      the hex; the shell root rebinds --accent/--accent-quiet/--accent-edge to
@@ -305,6 +309,39 @@ body {
   --good: var(--ide-good);
   --bad: var(--ide-bad);
   --bad-quiet: rgba(241, 76, 76, 0.13);
+
+  /* ── The neutral palette ────────────────────────────────────────────
+     The app's surfaces and ink are blue-tinted navy (#0F1420 panels,
+     #232B3D edges, #B9C2D4 body). Dropped inside neutral-gray IDE chrome
+     they read as a second, colder design language — a ghost Button's navy
+     edge against an IDE card's gray edge is visible side by side.
+
+     Rebinding the tokens here rather than editing components means every
+     shared primitive — Button, Panel, Modal, TextField, EmptyState,
+     PageHeader — becomes correct inside the shell without being touched,
+     which is what rule 3 asks for. It also means pages not yet restructured
+     still read as one coherent app instead of navy islands in gray chrome.
+
+     Landing is outside .ide-shell, so it keeps the original palette intact.
+     Deleting this block reverts the app to navy with nothing else to undo.
+
+     Ink is one step lighter than VSCode's literal values so every level
+     clears WCAG AA on --panel; contrast noted per line.                  */
+  --bg: var(--ide-editor);
+  --bg-inset: var(--ide-deep);
+  --panel: var(--ide-raised);
+  --panel-2: var(--ide-hover);
+  --panel-3: var(--ide-raised-2);
+
+  --border-soft: var(--ide-border-soft);
+  --border: var(--ide-border);
+  --border-strong: #3d3d3d;
+
+  --text: var(--ide-text-hi);    /* 13.4:1 */
+  --text-2: var(--ide-text);     /*  9.5:1 */
+  --dim: #a6a6a6;                /*  6.3:1 */
+  --faint: var(--ide-text-faint);/*  4.8:1  AA ✓ */
+  --ghost: #4a4a4a;              /* non-text only: dots, rules, grid */
 
   color: var(--ide-text);
   background: var(--ide-editor);

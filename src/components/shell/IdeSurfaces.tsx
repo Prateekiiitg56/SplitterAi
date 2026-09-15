@@ -33,7 +33,7 @@ export function IdeCard({ children, interactive = false, className }: IdeCardPro
       className={cx(
         'rounded-panel bg-[var(--ide-raised)] border border-[var(--ide-border)]',
         interactive &&
-          'transition-colors duration-[var(--d-quick)] ease-standard hover:border-[#444]',
+          'transition-colors duration-[var(--d-quick)] ease-standard hover:border-[var(--ide-edge-hover)]',
         className,
       )}
     >
@@ -51,7 +51,7 @@ const PROGRESS_TONE: Record<ProgressTone, string> = {
   good: 'bg-[var(--ide-good)]',
   bad: 'bg-[var(--ide-bad)]',
   warn: 'bg-[var(--ide-warn)]',
-  dim: 'bg-[#555]',
+  dim: 'bg-[var(--ide-muted)]',
 }
 
 interface IdeProgressProps {
