@@ -83,27 +83,29 @@ export function Breadcrumb({ crumbs }: { crumbs: string[] }) {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="h-[26px] flex-shrink-0 flex items-center gap-1.5 px-4 overflow-hidden
+      className="h-[26px] flex-shrink-0 flex items-center
                  text-[11.5px] text-[var(--ide-text-faint)]
                  border-b border-[var(--ide-border-soft)]"
     >
-      {crumbs.map((crumb, i) => (
-        <span key={`${crumb}-${i}`} className="flex items-center gap-1.5 min-w-0">
-          {i > 0 && (
-            <CaretRight
-              size={10}
-              className="flex-shrink-0 text-[var(--ide-muted)]"
-              aria-hidden="true"
-            />
-          )}
-          <span
-            className={cx('truncate', i === crumbs.length - 1 && 'text-[var(--ide-text-dim)]')}
-            aria-current={i === crumbs.length - 1 ? 'page' : undefined}
-          >
-            {crumb}
+      <div className="w-full max-w-[1200px] mx-auto px-6 sm:px-8 flex items-center gap-1.5 overflow-hidden">
+        {crumbs.map((crumb, i) => (
+          <span key={`${crumb}-${i}`} className="flex items-center gap-1.5 min-w-0">
+            {i > 0 && (
+              <CaretRight
+                size={10}
+                className="flex-shrink-0 text-[var(--ide-muted)]"
+                aria-hidden="true"
+              />
+            )}
+            <span
+              className={cx('truncate', i === crumbs.length - 1 && 'text-[var(--ide-text-dim)]')}
+              aria-current={i === crumbs.length - 1 ? 'page' : undefined}
+            >
+              {crumb}
+            </span>
           </span>
-        </span>
-      ))}
+        ))}
+      </div>
     </nav>
   )
 }

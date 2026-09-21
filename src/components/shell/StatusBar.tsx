@@ -28,7 +28,7 @@ export function StatusBar() {
 
   return (
     <div
-      className="h-[22px] flex-shrink-0 flex items-center justify-between px-2.5
+      className="h-[22px] flex-shrink-0 flex items-center justify-between px-4 sm:px-5
                  bg-[var(--ide-deep)] border-t border-[var(--ide-border-soft)]
                  text-[11px] text-[var(--ide-text-dim)] select-none"
     >

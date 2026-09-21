@@ -110,26 +110,28 @@ function StatCard({ icon, label, value, sub, tone, loading }: StatCardProps) {
   const shown = useCountUp(value)
 
   return (
-    <IdeCard className="px-4 py-[15px]">
-      <div className="flex items-center gap-[7px] mb-2.5 text-[var(--ide-text-dim)]">
-        {icon}
-        <span className="text-[11.5px]">{label}</span>
+    <IdeCard className="p-4 sm:p-5 h-full flex flex-col justify-between">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-[var(--ide-text-dim)]">
+          {icon}
+          <span className="text-[11.5px] font-medium">{label}</span>
+        </div>
+        <div
+          className={cx(
+            'font-mono text-2xl font-semibold tabular-nums',
+            tone === 'accent' && 'text-[var(--ide-accent)]',
+            tone === 'bad' && 'text-[var(--ide-bad)]',
+            !tone && 'text-[var(--ide-text-hi)]',
+          )}
+        >
+          {loading ? (
+            <Loader2 size={20} className="animate-spin motion-reduce:animate-none" aria-label="Loading" />
+          ) : (
+            shown
+          )}
+        </div>
       </div>
-      <div
-        className={cx(
-          'font-mono text-2xl font-semibold tabular-nums',
-          tone === 'accent' && 'text-[var(--ide-accent)]',
-          tone === 'bad' && 'text-[var(--ide-bad)]',
-          !tone && 'text-[var(--ide-text-hi)]',
-        )}
-      >
-        {loading ? (
-          <Loader2 size={20} className="animate-spin motion-reduce:animate-none" aria-label="Loading" />
-        ) : (
-          shown
-        )}
-      </div>
-      <div className="mt-[5px] text-[11px] text-[var(--ide-text-faint)]">{sub}</div>
+      <div className="mt-2 text-[11px] text-[var(--ide-text-faint)] truncate">{sub}</div>
     </IdeCard>
   )
 }
@@ -248,16 +250,16 @@ export default function HomePage() {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="px-[26px] py-[22px] max-w-[1080px]">
+      <div className="w-full max-w-[1200px] mx-auto px-6 sm:px-8 py-5 sm:py-6">
         {/* ── Hero ─────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-5 mb-[26px] flex-wrap">
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
           <div className="min-w-0">
-            <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-[var(--ide-text-hi)] mb-[5px]">
+            <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-[var(--ide-text-hi)] mb-1.5">
               {greeting}, Prateek
             </h1>
             <p className="text-[12.5px] text-[var(--ide-text-dim)]">{heroLine}</p>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
+          <div className="flex items-center gap-3.5 flex-shrink-0 ml-auto">
             {/* Import lives on Projects — that's where the zip-upload modal is. */}
             <Button
               variant="ghost"
@@ -279,7 +281,7 @@ export default function HomePage() {
         </div>
 
         {/* ── Stats ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mb-7">
+        <div className="grid grid-cols-1 min-[700px]:grid-cols-2 min-[1100px]:grid-cols-4 gap-4 mb-8">
           <StatCard
             icon={<Zap size={13} aria-hidden="true" />}
             label="Running now"
@@ -346,6 +348,7 @@ export default function HomePage() {
           {!sessionsLoading && recent.length === 0 && (
             <IdeCard>
               <EmptyState
+                className="py-9 px-6 gap-2.5"
                 icon={<Folder size={26} aria-hidden="true" />}
                 title="No projects yet"
                 detail="Start a run from the Console and it will show up here with its live progress."
@@ -369,17 +372,19 @@ export default function HomePage() {
         </div>
 
         {/* ── Quickstart ───────────────────────────────────────────── */}
-        <SectionRow title="Start something new" className="mt-[30px]" />
+        <SectionRow title="Start something new" className="mt-8" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 min-[900px]:grid-cols-3 gap-4">
           {QUICKSTART.map(({ to, icon: Icon, title, detail }) => (
-            <Link key={to} to={to} className="rounded-panel">
-              <IdeCard interactive className="p-4 h-full">
-                <Icon size={17} className="text-[var(--ide-accent)] mb-2.5" aria-hidden="true" />
-                <div className="text-[12.5px] font-semibold text-[var(--ide-text-hi)] mb-1">
-                  {title}
+            <Link key={to} to={to} className="rounded-panel h-full">
+              <IdeCard interactive className="p-4 sm:p-5 h-full flex flex-col justify-between">
+                <div>
+                  <Icon size={18} className="text-[var(--ide-accent)] mb-3" aria-hidden="true" />
+                  <div className="text-[13px] font-semibold text-[var(--ide-text-hi)] mb-1.5">
+                    {title}
+                  </div>
+                  <div className="text-[11.5px] leading-[1.55] text-[var(--ide-text-dim)]">{detail}</div>
                 </div>
-                <div className="text-[11.5px] leading-[1.5] text-[var(--ide-text-dim)]">{detail}</div>
               </IdeCard>
             </Link>
           ))}
