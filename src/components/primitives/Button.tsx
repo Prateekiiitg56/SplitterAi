@@ -65,14 +65,14 @@ export function Button(props: ButtonProps) {
       title={iconOnly ? label : undefined}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex items-center justify-center gap-1.5 rounded-panel',
-        'text-meta leading-none whitespace-nowrap select-none',
+        'inline-flex items-center justify-center gap-1.5 rounded-control',
+        'leading-none whitespace-nowrap select-none',
         'transition-[background-color,border-color,color,filter,transform]',
         'duration-[var(--d-quick)] ease-standard',
         'active:scale-[0.985]',
         'disabled:opacity-45 disabled:pointer-events-none',
-        size === 'sm' ? 'h-8' : 'h-9',
-        iconOnly ? (size === 'sm' ? 'w-8 h-8' : 'w-9 h-9') : size === 'sm' ? 'px-3' : 'px-4',
+        size === 'sm' ? 'h-[30px] text-[12.5px]' : 'h-9 text-meta',
+        iconOnly ? (size === 'sm' ? 'w-[30px] h-[30px]' : 'w-9 h-9') : size === 'sm' ? 'px-3' : 'px-4',
         VARIANT[variant],
         className,
       )}

@@ -24,17 +24,17 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <div className={cx('flex flex-col items-center justify-center text-center px-6 py-12', className)}>
+    <div className={cx('flex flex-col items-center justify-center text-center px-4 py-6 gap-1.5', className)}>
       {icon ? (
-        <span aria-hidden="true" className="mb-4 text-[var(--ghost)]">
+        <span aria-hidden="true" className="text-[var(--ide-text-faint)] mb-1">
           {icon}
         </span>
       ) : null}
-      <p className="text-ui font-medium text-[var(--text-2)]">{title}</p>
+      <p className="text-[13px] font-semibold text-[var(--ide-text-hi)]">{title}</p>
       {detail ? (
-        <p className="mt-1 text-meta text-[var(--faint)] max-w-[42ch] leading-[1.55]">{detail}</p>
+        <p className="text-[12px] text-[var(--ide-text-dim)] max-w-[42ch] leading-[1.4]">{detail}</p>
       ) : null}
-      {action ? <div className="mt-4 flex items-center gap-2">{action}</div> : null}
+      {action ? <div className="mt-2 flex items-center gap-2">{action}</div> : null}
     </div>
   )
 }

@@ -33,7 +33,7 @@ export function IdeCard({ children, interactive = false, className }: IdeCardPro
       className={cx(
         'rounded-panel bg-[var(--ide-raised)] border border-[var(--ide-border)]',
         interactive &&
-          'transition-colors duration-[var(--d-quick)] ease-standard hover:border-[var(--ide-edge-hover)]',
+          'transition-all duration-150 ease-standard hover:border-[var(--ide-edge-hover)] hover:bg-[var(--ide-raised-2)]',
         className,
       )}
     >
@@ -110,12 +110,12 @@ interface SectionRowProps {
 
 export function SectionRow({ title, action, as: Heading = 'h2', className }: SectionRowProps) {
   return (
-    <div className={cx('flex items-center justify-between mb-3', className)}>
-      <Heading className="text-[12.5px] font-semibold text-[var(--ide-text-hi)]">{title}</Heading>
+    <div className={cx('flex items-center justify-between mb-[10px]', className)}>
+      <Heading className="text-[13px] font-semibold text-[var(--ide-text-dim)]">{title}</Heading>
       {action && (
         <Link
           to={action.to}
-          className="text-[11.5px] text-[var(--ide-accent)] rounded-control
+          className="text-[12px] text-[var(--ide-accent)] rounded-control
                      transition-opacity duration-[var(--d-quick)] hover:opacity-80"
         >
           {action.label} →
