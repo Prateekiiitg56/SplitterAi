@@ -250,7 +250,7 @@ export default function HomePage() {
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="w-full max-w-[1200px] mx-auto px-6 sm:px-8 py-5 sm:py-6">
+      <div className="w-full px-8 py-6">
         {/* ── Hero ─────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
           <div className="min-w-0">
