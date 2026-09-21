@@ -1,15 +1,10 @@
 import { useId } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
-import { Search } from 'lucide-react'
+import { MagnifyingGlass } from '@phosphor-icons/react'
 import { cx } from '../../lib/cx'
 
 /**
  * Form fields.
- *
- * Every control here generates its own id and wires `htmlFor` to it.
- * `htmlFor` appeared zero times in the original codebase: modal labels
- * were plain text sitting near an input, and search inputs had only a
- * placeholder, so none of them were programmatically associated.
  */
 
 const CONTROL = cx(
@@ -140,9 +135,9 @@ export function SearchField({
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
-      <Search
+      <MagnifyingGlass
         aria-hidden="true"
-        className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--faint)] pointer-events-none"
+        className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--faint)] pointer-events-none"
       />
       <input id={id} type="search" className={cx(CONTROL, 'h-8 pl-8 pr-3')} {...rest} />
     </div>
