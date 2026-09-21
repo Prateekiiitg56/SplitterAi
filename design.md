@@ -243,3 +243,24 @@ Every page/panel that loads real data needs to explicitly handle:
 - Don't increase base font sizes to "improve readability" — the density is
   intentional for a console product; if something feels cramped, fix spacing/
   hierarchy, not the type scale.
+
+---
+
+## 12. Console Exception — Bolt-Style Design
+
+The `/console` route uses a Bolt-inspired visual design scoped under
+`.console-bolt` in `src/index.css` with:
+
+| Token | Value | Notes |
+|---|---|---|
+| `--accent` | `#1488fc` | Console-specific accent (vs `#48B4FF` landing, `#3b9dff` IDE) |
+| `--bg` | `#0f0f0f` | Near-black, warmer than the IDE's `#1e1e1e` |
+| `--panel` | `#1e1e22` | Input card and chat bubble surfaces |
+
+This intentionally diverges from the "no decorative glow" rule for the rest of
+the app — the console shows a blue horizon glow at the bottom of the viewport
+(`.ray-bg`) as a design signature. The scope is CSS-only and does not affect
+other routes.
+
+The page renders outside `AppShell` (same pattern as `Landing`) with its own
+`ConsoleSidebar` component at `src/components/ui/console-sidebar.tsx`.

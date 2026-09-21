@@ -1,19 +1,9 @@
-import { X, ChevronRight } from 'lucide-react'
+import { X, CaretRight } from '@phosphor-icons/react'
 import { cx } from '../../lib/cx'
 import { getShellChrome } from './shellNav'
 
 /**
  * EditorTabs — the 36px tab strip, and the breadcrumb under it.
- *
- * The reference's tab strip is static markup with vanilla-JS switching; here it
- * is backed by real state in AppShell. Every route you visit opens a tab,
- * clicking one navigates to it, and closing one falls back to the neighbouring
- * tab. Labels and icons come from getShellChrome(), so a tab can never disagree
- * with the route it points at.
- *
- * A tab is a wrapper holding two sibling buttons rather than a button
- * containing a button — nesting them would be invalid markup and would break
- * keyboard access to the closer.
  */
 
 interface EditorTabsProps {
@@ -50,7 +40,7 @@ export function EditorTabs({ tabs, activePath, onSelect, onClose }: EditorTabsPr
             {active && (
               <span
                 aria-hidden="true"
-                className="absolute left-0 right-0 top-0 h-[1.5px] bg-[var(--ide-accent)]"
+                className="absolute left-0 right-0 top-0 h-[1.5px] bg-[var(--ide-accent)] shadow-[0_0_8px_var(--ide-accent)]"
               />
             )}
             <button
@@ -63,6 +53,7 @@ export function EditorTabs({ tabs, activePath, onSelect, onClose }: EditorTabsPr
             >
               <Icon
                 size={13}
+                weight={active ? 'fill' : 'regular'}
                 className={cx('flex-shrink-0', active && 'text-[var(--ide-accent)]')}
               />
               <span className="truncate">{label}</span>
@@ -99,8 +90,8 @@ export function Breadcrumb({ crumbs }: { crumbs: string[] }) {
       {crumbs.map((crumb, i) => (
         <span key={`${crumb}-${i}`} className="flex items-center gap-1.5 min-w-0">
           {i > 0 && (
-            <ChevronRight
-              size={11}
+            <CaretRight
+              size={10}
               className="flex-shrink-0 text-[var(--ide-muted)]"
               aria-hidden="true"
             />

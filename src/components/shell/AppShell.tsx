@@ -20,7 +20,7 @@ import DownloadAppModal from '../DownloadAppModal'
  *   ├ ActivityBar     48px  route rail
  *   ├ ExplorerSidebar 260px contextual tree (ShellExplorer decides what)
  *   ├ content              EditorTabs 36px / Breadcrumb 26px / the route
- *   └ ChatPanel       360px composer shell
+ *   └ ChatPanel       250px composer shell
  *   StatusBar         22px  workspace, live count, model
  *
  * Only layout lives here. No page data is fetched, transformed or held; the

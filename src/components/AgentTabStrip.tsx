@@ -1,4 +1,4 @@
-import { Plus, RotateCcw } from 'lucide-react'
+import { Plus, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { ROLE_META } from '../data'
 import { cx } from '../lib/cx'
 import type { AgentRole } from '../types'
@@ -19,8 +19,8 @@ export default function AgentTabStrip({
   onStartFromScratch,
 }: AgentTabStripProps) {
   return (
-    <div className="flex flex-shrink-0 select-none bg-black/40 backdrop-blur-md z-10">
-      <div className="ml-4 flex min-h-12 w-[calc(100%-1rem)] items-center justify-between gap-4 border-b border-white/10 px-4 sm:px-6 lg:justify-end lg:px-8 text-xs">
+    <div className="flex flex-shrink-0 select-none bg-[var(--ide-deep)] border-b border-[var(--ide-border)] z-10">
+      <div className="ml-4 flex min-h-12 w-[calc(100%-1rem)] items-center justify-between gap-4 px-4 sm:px-6 lg:justify-end lg:px-8 text-xs">
         {/* Left: Tabs */}
         <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
           {/* Active / Available Agent Tabs */}
@@ -35,13 +35,13 @@ export default function AgentTabStrip({
                 className={cx(
                   'relative flex h-8 items-center gap-2 rounded-md px-3 font-medium transition-all',
                   isActive
-                    ? 'bg-[#182238] text-white shadow-sm ring-1 ring-white/15'
-                    : 'text-white/60 hover:text-white/90 hover:bg-white/5',
+                    ? 'bg-[var(--ide-raised)] text-white shadow-sm ring-1 ring-[var(--ide-border)]'
+                    : 'text-[var(--ide-text-dim)] hover:text-white hover:bg-[var(--ide-hover)]',
                 )}
               >
                 <span>{name}</span>
                 {isActive && (
-                  <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-blue-500 rounded-full" />
+                  <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-[var(--ide-accent)] rounded-full shadow-[0_0_8px_var(--ide-accent)]" />
                 )}
               </button>
             )
@@ -50,7 +50,7 @@ export default function AgentTabStrip({
           <button
             type="button"
             onClick={onAddAgent}
-            className="ml-2 flex h-8 items-center gap-2 px-3 text-white/50 hover:text-white transition-colors"
+            className="ml-2 flex h-8 items-center gap-2 px-3 text-[var(--ide-text-faint)] hover:text-white transition-colors"
           >
             <Plus size={13} />
             <span className="whitespace-nowrap">Add Agent</span>
@@ -62,9 +62,9 @@ export default function AgentTabStrip({
           <button
             type="button"
             onClick={onStartFromScratch}
-            className="flex h-8 items-center gap-2 px-3 text-white/60 hover:text-white transition-colors"
+            className="flex h-8 items-center gap-2 px-3 text-[var(--ide-text-dim)] hover:text-white transition-colors"
           >
-            <RotateCcw size={12} />
+            <ArrowCounterClockwise size={13} />
             <span>Start from scratch</span>
           </button>
         </div>

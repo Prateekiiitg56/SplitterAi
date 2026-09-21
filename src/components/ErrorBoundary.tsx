@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react'
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
+import { WarningOctagon, ArrowClockwise, House } from '@phosphor-icons/react'
 
 interface Props {
   children?: ReactNode
@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex-1 flex flex-col items-center justify-center p-8 bg-[var(--bg)] text-[var(--text)] font-sans text-center min-h-[400px]">
           <div className="rounded-panel border border-[var(--bad-quiet)] bg-[var(--bad-quiet)] p-8 max-w-[500px] w-full space-y-4 shadow-[var(--shadow-float)]">
             <div className="w-12 h-12 rounded-control bg-[var(--bad-quiet)] text-[var(--bad)] flex items-center justify-center mx-auto border border-[var(--bad-quiet)]">
-              <AlertTriangle size={24} />
+              <WarningOctagon size={26} weight="duotone" />
             </div>
 
             <h2 className="text-title font-bold text-[var(--text)]">
@@ -57,15 +57,15 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleGoHome}
                 className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--panel-2)] hover:bg-[var(--panel-3)] text-[var(--text-2)] text-ui font-semibold transition-colors cursor-pointer border border-[var(--border)]"
               >
-                <Home size={14} />
+                <House size={15} />
                 <span>Back to Home</span>
               </button>
 
               <button
                 onClick={this.handleReset}
-                className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--accent)] hover:brightness-110 text-[var(--accent-ink)] text-ui font-semibold transition-colors cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 rounded-control bg-[var(--accent)] hover:brightness-110 text-white text-ui font-semibold transition-colors cursor-pointer"
               >
-                <RefreshCw size={14} />
+                <ArrowClockwise size={15} />
                 <span>Retry</span>
               </button>
             </div>

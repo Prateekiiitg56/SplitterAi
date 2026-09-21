@@ -1,18 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
-  ChevronDown,
+  CaretDown,
   Gauge,
-  Plug,
-  Settings,
-  Search,
-  FolderGit2,
-  CheckCircle2,
-  AlertCircle,
+  PlugsConnected,
+  Gear,
+  MagnifyingGlass,
+  FolderSimple,
   Clock,
   X,
   Cpu,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import { useApp } from '../context/AppContext'
 import { DEFAULT_WORKSPACE } from '../config'
 import { StatusBadge } from './Badges'
@@ -96,11 +94,11 @@ export default function TopBar() {
             aria-haspopup="true"
             aria-expanded={workspaceOpen}
           >
-            <FolderGit2 size={15} className="text-[var(--accent)] flex-shrink-0" />
+            <FolderSimple size={15} weight="fill" className="text-[var(--accent)] flex-shrink-0" />
             <span className="font-mono text-meta font-medium text-[var(--text)] truncate max-w-[110px] sm:max-w-[180px]">
               {DEFAULT_WORKSPACE.split(/[/\\]/).pop() || 'Workspace'}
             </span>
-            <ChevronDown size={13} className={`text-[var(--dim)] transition-transform duration-[var(--d-quick)] ease-standard ${workspaceOpen ? 'rotate-180' : ''}`} />
+            <CaretDown size={12} className={`text-[var(--dim)] transition-transform duration-[var(--d-quick)] ease-standard ${workspaceOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {/* Workspace Dropdown */}
@@ -147,7 +145,7 @@ export default function TopBar() {
         onClick={handleOpenCommandPalette}
         className="hidden md:flex h-9 w-[480px] max-w-[50%] items-center gap-2 rounded-lg bg-[var(--panel-2)] px-3.5 border border-[var(--border-soft)] hover:border-[var(--border)] text-[var(--dim)] hover:text-[var(--text)] transition-colors text-meta"
       >
-        <Search size={14} className="text-[var(--faint)]" />
+        <MagnifyingGlass size={14} className="text-[var(--faint)]" />
         <span className="flex-1 text-left">Search commands & files…</span>
         <kbd className="font-mono text-micro bg-[var(--border-soft)] px-1.5 py-0.5 rounded text-[var(--faint)] border border-[var(--border-soft)]">
           Ctrl K
@@ -212,7 +210,7 @@ export default function TopBar() {
           title="Integrations"
           aria-label="Integrations"
         >
-          <Plug size={17} />
+          <PlugsConnected size={17} />
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)]" />
         </Link>
 
@@ -224,7 +222,7 @@ export default function TopBar() {
           aria-label="Settings"
           aria-expanded={settingsOpen}
         >
-          <Settings size={17} />
+          <Gear size={17} />
         </button>
 
         {/* User Avatar */}

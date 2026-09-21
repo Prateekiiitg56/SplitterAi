@@ -1,13 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+/* Fonts are self-hosted via @fontsource-variable — imported in main.tsx */
 @import "tailwindcss";
 @import "./shaders/threeui.css";
 
 /* ═══════════════════════════════════════════════════════════════════════
    SplitterAI — design tokens
-   Theme is unchanged in character: cold blue on near-black, IBM Plex.
-   What changed: one accent instead of three palettes, a real type scale
-   instead of 15 arbitrary sizes, three radii instead of seven, and
-   --faint raised to pass WCAG AA (was 2.3:1, now 4.8:1).
+   Inter Variable + JetBrains Mono Variable. Warm violet-blue accent.
+   One accent instead of three palettes, a real type scale, three radii,
+   and --faint raised to pass WCAG AA.
    ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
@@ -66,9 +65,9 @@
   --t-display: 24px;            /* section display                        */
   --t-hero: 32px;               /* home headline only                      */
 
-  --lh-tight: 1.2;
-  --lh-snug: 1.35;
-  --lh-body: 1.55;
+  --lh-tight: 1.15;
+  --lh-snug: 1.3;
+  --lh-body: 1.5;
 
   /* ── Spatial scale ───────────────────────────────────────────────── */
   --space-1: 4px;
@@ -80,15 +79,19 @@
   --space-12: 48px;
 
   /* ── Radii — three, plus pills ────────────────────────────────────── */
-  --r-control: 4px;             /* inputs, chips, small glyphs            */
-  --r-panel: 6px;               /* panels, cards, buttons                 */
-  --r-float: 10px;              /* modals, popovers                       */
-  --radius: 6px;                /* legacy alias — do not use in new code  */
+  --r-control: 6px;             /* inputs, chips, small glyphs            */
+  --r-panel: 8px;               /* panels, cards, buttons                 */
+  --r-float: 12px;              /* modals, popovers                       */
+  --r-lg: 14px;                 /* large cards, hero sections             */
+  --r-xl: 18px;                 /* full-bleed cards, onboarding           */
+  --radius: 8px;                /* legacy alias — do not use in new code  */
 
-  /* ── Elevation — two levels, no more ──────────────────────────────── */
-  --shadow-raise: 0 1px 2px rgba(0, 0, 0, 0.45);
-  --shadow-float: 0 18px 48px -14px rgba(0, 0, 0, 0.75),
-                  0 0 0 1px rgba(255, 255, 255, 0.035);
+  /* ── Elevation — three levels ─────────────────────────────────────── */
+  --shadow-raise: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-float: 0 20px 50px -16px rgba(0, 0, 0, 0.7),
+                  0 0 0 1px rgba(255, 255, 255, 0.04),
+                  0 0 80px -20px rgba(124, 92, 252, 0.06);
+  --shadow-glow: 0 0 40px -10px rgba(124, 92, 252, 0.15);
 
   /* ── The motion score ─────────────────────────────────────────────────
      Mirrors src/lib/motion.ts. Every duration in the app is one of these
@@ -103,8 +106,8 @@
   --e-out: cubic-bezier(0.16, 1, 0.3, 1);         /* entrances           */
   --e-in: cubic-bezier(0.7, 0, 0.84, 0);          /* exits               */
 
-  --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
 
   /* ── IDE shell surfaces — the Cursor-style chrome ─────────────────────
      Additive tokens for the redesigned app shell (title bar, activity bar,
@@ -112,39 +115,31 @@
      surfaces above are untouched; these neutral grays sit only under the new
      shell. Mirrored in @theme below as --color-ide-* so both the
      bg-[var(--ide-deep)] form and the bg-ide-deep utility resolve.          */
-  --ide-editor: #1e1e1e;        /* main content / editor surface           */
-  --ide-deep: #181818;          /* titlebar, activity bar, explorer, status */
-  --ide-raised: #252526;        /* cards, inputs, inactive chips            */
-  --ide-raised-2: #2d2d2d;      /* higher hover / pressed                  */
-  --ide-border: #2b2b2b;        /* default IDE edge                        */
-  --ide-border-soft: #232323;   /* faint IDE divider                       */
+  --ide-editor: #1b1b1f;        /* main content / editor surface — warmed  */
+  --ide-deep: #141418;          /* titlebar, activity bar, explorer, status */
+  --ide-raised: #242429;        /* cards, inputs, inactive chips            */
+  --ide-raised-2: #2c2c32;      /* higher hover / pressed                  */
+  --ide-border: #2a2a30;        /* default IDE edge                        */
+  --ide-border-soft: #222228;   /* faint IDE divider                       */
 
-  --ide-text: #cccccc;          /* primary IDE text        9.5:1 on raised */
-  --ide-text-hi: #f0f0f0;       /* emphasised IDE text    13.4:1           */
-  /* These two sit one step lighter than the reference, which used #8f8f8f
-     and #6b6b6b. #6b6b6b reaches only ~3.2:1 on the editor surface and it
-     carries real text here — breadcrumb trail, workspace paths, timestamps.
-     Lifted so both pass WCAG AA while keeping a visible two-step ramp, the
-     same correction the app palette above documents for --faint.           */
-  --ide-text-dim: #9d9d9d;      /* secondary IDE text      6.1:1           */
-  --ide-text-faint: #8a8a8a;    /* de-emphasised IDE text  4.8:1  AA ✓     */
+  --ide-text: #d0d0d8;          /* primary IDE text        9.5:1 on raised */
+  --ide-text-hi: #f0f0f4;       /* emphasised IDE text    13.4:1           */
+  --ide-text-dim: #9d9da8;      /* secondary IDE text      6.1:1           */
+  --ide-text-faint: #8a8a96;    /* de-emphasised IDE text  4.8:1  AA ✓     */
 
-  --ide-hover: #2a2a2a;         /* tree-row / status-item hover            */
-  --ide-track: #333333;         /* progress track inside the shell         */
-  --ide-edge-hover: #3d3d3d;    /* card / control edge on hover            */
-  --ide-muted: #555555;         /* NON-TEXT ONLY: separators, dim fills    */
+  --ide-hover: #28282e;         /* tree-row / status-item hover            */
+  --ide-track: #32323a;         /* progress track inside the shell         */
+  --ide-edge-hover: #3c3c44;    /* card / control edge on hover            */
+  --ide-muted: #52525c;         /* NON-TEXT ONLY: separators, dim fills    */
 
-  /* The Cursor accent + its tints. Declared as tokens so no component
-     hardcodes the hex; .ide-shell rebinds --accent/--accent-quiet/
-     --accent-edge/--accent-ink to these, so every reused primitive
-     (Button primary, Field focus, StatusDot, StatusBadge, ::selection, the
-     focus ring) adopts the blue inside the authenticated app only. The
-     standalone Landing renders outside .ide-shell and keeps #48B4FF.       */
-  --ide-accent: #3b9dff;
-  --ide-accent-dim: #2c72b3;
-  --ide-accent-quiet: rgba(59, 157, 255, 0.12);
-  --ide-accent-edge: #2c72b3;
-  --ide-accent-ink: #04101c;
+  /* Warm violet-blue accent. Warmer and brighter than the old Cursor blue.
+     Declared as tokens so .ide-shell rebinds --accent/* to these, and the
+     standalone Landing keeps its own #48B4FF.                               */
+  --ide-accent: #7c5cfc;
+  --ide-accent-dim: #6348d4;
+  --ide-accent-quiet: rgba(124, 92, 252, 0.12);
+  --ide-accent-edge: rgba(124, 92, 252, 0.45);
+  --ide-accent-ink: #ffffff;
 
   --ide-good: #4ec9b0;
   --ide-bad: #f14c4c;
@@ -195,30 +190,26 @@
      the new shell. The accent is unchanged here — it is rebound to the Cursor
      blue (#3b9dff) on the shell root so reused primitives pick it up without
      altering --accent globally, leaving the standalone Landing on #48B4FF. */
-  --color-ide-editor: #1e1e1e;      /* main content / editor surface        */
-  --color-ide-deep: #181818;        /* titlebar, activitybar, explorer, etc */
-  --color-ide-raised: #252526;      /* hover rows, cards, inputs            */
-  --color-ide-raised-2: #2d2d2d;    /* higher hover / pressed               */
-  --color-ide-border: #2b2b2b;      /* default IDE edge                     */
-  --color-ide-border-soft: #232323; /* faint IDE divider                    */
-  --color-ide-text: #cccccc;        /* primary IDE text                     */
-  --color-ide-text-hi: #f0f0f0;     /* emphasised IDE text                  */
-  --color-ide-text-dim: #9d9d9d;    /* secondary IDE text      6.1:1        */
-  --color-ide-text-faint: #8a8a8a;  /* de-emphasised IDE text  4.8:1  AA ✓  */
+  --color-ide-editor: #1b1b1f;
+  --color-ide-deep: #141418;
+  --color-ide-raised: #242429;
+  --color-ide-raised-2: #2c2c32;
+  --color-ide-border: #2a2a30;
+  --color-ide-border-soft: #222228;
+  --color-ide-text: #d0d0d8;
+  --color-ide-text-hi: #f0f0f4;
+  --color-ide-text-dim: #9d9da8;
+  --color-ide-text-faint: #8a8a96;
 
-  --color-ide-hover: #2a2a2a;       /* tree-row / status-item hover         */
-  --color-ide-track: #333333;       /* progress track inside the shell      */
-  --color-ide-edge-hover: #3d3d3d;  /* card / control edge on hover         */
-  --color-ide-muted: #555555;       /* NON-TEXT ONLY: separators, dim fills */
+  --color-ide-hover: #28282e;
+  --color-ide-track: #32323a;
+  --color-ide-edge-hover: #3c3c44;
+  --color-ide-muted: #52525c;
 
-  /* The Cursor accent + its tints. Declared here so no component hardcodes
-     the hex; the shell root rebinds --accent/--accent-quiet/--accent-edge to
-     these so reused primitives (Button primary, Field focus, StatusDot,
-     StatusBadge, ::selection, focus ring) adopt the blue inside the app only. */
-  --color-ide-accent: #3b9dff;
-  --color-ide-accent-dim: #2c72b3;
-  --color-ide-accent-quiet: rgba(59, 157, 255, 0.12);
-  --color-ide-accent-ink: #04101c;
+  --color-ide-accent: #7c5cfc;
+  --color-ide-accent-dim: #6348d4;
+  --color-ide-accent-quiet: rgba(124, 92, 252, 0.12);
+  --color-ide-accent-ink: #ffffff;
 
   --color-ide-good: #4ec9b0;
   --color-ide-bad: #f14c4c;
@@ -232,18 +223,18 @@
   --text-display: 24px;
   --text-hero: 32px;
 
-  --radius-control: 4px;
-  --radius-panel: 6px;
-  --radius-float: 10px;
+  --radius-control: 6px;
+  --radius-panel: 8px;
+  --radius-float: 12px;
 
-  --shadow-raise: 0 1px 2px rgba(0, 0, 0, 0.45);
-  --shadow-float: 0 18px 48px -14px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.035);
+  --shadow-raise: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-float: 0 20px 50px -16px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 80px -20px rgba(124, 92, 252, 0.06);
 
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-strong: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -264,10 +255,13 @@ body {
   font-family: var(--sans);
   font-size: var(--t-ui);
   line-height: var(--lh-body);
+  letter-spacing: -0.011em;
   overflow: hidden;              /* fixed-viewport app shell */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'cv01', 'cv02', 'ss01';
+  text-rendering: optimizeLegibility;
 }
 
 .app-shell {
@@ -301,32 +295,10 @@ body {
   --accent-quiet: var(--ide-accent-quiet);
   --accent-edge: var(--ide-accent-edge);
 
-  /* The semantic status trio, retuned to VSCode's. The app's greens and blues
-     were already within a hair of the IDE set, but --bad was a warm pink
-     (#FF6E82) that read as a different design language next to the grays.
-     Rebinding here means StatusBadge/StatusDot pick these up unedited, and
-     Landing — which renders outside .ide-shell — keeps the original palette. */
   --good: var(--ide-good);
   --bad: var(--ide-bad);
   --bad-quiet: rgba(241, 76, 76, 0.13);
 
-  /* ── The neutral palette ────────────────────────────────────────────
-     The app's surfaces and ink are blue-tinted navy (#0F1420 panels,
-     #232B3D edges, #B9C2D4 body). Dropped inside neutral-gray IDE chrome
-     they read as a second, colder design language — a ghost Button's navy
-     edge against an IDE card's gray edge is visible side by side.
-
-     Rebinding the tokens here rather than editing components means every
-     shared primitive — Button, Panel, Modal, TextField, EmptyState,
-     PageHeader — becomes correct inside the shell without being touched,
-     which is what rule 3 asks for. It also means pages not yet restructured
-     still read as one coherent app instead of navy islands in gray chrome.
-
-     Landing is outside .ide-shell, so it keeps the original palette intact.
-     Deleting this block reverts the app to navy with nothing else to undo.
-
-     Ink is one step lighter than VSCode's literal values so every level
-     clears WCAG AA on --panel; contrast noted per line.                  */
   --bg: var(--ide-editor);
   --bg-inset: var(--ide-deep);
   --panel: var(--ide-raised);
@@ -335,28 +307,43 @@ body {
 
   --border-soft: var(--ide-border-soft);
   --border: var(--ide-border);
-  --border-strong: #3d3d3d;
+  --border-strong: #3c3c44;
 
-  --text: var(--ide-text-hi);    /* 13.4:1 */
-  --text-2: var(--ide-text);     /*  9.5:1 */
-  --dim: #a6a6a6;                /*  6.3:1 */
-  --faint: var(--ide-text-faint);/*  4.8:1  AA ✓ */
-  --ghost: #4a4a4a;              /* non-text only: dots, rules, grid */
+  --text: var(--ide-text-hi);
+  --text-2: var(--ide-text);
+  --dim: #a6a6b0;
+  --faint: var(--ide-text-faint);
+  --ghost: #48484e;
 
   color: var(--ide-text);
   background: var(--ide-editor);
 }
 
-.ide-shell ::-webkit-scrollbar { width: 11px; height: 11px; }
+/* ── Noise texture — the single biggest tell between AI and designer ── */
+.ide-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+}
+
+.ide-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
 .ide-shell ::-webkit-scrollbar-track { background: transparent; }
 .ide-shell ::-webkit-scrollbar-thumb {
-  background: #3c3c3c;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   background-clip: content-box;
+  transition: background 0.2s;
 }
-.ide-shell ::-webkit-scrollbar-thumb:hover { background: #4a4a4a; background-clip: content-box; }
-.ide-shell * { scrollbar-color: #3c3c3c transparent; }
+.ide-shell ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); background-clip: content-box; }
+.ide-shell * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent; }
 
 /* The failed badge hardcodes a pink border that the --bad rebinding above
    can't reach; re-state it in the IDE's red so the fill and edge agree. */
@@ -463,7 +450,7 @@ body {
 /* Machine output is monospaced; prose is not. */
 code, pre, kbd, samp { font-family: var(--mono); }
 
-::selection { background: var(--accent); color: var(--accent-ink); }
+::selection { background: rgba(124, 92, 252, 0.35); color: var(--text); }
 
 a { color: inherit; text-decoration: none; }
 
@@ -477,26 +464,26 @@ button {
 }
 
 /* ── Focus ────────────────────────────────────────────────────────────
-   One ring, applied to anything focusable including the elements that
-   are semantically buttons but structurally divs.                      */
+   Refined ring — thinner, with accent glow for premium feel.           */
 :focus-visible,
 [tabindex]:focus-visible,
 [role="button"]:focus-visible,
 [role="option"]:focus-visible,
 [role="tab"]:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 1.5px solid var(--accent);
   outline-offset: 2px;
   border-radius: var(--r-control);
+  box-shadow: 0 0 0 4px rgba(124, 92, 252, 0.12);
 }
 :focus:not(:focus-visible) { outline: none; }
 
 /* ── Scrollbars ───────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 999px;
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); background-clip: content-box; }
@@ -930,4 +917,66 @@ button {
 .mcp-tip svg { width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
 .mcp-tip .mt-title { font-size: 12.5px; font-weight: 600; margin-bottom: 3px; color: var(--text); }
 .mcp-tip .mt-desc { font-size: 11.5px; color: var(--text-2); line-height: 1.5; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Console Bolt — Bolt-style hero + chat page at /console
+   Intentionally uses a warmer glow and #1488fc accent that diverges from
+   the IDE shell's neutral grays. Scoped here so other routes are unaffected.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.console-bolt {
+  --bg: #0f0f0f;
+  --bg-inset: #0a0a0a;
+  --panel: #1e1e22;
+  --panel-2: #1a1a1e;
+  --panel-3: #252529;
+
+  --border-soft: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.10);
+  --border-strong: rgba(255,255,255,0.18);
+
+  --text: #f0f0f0;
+  --text-2: #cccccc;
+  --dim: #8a8a8f;
+  --faint: #6a6a6f;
+  --ghost: #3a3a3e;
+
+  --accent: #1488fc;
+  --accent-ink: #ffffff;
+  --accent-quiet: rgba(20,136,252,0.12);
+  --accent-edge: rgba(20,136,252,0.4);
+
+  --good: #4ec9b0;
+  --bad: #f14c4c;
+  --warn: #cca700;
+
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Portal-rendered Modals pick up the console accent when the page is mounted */
+body.console-bolt-active {
+  --accent: #1488fc;
+  --accent-ink: #ffffff;
+  --accent-quiet: rgba(20,136,252,0.12);
+  --accent-edge: rgba(20,136,252,0.4);
+}
+
+/* Horizon glow background */
+.console-bolt .ray-bg {
+  background:
+    radial-gradient(ellipse 600px 300px at 50% 100%, rgba(20,136,252,0.14), transparent 70%),
+    radial-gradient(ellipse 1000px 500px at 50% 105%, rgba(20,136,252,0.06), transparent 80%),
+    #0f0f0f;
+}
+
+/* Console sidebar scrollbar */
+.console-bolt ::-webkit-scrollbar { width: 6px; height: 6px; }
+.console-bolt ::-webkit-scrollbar-track { background: transparent; }
+.console-bolt ::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 999px;
+}
+.console-bolt ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+.console-bolt * { scrollbar-color: rgba(255,255,255,0.12) transparent; }
 

@@ -1,20 +1,12 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { CaretRight } from '@phosphor-icons/react'
 import { cx } from '../../lib/cx'
 import { StatusDot } from '../Badges'
 
 /**
- * ExplorerSidebar — the VS Code-style tree rail, and the two pieces that fill
- * it.
- *
- * The container is generic on purpose: what goes inside is contextual per page
- * (see ShellExplorer), and every page feeds it the same real data its content
- * area already renders. Nothing in here holds page data itself.
- *
- * The reference's vanilla-JS section collapse becomes React state on
- * ExplorerSection; the chevron rotation and aria-expanded both read from it.
+ * ExplorerSidebar — the VS Code-style tree rail.
  */
 
 interface ExplorerSidebarProps {
@@ -37,12 +29,12 @@ export function ExplorerSidebar({
       className={cx(
         'flex-shrink-0 flex flex-col overflow-hidden bg-[var(--ide-deep)]',
         'transition-[width] duration-[var(--d-base)] ease-standard',
-        collapsed ? 'w-0 border-r-0' : 'w-[260px] border-r border-[var(--ide-border)]',
+        collapsed ? 'w-0 border-r-0' : 'w-[210px] border-r border-[var(--ide-border)]',
       )}
     >
       {!collapsed && (
         <>
-          <div className="h-9 flex-shrink-0 flex items-center justify-between pl-3.5 pr-2">
+          <div className="h-9 flex-shrink-0 flex items-center justify-between pl-3 pr-2 border-b border-[var(--ide-border-soft)]">
             <span className="text-[10.5px] font-bold uppercase tracking-[0.07em] text-[var(--ide-text-dim)]">
               {title}
             </span>
@@ -55,7 +47,7 @@ export function ExplorerSidebar({
                          text-[var(--ide-text-faint)] transition-colors duration-[var(--d-quick)]
                          hover:bg-[var(--ide-raised)] hover:text-[var(--ide-text)]"
             >
-              <ChevronRight size={13} className="rotate-180" aria-hidden="true" />
+              <CaretRight size={13} className="rotate-180" aria-hidden="true" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto pt-1 pb-3">{children}</div>
@@ -89,12 +81,12 @@ export function ExplorerSection({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="w-full h-6 flex items-center gap-[5px] pl-3 pr-2 text-left
+        className="w-full h-6 flex items-center gap-[5px] pl-2.5 pr-2 text-left
                    text-[11px] font-semibold text-[var(--ide-text-dim)]
                    transition-colors duration-[var(--d-quick)] hover:text-[var(--ide-text)]"
       >
-        <ChevronRight
-          size={12}
+        <CaretRight
+          size={11}
           aria-hidden="true"
           className={cx(
             'flex-shrink-0 transition-transform duration-[var(--d-quick)]',
@@ -138,11 +130,11 @@ export function ExplorerRow({
   title,
 }: ExplorerRowProps) {
   const className = cx(
-    'w-full flex items-center gap-[7px] h-[26px] pl-[30px] pr-2.5 text-left',
-    'text-[12.5px] whitespace-nowrap border-l-2',
+    'w-full flex items-center gap-1.5 h-[25px] pl-5 pr-2 text-left',
+    'text-[12px] whitespace-nowrap border-l-2',
     'transition-colors duration-[var(--d-quick)]',
     active
-      ? 'bg-[var(--ide-accent-quiet)] border-l-[var(--ide-accent)] text-[var(--ide-text-hi)]'
+      ? 'bg-[var(--ide-accent-quiet)] border-l-[var(--ide-accent)] text-[var(--ide-text-hi)] font-medium'
       : 'border-l-transparent text-[var(--ide-text)] hover:bg-[var(--ide-hover)]',
   )
 

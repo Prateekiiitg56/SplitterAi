@@ -9,7 +9,7 @@ import ProjectAgentsPage from './pages/ProjectAgentsPage'
 import ProjectFilesPage from './pages/ProjectFilesPage'
 import ProjectActivityPage from './pages/ProjectActivityPage'
 import HomePage from './pages/HomePage'
-import { AIAssistantInterface } from './components/ui/ai-assistant-interface'
+import ConsolePage from './pages/ConsolePage'
 import { AppProvider } from './context/AppContext'
 import { UIProvider } from './context/UIContext'
 
@@ -42,7 +42,7 @@ function Layout() {
           <Route path="/home" element={<HomePage />} />
 
           {/* Console */}
-          <Route path="/console" element={<AIAssistantInterface />} />
+          <Route path="/console" element={<ConsolePage />} />
 
           {/* Projects & Runs */}
           <Route path="/projects" element={<ProjectsPage />} />
@@ -75,6 +75,7 @@ function AppRoutes() {
   if (location.pathname === '/' || location.pathname === '/welcome') {
     return <Landing />
   }
+
 
   return <Layout />
 }

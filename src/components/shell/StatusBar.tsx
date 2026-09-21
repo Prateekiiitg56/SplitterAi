@@ -1,18 +1,8 @@
 import type { ReactNode } from 'react'
-import { Folder, Cpu, Layers } from 'lucide-react'
+import { FolderSimple, Cpu, Stack } from '@phosphor-icons/react'
 import { cx } from '../../lib/cx'
 import { useApp } from '../../context/AppContext'
 import { useUI } from '../../context/UIContext'
-
-/**
- * StatusBar — the 22px footer.
- *
- * Everything on it is real: the workspace comes from AppContext, the live count
- * is derived from the sessions AppContext already holds, and the model is the
- * one currently selected in UIContext. Nothing here fetches — the bar renders on
- * every route, so adding a request would have meant a network call per
- * navigation.
- */
 
 function ItemShell({ children, tone }: { children: ReactNode; tone?: 'live' }) {
   return (
@@ -44,7 +34,7 @@ export function StatusBar() {
     >
       <div className="flex items-center gap-3.5 h-full min-w-0">
         <ItemShell>
-          <Folder size={12} aria-hidden="true" />
+          <FolderSimple size={12} aria-hidden="true" />
           <span className="truncate max-w-[220px]" title={currentWorkspace}>
             {workspaceName}
           </span>
@@ -75,7 +65,7 @@ export function StatusBar() {
           </span>
         </ItemShell>
         <ItemShell>
-          <Layers size={12} aria-hidden="true" />
+          <Stack size={12} aria-hidden="true" />
           <span>
             {sessions.length} {sessions.length === 1 ? 'project' : 'projects'}
           </span>

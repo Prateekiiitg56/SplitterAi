@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Download, Terminal, Check, Apple, Monitor, Cpu } from 'lucide-react'
+import { DownloadSimple, TerminalWindow, Check, AppleLogo, Desktop, Cpu } from '@phosphor-icons/react'
 import { Modal } from './primitives/Modal'
 import { Button } from './primitives/Button'
 
@@ -34,14 +34,14 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
       id: 'mac',
       name: 'macOS',
       arch: 'Apple Silicon & Intel (v1.4.2)',
-      icon: Apple,
+      icon: AppleLogo,
       file: 'SplitterAI-1.4.2-universal.dmg',
     },
     {
       id: 'win',
       name: 'Windows',
       arch: 'x64 Installer (v1.4.2)',
-      icon: Monitor,
+      icon: Desktop,
       file: 'SplitterAI-Setup-1.4.2.exe',
     },
     {
@@ -85,7 +85,7 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
                   }}
                   className="w-full text-center py-1.5 px-2 rounded text-micro font-medium bg-[var(--panel-3)] border border-[var(--border-soft)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all flex items-center justify-center gap-1.5"
                 >
-                  <Download size={12} />
+                  <DownloadSimple size={12} />
                   <span>Download</span>
                 </a>
               </div>
@@ -97,7 +97,7 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
         <div className="p-3.5 rounded-panel border border-[var(--border)] bg-[var(--panel)]">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Terminal size={14} className="text-[var(--accent)]" />
+              <TerminalWindow size={14} className="text-[var(--accent)]" />
               <span className="font-semibold text-meta">SplitterAI CLI</span>
             </div>
             <span className="text-micro font-mono text-[var(--faint)]">Node.js 18+</span>

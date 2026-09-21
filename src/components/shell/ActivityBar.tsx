@@ -1,20 +1,13 @@
 import { Link } from 'react-router-dom'
-import { Download } from 'lucide-react'
+import { DownloadSimple } from '@phosphor-icons/react'
 import { cx } from '../../lib/cx'
 import { ACTIVITY_ITEMS, isActivityItemActive } from './shellNav'
 
 /**
  * ActivityBar — the 48px icon rail on the far left.
  *
- * Replaces the old Sidebar's nav list. Every route the old sidebar reached is
- * still reachable here, plus the new /home route: Home, Console, Projects,
- * Agents, Workflow, Integrations. The old sidebar's icons referenced an SVG
- * sprite (`<use href="#i-home">`) whose <symbol> definitions were never
- * actually mounted anywhere in the app, so those glyphs rendered blank; these
- * are real lucide icons.
- *
- * The active entry gets the 2px accent bar on its left edge — one of the five
- * places in this design where the blue is allowed to appear.
+ * Uses Phosphor icons with dynamic weight (fill on active, regular on default)
+ * for a hand-crafted, studio-grade appearance.
  */
 
 interface ActivityBarProps {
@@ -26,7 +19,7 @@ interface ActivityBarProps {
 export function ActivityBar({ pathname, onOpenDownload }: ActivityBarProps) {
   return (
     <nav
-      className="w-12 flex-shrink-0 flex flex-col items-center py-2.5 bg-[var(--ide-deep)] select-none"
+      className="w-12 flex-shrink-0 flex flex-col items-center py-2.5 bg-[var(--ide-deep)] select-none border-r border-[var(--ide-border-soft)]"
       aria-label="Primary navigation"
     >
       <ul className="flex flex-col items-center gap-0.5 list-none">
@@ -41,20 +34,20 @@ export function ActivityBar({ pathname, onOpenDownload }: ActivityBarProps) {
                 title={item.label}
                 aria-current={active ? 'page' : undefined}
                 className={cx(
-                  'relative w-12 h-10 flex items-center justify-center',
-                  'transition-colors duration-[var(--d-quick)]',
+                  'relative w-10 h-10 rounded-md flex items-center justify-center',
+                  'transition-all duration-[var(--d-quick)]',
                   active
-                    ? 'text-[var(--ide-text-hi)]'
-                    : 'text-[var(--ide-text-faint)] hover:text-[var(--ide-text)]',
+                    ? 'text-[var(--ide-accent)] bg-[var(--ide-accent-quiet)]'
+                    : 'text-[var(--ide-text-dim)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-hover)]',
                 )}
               >
                 {active && (
                   <span
                     aria-hidden="true"
-                    className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r-sm bg-[var(--ide-accent)]"
+                    className="absolute -left-[5px] top-2 bottom-2 w-0.5 rounded-r-sm bg-[var(--ide-accent)] shadow-[0_0_8px_var(--ide-accent)]"
                   />
                 )}
-                <Icon size={21} />
+                <Icon size={20} weight={active ? 'fill' : 'regular'} />
               </Link>
             </li>
           )
@@ -63,23 +56,23 @@ export function ActivityBar({ pathname, onOpenDownload }: ActivityBarProps) {
 
       <div className="flex-1" aria-hidden="true" />
 
-      <div className="flex flex-col items-center gap-0.5">
+      <div className="flex flex-col items-center gap-1.5">
         <button
           type="button"
           onClick={onOpenDownload}
           aria-label="Download desktop app"
           title="Download desktop app"
-          className="w-12 h-10 flex items-center justify-center text-[var(--ide-text-faint)]
-                     hover:text-[var(--ide-text)] transition-colors duration-[var(--d-quick)]"
+          className="w-10 h-10 rounded-md flex items-center justify-center text-[var(--ide-text-dim)]
+                     hover:text-[var(--ide-text)] hover:bg-[var(--ide-hover)] transition-colors duration-[var(--d-quick)]"
         >
-          <Download size={21} />
+          <DownloadSimple size={20} />
         </button>
         <div
           role="img"
           aria-label="Signed in as Prateek Singh"
           title="Prateek Singh · prateek@workspace.dev"
-          className="w-6 h-6 mt-1 rounded-full flex items-center justify-center
-                     bg-[var(--ide-accent)] text-[var(--ide-accent-ink)] text-[10px] font-bold"
+          className="w-7 h-7 mt-0.5 rounded-full flex items-center justify-center
+                     bg-[var(--ide-accent)] text-white text-[10px] font-bold shadow-[0_0_12px_rgba(124,92,252,0.3)] cursor-pointer"
         >
           PS
         </div>

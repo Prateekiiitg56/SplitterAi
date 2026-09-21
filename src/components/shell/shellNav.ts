@@ -1,34 +1,26 @@
 import type { ComponentType } from 'react'
+import type { IconProps } from '@phosphor-icons/react'
 import {
-  Home,
-  Terminal,
-  Folder,
-  Bot,
-  Workflow,
-  Plug,
-  Sparkles,
+  House,
+  TerminalWindow,
+  FolderSimple,
+  Robot,
+  Network,
+  PlugsConnected,
+  Sparkle,
   Play,
-  LayoutDashboard,
-  CheckSquare,
-  Users,
-  FolderTree,
+  Layout,
+  CheckSquareOffset,
+  UsersThree,
+  TreeStructure,
   GitBranch,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 
 /**
  * shellNav — the single source of truth for the shell's navigation model.
- *
- * Two things live here so no component has to guess:
- *   1. ACTIVITY_ITEMS — what the activity bar shows, and which routes count as
- *      "active" for each entry. Every route the router already serves is
- *      reachable from here, so nothing that worked before becomes orphaned.
- *   2. getShellChrome() — derives the editor tab and the breadcrumb from a
- *      pathname. Pure function, no state, so the chrome can never drift out of
- *      sync with the route.
  */
 
-/** Minimal shape shared by every lucide icon — avoids depending on a type name. */
-export type ShellIcon = ComponentType<{ size?: number | string; className?: string }>
+export type ShellIcon = ComponentType<IconProps>
 
 export interface ActivityItem {
   to: string
@@ -39,12 +31,12 @@ export interface ActivityItem {
 }
 
 export const ACTIVITY_ITEMS: ActivityItem[] = [
-  { to: '/home', label: 'Home', icon: Home, matches: ['/home'] },
-  { to: '/console', label: 'Console', icon: Terminal, matches: ['/console'] },
-  { to: '/projects', label: 'Projects', icon: Folder, matches: ['/projects', '/run'] },
-  { to: '/agents', label: 'Agents', icon: Bot, matches: ['/agents', '/agent/'] },
-  { to: '/flow', label: 'Workflow', icon: Workflow, matches: ['/flow'] },
-  { to: '/integrations', label: 'Integrations', icon: Plug, matches: ['/integrations'] },
+  { to: '/home', label: 'Home', icon: House, matches: ['/home'] },
+  { to: '/console', label: 'Console', icon: TerminalWindow, matches: ['/console'] },
+  { to: '/projects', label: 'Projects', icon: FolderSimple, matches: ['/projects', '/run'] },
+  { to: '/agents', label: 'Agents', icon: Robot, matches: ['/agents', '/agent/'] },
+  { to: '/flow', label: 'Workflow', icon: Network, matches: ['/flow'] },
+  { to: '/integrations', label: 'Integrations', icon: PlugsConnected, matches: ['/integrations'] },
 ]
 
 export function isActivityItemActive(item: ActivityItem, pathname: string): boolean {
@@ -61,11 +53,11 @@ export interface ShellChrome {
 }
 
 const PROJECT_TAB_LABELS: Record<string, { label: string; icon: ShellIcon }> = {
-  overview: { label: 'Overview', icon: LayoutDashboard },
-  flow: { label: 'Flow', icon: Workflow },
-  tasks: { label: 'Tasks', icon: CheckSquare },
-  agents: { label: 'Agents', icon: Users },
-  files: { label: 'Files', icon: FolderTree },
+  overview: { label: 'Overview', icon: Layout },
+  flow: { label: 'Flow', icon: Network },
+  tasks: { label: 'Tasks', icon: CheckSquareOffset },
+  agents: { label: 'Agents', icon: UsersThree },
+  files: { label: 'Files', icon: TreeStructure },
   activity: { label: 'Activity', icon: GitBranch },
 }
 
@@ -77,50 +69,50 @@ export function getShellChrome(pathname: string): ShellChrome {
   const parts = pathname.split('/').filter(Boolean)
 
   if (parts.length === 0 || parts[0] === 'home') {
-    return { label: 'Welcome', icon: Sparkles, crumbs: ['SplitterAI', 'Home'] }
+    return { label: 'Welcome', icon: Sparkle, crumbs: ['SplitterAI', 'Home'] }
   }
 
   if (parts[0] === 'console') {
-    return { label: 'Console', icon: Terminal, crumbs: ['SplitterAI', 'Console'] }
+    return { label: 'Console', icon: TerminalWindow, crumbs: ['SplitterAI', 'Console'] }
   }
 
   if (parts[0] === 'projects') {
     if (parts.length === 1) {
-      return { label: 'Projects', icon: Folder, crumbs: ['SplitterAI', 'Projects'] }
+      return { label: 'Projects', icon: FolderSimple, crumbs: ['SplitterAI', 'Projects'] }
     }
     const projectId = parts[1]
     const sub = parts[2] ?? 'overview'
-    const meta = PROJECT_TAB_LABELS[sub] ?? { label: sub, icon: Folder }
+    const meta = PROJECT_TAB_LABELS[sub] ?? { label: sub, icon: FolderSimple }
     return {
       label: projectId,
-      icon: Folder,
+      icon: FolderSimple,
       crumbs: ['SplitterAI', 'Projects', projectId, meta.label],
     }
   }
 
   if (parts[0] === 'agents') {
     if (parts.length === 1) {
-      return { label: 'Agents', icon: Bot, crumbs: ['SplitterAI', 'Agents'] }
+      return { label: 'Agents', icon: Robot, crumbs: ['SplitterAI', 'Agents'] }
     }
-    return { label: parts[1], icon: Bot, crumbs: ['SplitterAI', 'Agents', parts[1]] }
+    return { label: parts[1], icon: Robot, crumbs: ['SplitterAI', 'Agents', parts[1]] }
   }
 
   if (parts[0] === 'agent') {
     const role = parts[1] ?? 'agent'
-    return { label: role, icon: Bot, crumbs: ['SplitterAI', 'Agents', role] }
+    return { label: role, icon: Robot, crumbs: ['SplitterAI', 'Agents', role] }
   }
 
   if (parts[0] === 'flow') {
-    return { label: 'Flow', icon: Workflow, crumbs: ['SplitterAI', 'Workflow'] }
+    return { label: 'Flow', icon: Network, crumbs: ['SplitterAI', 'Workflow'] }
   }
 
   if (parts[0] === 'integrations') {
-    return { label: 'Integrations', icon: Plug, crumbs: ['SplitterAI', 'Integrations'] }
+    return { label: 'Integrations', icon: PlugsConnected, crumbs: ['SplitterAI', 'Integrations'] }
   }
 
   if (parts[0] === 'run') {
     return { label: 'Run', icon: Play, crumbs: ['SplitterAI', 'Run'] }
   }
 
-  return { label: parts[parts.length - 1], icon: Sparkles, crumbs: ['SplitterAI', ...parts] }
+  return { label: parts[parts.length - 1], icon: Sparkle, crumbs: ['SplitterAI', ...parts] }
 }
