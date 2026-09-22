@@ -4,7 +4,9 @@ import {
   connectIntegration,
   disconnectIntegration,
   reconfigureIntegration,
+  fetchHealth,
 } from '../lib/api'
+import type { HealthStatus } from '../lib/api'
 import type { Integration, AgentRole } from '../types'
 
 export function useIntegrations() {
@@ -12,15 +14,21 @@ export function useIntegrations() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [connectingId, setConnectingId] = useState<string | null>(null)
+  const [health, setHealth] = useState<HealthStatus>({ supabase_enabled: false })
 
   const loadIntegrations = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const data = await fetchIntegrations()
+      const [data, healthData] = await Promise.all([
+        fetchIntegrations(),
+        fetchHealth(),
+      ])
       setIntegrations(data)
+      setHealth(healthData)
     } catch (err: any) {
       setError(err?.message || 'Failed to load workspace integrations')
+      setIntegrations([])
     } finally {
       setLoading(false)
     }
@@ -31,7 +39,7 @@ export function useIntegrations() {
   }, [loadIntegrations])
 
   const connect = async (payload: {
-    type: 'mcp' | 'github' | 'oauth_generic'
+    type: 'mcp' | 'github' | 'supabase_storage' | 'oauth_generic'
     name: string
     token?: string
     url?: string
@@ -63,6 +71,7 @@ export function useIntegrations() {
     loading,
     error,
     connectingId,
+    health,
     refetch: loadIntegrations,
     connect,
     disconnect,

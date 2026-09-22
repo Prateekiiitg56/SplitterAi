@@ -705,6 +705,26 @@ async def connect_integration(payload: dict, x_api_key: str | None = Header(None
             "allowedRoles": allowed_roles,
             "lastError": gh_error,
         }
+    elif itype == "supabase_storage":
+        # Verify Supabase connection using existing env vars
+        sp_status = "connected" if is_supabase_enabled() else "error"
+        sp_error = None if is_supabase_enabled() else "Supabase credentials not configured or client failed to initialize"
+
+        from agentcli.db_supabase import get_storage_bucket_name
+        bucket = payload.get("bucket") or get_storage_bucket_name()
+        sp_url = os.getenv("SUPABASE_URL", "").strip()
+
+        integration_obj = {
+            "id": iid,
+            "type": "supabase_storage",
+            "name": name or "Supabase Storage",
+            "status": sp_status,
+            "connectedAt": now_str,
+            "config": {"bucket": bucket, "supabase_url": sp_url, "description": "Supabase Storage Bucket"},
+            "scopes": ["storage:upload", "storage:download", "storage:list"],
+            "allowedRoles": allowed_roles,
+            "lastError": sp_error,
+        }
     else:
         integration_obj = {
             "id": iid,
@@ -746,6 +766,20 @@ async def reconfigure_integration(payload: dict, x_api_key: str | None = Header(
         return INTEGRATIONS_STORE[iid]
     raise HTTPException(status_code=404, detail="Integration not found.")
 
+
+# ── Supabase Storage Status Endpoint ──────────────────────────────
+
+@app.get("/storage/status")
+async def storage_status(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Return Supabase Storage connection status."""
+    verify_shared_secret(x_api_key, token)
+    from agentcli.db_supabase import get_storage_bucket_name
+    enabled = is_supabase_enabled()
+    return {
+        "enabled": enabled,
+        "bucket": get_storage_bucket_name() if enabled else None,
+        "supabase_url": os.getenv("SUPABASE_URL", "").strip() if enabled else None,
+    }
 
 # ── WebSocket Endpoint ────────────────────────────────────────────
 

@@ -208,7 +208,7 @@ const QUICKSTART = [
 export default function HomePage() {
   const navigate = useNavigate()
   const { sessions, sessionsLoading } = useApp()
-  const { integrations, loading: integrationsLoading } = useIntegrations()
+  const { integrations, loading: integrationsLoading, health } = useIntegrations()
   const filled = useMountedFill()
 
   const greeting = useMemo(() => getGreeting(), [])
@@ -219,14 +219,21 @@ export default function HomePage() {
     const failed = sessions.filter((s) => s.status === 'error')
     const connected = integrations.filter((i) => i.status === 'connected')
 
+    // Count Supabase as an extra integration when detected via health but not yet registered
+    const hasSupabaseIntegration = connected.some((i) => i.type === 'supabase_storage')
+    const effectiveConnected = health.supabase_enabled && !hasSupabaseIntegration
+      ? connected.length + 1
+      : connected.length
+
     return {
       running,
       completedToday,
       failed,
       connected,
+      effectiveConnectedCount: effectiveConnected,
       subtasksToday: completedToday.reduce((sum, s) => sum + (s.subtaskCount || 0), 0),
     }
-  }, [sessions, integrations])
+  }, [sessions, integrations, health])
 
   const recent = useMemo(() => {
     return [...sessions]
@@ -316,15 +323,15 @@ export default function HomePage() {
           <StatCard
             icon={<Plug size={14} aria-hidden="true" />}
             label="Integrations"
-            value={stats.connected.length}
+            value={stats.effectiveConnectedCount}
             loading={integrationsLoading && integrations.length === 0}
             sub={
-              stats.connected.length === 0
+              stats.effectiveConnectedCount === 0
                 ? 'None connected'
                 : stats.connected
                     .slice(0, 2)
                     .map((i) => i.name)
-                    .join(', ')
+                    .join(', ') || 'Supabase Storage'
             }
           />
         </div>

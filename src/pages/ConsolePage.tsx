@@ -27,6 +27,7 @@ import { useScore } from '../lib/motion'
 import { cx } from '../lib/cx'
 import { useIntegrations } from '../hooks/useIntegrations'
 import { ModelFusionIcon } from '../components/BrandIcons'
+import { MarkdownRenderer } from '../components/MarkdownRenderer'
 
 /* ── Types ──────────────────────────────────────────────────────── */
 
@@ -567,13 +568,17 @@ export default function ConsolePage() {
                         )}
                         <div
                           className={cx(
-                            'max-w-[80%] px-4 py-3 rounded-2xl text-[13.5px] leading-relaxed',
+                            'px-4 py-3 rounded-2xl text-[13.5px] leading-relaxed',
                             msg.sender === 'user'
-                              ? 'bg-[#1488fc] text-white font-medium rounded-br-lg'
-                              : 'bg-[#1e1e22] text-white/90 border border-white/[0.08] rounded-bl-lg',
+                              ? 'max-w-[80%] bg-[#1488fc] text-white font-medium rounded-br-lg'
+                              : 'max-w-[88%] bg-[#1e1e22] text-white/90 border border-white/[0.08] rounded-bl-lg',
                           )}
                         >
-                          {msg.text}
+                          {msg.sender === 'agent' ? (
+                            <MarkdownRenderer content={msg.text} />
+                          ) : (
+                            msg.text
+                          )}
                         </div>
                       </motion.div>
                     ))}

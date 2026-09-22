@@ -158,7 +158,7 @@ export interface ModelOption {
 
 /* ── Integration Entity ─────────────────────────────────────────── */
 
-export type IntegrationType = 'mcp' | 'github' | 'oauth_generic'
+export type IntegrationType = 'mcp' | 'github' | 'supabase_storage' | 'oauth_generic'
 export type IntegrationStatus = 'not_connected' | 'connecting' | 'connected' | 'error'
 
 export interface IntegrationConfig {
@@ -167,6 +167,8 @@ export interface IntegrationConfig {
   url?: string
   description?: string
   transport?: 'sse' | 'stdio' | 'http'
+  bucket?: string
+  supabase_url?: string
 }
 
 export interface Integration {

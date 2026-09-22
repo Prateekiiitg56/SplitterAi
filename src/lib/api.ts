@@ -220,9 +220,27 @@ export async function sendChatMessage(
 }
 
 export async function fetchIntegrations(): Promise<any[]> {
-  const res = await fetchWithTimeout(`${API_BASE}/integrations`, {}, 10000)
-  if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch integrations`)
-  return res.json()
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/integrations`, {}, 10000)
+    if (!res.ok) return []
+    return res.json()
+  } catch {
+    return []
+  }
+}
+
+export interface HealthStatus {
+  supabase_enabled: boolean
+}
+
+export async function fetchHealth(): Promise<HealthStatus> {
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/health`, {}, 5000)
+    if (!res.ok) return { supabase_enabled: false }
+    return res.json()
+  } catch {
+    return { supabase_enabled: false }
+  }
 }
 
 export async function connectIntegration(payload: any): Promise<any> {

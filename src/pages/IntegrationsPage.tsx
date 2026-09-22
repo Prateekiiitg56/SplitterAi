@@ -15,6 +15,9 @@ import {
   Plug,
   Lightbulb,
   RefreshCw,
+  HardDrive,
+  CloudCog,
+  ShieldCheck,
 } from 'lucide-react'
 import { useIntegrations } from '../hooks/useIntegrations'
 import type { AgentRole, Integration } from '../types'
@@ -26,6 +29,16 @@ import { Modal } from '../components/primitives/Modal'
 /* ── Catalog data ──────────────────────────────────────────────────── */
 
 const CATALOG = [
+  {
+    id: 'supabase_storage',
+    title: 'Supabase Storage',
+    subtitle: 'File & Artifact Storage',
+    badge: 'Storage',
+    icon: HardDrive,
+    description: 'Upload workspace artifacts and agent outputs to a dedicated Supabase Storage bucket for persistence across sessions.',
+    features: ['Artifact persistence', 'Public URL generation', 'Cross-session storage'],
+    buttonLabel: 'Connect Supabase',
+  },
   {
     id: 'github',
     title: 'GitHub Connector',
@@ -59,10 +72,11 @@ const CATALOG = [
 ]
 
 export default function IntegrationsPage() {
-  const { integrations, loading, error, connect, disconnect } = useIntegrations()
+  const { integrations, loading, error, health, connect, disconnect } = useIntegrations()
 
   const [showConnectGithubModal, setShowConnectGithubModal] = useState(false)
   const [showConnectMcpModal, setShowConnectMcpModal] = useState(false)
+  const [showConnectSupabaseModal, setShowConnectSupabaseModal] = useState(false)
   const [reconfigureTarget, setReconfigureTarget] = useState<Integration | null>(null)
   const [errorDismissed, setErrorDismissed] = useState(false)
   const [catalogSearch, setCatalogSearch] = useState('')
@@ -76,7 +90,15 @@ export default function IntegrationsPage() {
   const [mcpToken, setMcpToken] = useState('')
   const [mcpRoles] = useState<AgentRole[]>(['planner', 'coder', 'auditor', 'tester'])
 
+  const [supabaseBucket, setSupabaseBucket] = useState('workspace-artifacts')
+  const [supabaseConnecting, setSupabaseConnecting] = useState(false)
+
   const [formError, setFormError] = useState<string | null>(null)
+
+  /* ── Supabase already connected? ─────────────────────────────────── */
+  const supabaseAlreadyConnected = integrations.some(
+    (i) => i.type === 'supabase_storage' && i.status === 'connected'
+  )
 
   const handleConnectGithub = async () => {
     if (!ghRepo.trim()) {
@@ -122,10 +144,28 @@ export default function IntegrationsPage() {
     }
   }
 
+  const handleConnectSupabase = async () => {
+    setFormError(null)
+    setSupabaseConnecting(true)
+    try {
+      await connect({
+        type: 'supabase_storage',
+        name: 'Supabase Storage',
+        allowedRoles: ['planner', 'coder', 'auditor', 'tester'] as AgentRole[],
+      })
+      setShowConnectSupabaseModal(false)
+    } catch (err: any) {
+      setFormError(err?.message || 'Supabase connection verification failed')
+    } finally {
+      setSupabaseConnecting(false)
+    }
+  }
+
   const handleCatalogClick = (id: string) => {
     setFormError(null)
     if (id === 'github') setShowConnectGithubModal(true)
     else if (id === 'mcp') setShowConnectMcpModal(true)
+    else if (id === 'supabase_storage') setShowConnectSupabaseModal(true)
     else if (id === 'postgres') {
       setMcpName('PostgreSQL Database MCP')
       setMcpUrl('http://localhost:5432/mcp')
@@ -139,6 +179,13 @@ export default function IntegrationsPage() {
       c.title.toLowerCase().includes(catalogSearch.toLowerCase()) ||
       c.subtitle.toLowerCase().includes(catalogSearch.toLowerCase())
   )
+
+  /* ── Helper: icon for integration type ───────────────────────────── */
+  function integrationIcon(item: Integration) {
+    if (item.type === 'github') return <GitBranch size={16} />
+    if (item.type === 'supabase_storage') return <HardDrive size={16} />
+    return <Server size={16} />
+  }
 
   return (
     <div className="flex-1 flex flex-col min-w-0 h-full bg-transparent text-[var(--text)] font-sans select-none overflow-hidden relative z-10">
@@ -177,6 +224,24 @@ export default function IntegrationsPage() {
             </div>
           )}
 
+          {/* Supabase Status Banner — shown when Supabase is detected from health */}
+          {health.supabase_enabled && !supabaseAlreadyConnected && (
+            <div className="mb-4 p-3 rounded-panel border border-[var(--good)]/30 bg-[var(--good)]/8 text-meta flex items-center gap-3">
+              <ShieldCheck size={16} className="text-[var(--good)] flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <span className="text-[var(--text)] font-medium">Supabase detected</span>
+                <span className="text-[var(--dim)] ml-2">Your backend has Supabase configured. Add it as an integration to enable artifact storage.</span>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setShowConnectSupabaseModal(true)}
+              >
+                Connect
+              </Button>
+            </div>
+          )}
+
           {/* Connected Integrations Section */}
           <div className="section-label">Connected Integrations</div>
           {loading ? (
@@ -189,7 +254,7 @@ export default function IntegrationsPage() {
               <Plug size={26} className="text-[var(--ghost)] mb-2" />
               <div className="es-title">No integrations connected yet</div>
               <div className="es-detail">
-                Connect GitHub or an MCP server to grant agents access to external tools and repos.
+                Connect GitHub, Supabase Storage, or an MCP server to grant agents access to external tools and repos.
               </div>
             </div>
           ) : (
@@ -197,15 +262,41 @@ export default function IntegrationsPage() {
               {integrations.map((item) => (
                 <div key={item.id} className="connected-row">
                   <div className="cr-glyph">
-                    {item.type === 'github' ? <GitBranch size={16} /> : <Server size={16} />}
+                    {integrationIcon(item)}
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="cr-name">{item.name}</div>
-                    <div className="cr-sub">{item.config?.repo || item.config?.url || 'Connected'}</div>
+                    <div className="cr-sub">
+                      {item.type === 'supabase_storage'
+                        ? `Bucket: ${item.config?.bucket || 'workspace-artifacts'}`
+                        : item.config?.repo || item.config?.url || 'Connected'}
+                    </div>
+                  </div>
+                  <div className="cr-status">
+                    {item.status === 'connected' ? (
+                      <span className="flex items-center gap-1 text-[var(--good)] text-micro font-medium">
+                        <CheckCircle2 size={11} />
+                        Connected
+                      </span>
+                    ) : item.status === 'error' ? (
+                      <span className="flex items-center gap-1 text-[var(--bad)] text-micro font-medium">
+                        <AlertTriangle size={11} />
+                        Error
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[var(--dim)] text-micro">
+                        <Loader2 size={11} className="animate-spin" />
+                        Connecting
+                      </span>
+                    )}
                   </div>
                   <div className="cr-roles">
-                    <span className="role-tag">coder</span>
-                    <span className="role-tag">auditor</span>
+                    {(item.allowedRoles || []).slice(0, 3).map((r) => (
+                      <span key={r} className="role-tag">{r}</span>
+                    ))}
+                    {(item.allowedRoles || []).length > 3 && (
+                      <span className="role-tag">+{(item.allowedRoles || []).length - 3}</span>
+                    )}
                   </div>
                   <div className="cr-actions">
                     <button
@@ -245,8 +336,10 @@ export default function IntegrationsPage() {
           <div className="catalog-grid">
             {filteredCatalog.map((card) => {
               const Icon = card.icon
+              const isSupabaseCard = card.id === 'supabase_storage'
+              const disabled = isSupabaseCard && supabaseAlreadyConnected
               return (
-                <div key={card.id} className="cat-card">
+                <div key={card.id} className={`cat-card ${disabled ? 'cat-card--connected' : ''}`}>
                   <div className="cat-top">
                     <div className="cat-glyph">
                       <Icon size={16} />
@@ -269,13 +362,20 @@ export default function IntegrationsPage() {
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    className="btn btn-primary sm"
-                    onClick={() => handleCatalogClick(card.id)}
-                  >
-                    {card.buttonLabel}
-                  </button>
+                  {disabled ? (
+                    <div className="flex items-center gap-1.5 text-[var(--good)] text-[11px] font-medium mt-auto">
+                      <CheckCircle2 size={12} />
+                      Already connected
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-primary sm"
+                      onClick={() => handleCatalogClick(card.id)}
+                    >
+                      {card.buttonLabel}
+                    </button>
+                  )}
                 </div>
               )
             })}
@@ -375,6 +475,75 @@ export default function IntegrationsPage() {
             value={mcpToken}
             onChange={(e) => setMcpToken(e.target.value)}
             placeholder="Optional"
+          />
+        </div>
+      </Modal>
+
+      {/* Supabase Storage Connect Modal */}
+      <Modal
+        open={showConnectSupabaseModal}
+        onClose={() => setShowConnectSupabaseModal(false)}
+        title="Connect Supabase Storage"
+        width={440}
+        footer={
+          <>
+            <Button variant="ghost" size="md" onClick={() => setShowConnectSupabaseModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleConnectSupabase}
+              disabled={supabaseConnecting}
+            >
+              {supabaseConnecting ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Verifying…
+                </span>
+              ) : (
+                'Verify & Connect'
+              )}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {formError && (
+            <div className="p-3 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta">
+              {formError}
+            </div>
+          )}
+
+          <div className="p-3 rounded-panel border border-[var(--border-soft)] bg-[var(--panel-2)] text-meta">
+            <div className="flex items-center gap-2 mb-2">
+              <CloudCog size={14} className="text-[var(--accent)]" />
+              <span className="text-[var(--text)] font-medium text-[12px]">Server-Side Credentials</span>
+            </div>
+            <p className="text-[var(--dim)] text-[11px] leading-relaxed">
+              Supabase credentials are configured in your backend <code className="font-mono text-[var(--text)]">.env</code> file.
+              Clicking "Verify & Connect" will validate the connection and register it as an integration.
+            </p>
+          </div>
+
+          {health.supabase_enabled ? (
+            <div className="flex items-center gap-2 text-[var(--good)] text-[11.5px]">
+              <ShieldCheck size={14} />
+              <span>Supabase client initialized successfully</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[var(--bad)] text-[11.5px]">
+              <AlertTriangle size={14} />
+              <span>Supabase client not detected — check SUPABASE_URL & SUPABASE_KEY in .env</span>
+            </div>
+          )}
+
+          <TextField
+            label="Storage Bucket"
+            value={supabaseBucket}
+            onChange={(e) => setSupabaseBucket(e.target.value)}
+            placeholder="workspace-artifacts"
+            hint="The bucket name configured in your Supabase project"
           />
         </div>
       </Modal>
