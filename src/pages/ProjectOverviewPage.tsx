@@ -100,17 +100,17 @@ export default function ProjectOverviewPage() {
         <div className="stat-row">
           <div className="stat-cell">
             <div className="label">Total Tasks</div>
-            <div className="value">{subtasks.length || 6}</div>
+            <div className="value">{subtasks.length}</div>
           </div>
           <div className="stat-cell">
             <div className="label">Subtasks</div>
             <div className="value good">
-              {completedCount} of {totalSubtasks}
+              {completedCount} of {subtasks.length}
             </div>
           </div>
           <div className="stat-cell">
             <div className="label">Active Agents</div>
-            <div className="value accent">4</div>
+            <div className="value accent">{new Set(subtasks.map((st) => st.role)).size || 4}</div>
           </div>
           <div className="stat-cell">
             <div className="label">Execution Mode</div>

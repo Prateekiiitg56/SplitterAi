@@ -43,15 +43,22 @@ export default function ProjectAgentsPage() {
     },
   ])
 
-  // Group calculation logic matching orchestrator.py
+  // Group calculation logic matching orchestrator dependency ordering
   const groupMap: Record<string, number> = {}
-  drafts.forEach((a) => {
-    if (!a.runsAfter || !groupMap[a.runsAfter]) {
-      groupMap[a.id] = 1
-    } else {
-      groupMap[a.id] = groupMap[a.runsAfter] + 1
-    }
-  })
+  let changed = true
+  drafts.forEach((a) => { groupMap[a.id] = 1 })
+  while (changed) {
+    changed = false
+    drafts.forEach((a) => {
+      if (a.runsAfter && groupMap[a.runsAfter]) {
+        const newGroup = groupMap[a.runsAfter] + 1
+        if (newGroup > groupMap[a.id]) {
+          groupMap[a.id] = newGroup
+          changed = true
+        }
+      }
+    })
+  }
 
   const renumberDrafts = (items: DraftAgent[]): DraftAgent[] => {
     return items.map((item, idx) => {
@@ -225,17 +232,44 @@ export default function ProjectAgentsPage() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span
-                      className="role-pill"
-                      style={{
-                        background: 'var(--panel-2)',
-                        border: '1px solid var(--border)',
-                        color: ROLE_META[agent.role]?.color || 'var(--text)',
-                      }}
-                    >
-                      <AgentIcon role={agent.role} size={12} />
-                      <span>{agent.label}</span>
-                    </span>
+                    {editingLabelId === agent.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={tempLabelValue}
+                          onChange={(e) => setTempLabelValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveRename(agent.id)
+                            if (e.key === 'Escape') setEditingLabelId(null)
+                          }}
+                          autoFocus
+                          className="px-1.5 py-0.5 text-micro font-mono bg-[var(--bg-inset)] border border-[var(--accent)] rounded text-[var(--text)] outline-none"
+                        />
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label="Save label"
+                          onClick={() => handleSaveRename(agent.id)}
+                        >
+                          <Check size={12} className="text-[var(--good)]" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span
+                        className="role-pill cursor-pointer hover:border-[var(--accent)]"
+                        title="Click to rename agent"
+                        onClick={() => handleStartRename(agent)}
+                        style={{
+                          background: 'var(--panel-2)',
+                          border: '1px solid var(--border)',
+                          color: ROLE_META[agent.role]?.color || 'var(--text)',
+                        }}
+                      >
+                        <AgentIcon role={agent.role} size={12} />
+                        <span>{agent.label}</span>
+                        <Edit2 size={10} className="ml-1 opacity-50 hover:opacity-100" />
+                      </span>
+                    )}
 
                     <button
                       type="button"
