@@ -122,6 +122,7 @@ export default function ConsolePage() {
       lower.includes('split') ||
       lower.includes('together') ||
       lower.includes('divide') ||
+      lower.includes('do this') ||
       lower.includes('build an app') ||
       lower.includes('build a website') ||
       lower.includes('create a project') ||
@@ -141,13 +142,19 @@ export default function ConsolePage() {
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     const userMsg: ChatMessage = { id: `user-${Date.now()}`, sender: 'user', text: textToSubmit, timestamp: ts }
 
-    setChatMessages((prev) => [...prev, userMsg])
+    const currentHistory = [...chatMessages, userMsg]
+    setChatMessages(currentHistory)
     setInputValue('')
 
     if (isMultiAgentSplitRequest(textToSubmit)) {
       setIsPlanning(true)
       try {
-        const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE, selectedModel.id)
+        const historyPayload = currentHistory.map((m) => ({ sender: m.sender, text: m.text }))
+        const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE, selectedModel.id, historyPayload)
+
+        const priorUserMsg = chatMessages.slice().reverse().find((m) => m.sender === 'user' && !m.text.toLowerCase().includes('do this'))
+        const effectiveTaskTitle = priorUserMsg ? `${priorUserMsg.text} (${textToSubmit})` : textToSubmit
+
         const generatedSubtasks: Subtask[] = planResult.subtasks.map((st, idx) => ({
           id: st.id || `st-${idx + 1}`,
           role: st.role as AgentRole,
@@ -156,7 +163,7 @@ export default function ConsolePage() {
           status: 'pending' as const,
           steps: 0,
         }))
-        setDraftPlan({ taskTitle: textToSubmit, subtasks: generatedSubtasks })
+        setDraftPlan({ taskTitle: effectiveTaskTitle, subtasks: generatedSubtasks })
       } catch (err: any) {
         const errorMsg: ChatMessage = {
           id: `agent-err-${Date.now()}`, sender: 'agent', role: 'planner',

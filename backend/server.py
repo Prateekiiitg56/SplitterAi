@@ -239,6 +239,7 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
     """Generate an execution plan without executing it — for plan-review-confirm flow."""
     verify_shared_secret(x_api_key, token)
     task = payload.get("task", "")
+    history = payload.get("history", [])
     if not task:
         raise HTTPException(status_code=400, detail="Task is required")
 
@@ -253,6 +254,7 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
         task=task,
         config=config,
         on_event=on_event,
+        history=history,
     )
 
     return {
@@ -313,15 +315,14 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
         "subtasks": [st.model_dump() for st in plan.subtasks],
     })
 
-    # Step 2: Execute the LangGraph decision workflow.
-    result = await run_graph(
-        task=request.task,
-        workspace=request.workspace,
+    # Step 2: Execute plan via Orchestrator (parallel grouped execution)
+    from agentcli.orchestrator import Orchestrator
+    orchestrator = Orchestrator(
         config=config,
         sandbox=sandbox,
         on_event=on_event,
-        plan=plan,
     )
+    result = await orchestrator.execute(plan)
 
     # Step 3: Persist session
     save_run_result(request.workspace, request.task, result)

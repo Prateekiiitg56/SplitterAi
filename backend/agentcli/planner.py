@@ -94,6 +94,7 @@ async def generate_plan(
     task: str,
     config: ExecutionConfig,
     on_event: Optional[Callable[[LogEntry], None]] = None,
+    history: Optional[list[dict[str, Any]]] = None,
 ) -> Plan:
     """Generate an execution plan from a natural-language task.
 
@@ -108,10 +109,19 @@ async def generate_plan(
         ))
 
     system_prompt = get_system_prompt("planner")
-    messages = [
+    messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": task},
     ]
+
+    if history:
+        for item in history:
+            sender = item.get("sender") or item.get("role") or "user"
+            msg_role = "user" if sender == "user" else "assistant"
+            msg_text = str(item.get("text") or item.get("content") or "").strip()
+            if msg_text:
+                messages.append({"role": msg_role, "content": msg_text})
+
+    messages.append({"role": "user", "content": task})
 
     try:
         response = await call_model(

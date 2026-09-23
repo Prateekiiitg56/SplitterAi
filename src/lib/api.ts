@@ -103,11 +103,16 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}, t
   }
 }
 
-export async function planTask(task: string, workspace: string, model?: string): Promise<PlanResult> {
+export async function planTask(
+  task: string,
+  workspace: string,
+  model?: string,
+  history?: Array<{ sender: 'user' | 'agent'; text: string }>
+): Promise<PlanResult> {
   const res = await fetchWithTimeout(`${API_BASE}/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ task, workspace, model }),
+    body: JSON.stringify({ task, workspace, model, history }),
   }, 120000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Plan generation failed: ${res.status} ${res.statusText}` }))
