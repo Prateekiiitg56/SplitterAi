@@ -13,6 +13,8 @@ import {
   Bot,
   ArrowRight,
   Plug,
+  X,
+  RefreshCw,
 } from 'lucide-react'
 import { AVAILABLE_MODELS, ROLE_META } from '../data'
 import { useApp } from '../context/AppContext'
@@ -40,6 +42,45 @@ interface ChatMessage {
 }
 
 const ROLES: AgentRole[] = ['planner', 'coder', 'auditor', 'tester']
+
+/* Worker roles that can own a subtask (planner orchestrates, it doesn't execute one). */
+const WORKER_ROLES: AgentRole[] = ['coder', 'auditor', 'tester']
+
+const ROLE_DEFAULT_INSTRUCTION: Record<string, string> = {
+  coder: 'Implement an additional part of the build and run it to confirm it works.',
+  auditor: 'Review the generated code for bugs, security issues, and quality.',
+  tester: 'Write and run tests to verify the build behaves correctly.',
+}
+
+/** An editable plan proposal shown in-chat before the user launches it. */
+interface DraftPlan {
+  taskTitle: string   // full task string handed to the runner
+  goalLabel: string   // human-friendly goal shown in the proposal header
+  sourceTask: string  // raw prompt used to (re)generate the plan
+  subtasks: Subtask[]
+}
+
+const nextGroup = (subtasks: Subtask[]): number =>
+  subtasks.reduce((max, s) => Math.max(max, s.group || 1), 0) + 1
+
+const makeSubtaskForRole = (role: AgentRole, group: number): Subtask => ({
+  id: `st-${role}-${Math.random().toString(36).slice(2, 7)}`,
+  role,
+  group,
+  instruction: ROLE_DEFAULT_INSTRUCTION[role] || `Handle the ${role} work for this build.`,
+  status: 'pending',
+  steps: 0,
+})
+
+/** Ensure every worker role the user picked is represented in the plan. */
+const withRosterRoles = (subtasks: Subtask[], roster: AgentRole[]): Subtask[] => {
+  const merged = [...subtasks]
+  for (const role of roster) {
+    if (!WORKER_ROLES.includes(role) || merged.some((s) => s.role === role)) continue
+    merged.push(makeSubtaskForRole(role, nextGroup(merged)))
+  }
+  return merged
+}
 
 /* ── Framer motion variants ─────────────────────────────────────── */
 
@@ -74,10 +115,11 @@ export default function ConsolePage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const [isPlanning, setIsPlanning] = useState(false)
-  const [draftPlan, setDraftPlan] = useState<{ taskTitle: string; subtasks: Subtask[] } | null>(null)
+  const [draftPlan, setDraftPlan] = useState<DraftPlan | null>(null)
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
 
   const hasMessages = chatMessages.length > 0
+  const inChatView = hasMessages || !!draftPlan
 
   /* Body class for portal-rendered modals */
   useEffect(() => {
@@ -87,8 +129,8 @@ export default function ConsolePage() {
 
   /* Auto-scroll chat */
   useEffect(() => {
-    if (hasMessages) chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [chatMessages.length, isSending, hasMessages])
+    if (inChatView) chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages.length, isSending, inChatView, draftPlan?.subtasks.length])
 
   /* Auto-resize textarea */
   useEffect(() => {
@@ -153,6 +195,7 @@ export default function ConsolePage() {
         const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE, selectedModel.id, historyPayload)
 
         const priorUserMsg = chatMessages.slice().reverse().find((m) => m.sender === 'user' && !m.text.toLowerCase().includes('do this'))
+        const goalLabel = priorUserMsg ? priorUserMsg.text : textToSubmit
         const effectiveTaskTitle = priorUserMsg ? `${priorUserMsg.text} (${textToSubmit})` : textToSubmit
 
         const generatedSubtasks: Subtask[] = planResult.subtasks.map((st, idx) => ({
@@ -163,7 +206,12 @@ export default function ConsolePage() {
           status: 'pending' as const,
           steps: 0,
         }))
-        setDraftPlan({ taskTitle: effectiveTaskTitle, subtasks: generatedSubtasks })
+        setDraftPlan({
+          taskTitle: effectiveTaskTitle,
+          goalLabel,
+          sourceTask: textToSubmit,
+          subtasks: withRosterRoles(generatedSubtasks, sessionAgents),
+        })
       } catch (err: any) {
         const errorMsg: ChatMessage = {
           id: `agent-err-${Date.now()}`, sender: 'agent', role: 'planner',
@@ -192,8 +240,25 @@ export default function ConsolePage() {
     } finally { setIsSending(false) }
   }
 
+  const addRoleToPlan = useCallback((role: AgentRole) => {
+    if (!WORKER_ROLES.includes(role)) return
+    setDraftPlan((prev) => {
+      if (!prev || prev.subtasks.some((s) => s.role === role)) return prev
+      return { ...prev, subtasks: [...prev.subtasks, makeSubtaskForRole(role, nextGroup(prev.subtasks))] }
+    })
+  }, [])
+
+  const removeRoleFromPlan = useCallback((role: AgentRole) => {
+    setDraftPlan((prev) => {
+      if (!prev) return prev
+      const remaining = prev.subtasks.filter((s) => s.role !== role)
+      return remaining.length ? { ...prev, subtasks: remaining } : prev
+    })
+  }, [])
+
   const handleAddAgentToSession = (role: AgentRole) => {
     if (!sessionAgents.includes(role)) setSessionAgents([...sessionAgents, role])
+    addRoleToPlan(role)
     setShowAddAgentModal(false)
   }
 
@@ -202,6 +267,31 @@ export default function ConsolePage() {
     const updated = sessionAgents.filter((r) => r !== role)
     setSessionAgents(updated)
     if (selectedAgentRole === role && updated.length > 0) setSelectedAgentRole(updated[0])
+    removeRoleFromPlan(role)
+  }
+
+  const handleRegeneratePlan = async () => {
+    if (!draftPlan || isPlanning) return
+    setIsPlanning(true)
+    try {
+      const historyPayload = chatMessages.map((m) => ({ sender: m.sender, text: m.text }))
+      const planResult = await planTask(draftPlan.sourceTask, DEFAULT_WORKSPACE, selectedModel.id, historyPayload)
+      const regenerated: Subtask[] = planResult.subtasks.map((st, idx) => ({
+        id: st.id || `st-${idx + 1}`,
+        role: st.role as AgentRole,
+        group: st.group,
+        instruction: st.instruction,
+        status: 'pending' as const,
+        steps: 0,
+      }))
+      setDraftPlan((prev) => (prev ? { ...prev, subtasks: withRosterRoles(regenerated, sessionAgents) } : prev))
+    } catch (err: any) {
+      const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      setChatMessages((prev) => [...prev, {
+        id: `agent-err-${Date.now()}`, sender: 'agent', role: 'planner',
+        text: `Could not regenerate the plan: ${err?.message || 'the backend planner is unreachable.'}`, timestamp: ts,
+      }])
+    } finally { setIsPlanning(false) }
   }
 
   const handleConfirmAndLaunch = async () => {
@@ -257,7 +347,7 @@ export default function ConsolePage() {
           status: 'pending' as const,
           steps: 0,
         }))
-        setDraftPlan({ taskTitle: plan.task, subtasks })
+        setDraftPlan({ taskTitle: plan.task, goalLabel: plan.task, sourceTask: plan.task, subtasks: withRosterRoles(subtasks, sessionAgents) })
       } catch (err: any) {
         alert(`Import failed: ${err?.message}`)
       }
@@ -415,6 +505,129 @@ export default function ConsolePage() {
           </motion.button>
         </div>
       </div>
+    )
+  }
+
+  /* ── Plan proposal (in-chat) ──────────────────────────────────── */
+
+  function renderPlanProposal() {
+    if (!draftPlan) return null
+
+    const grouped = draftPlan.subtasks.reduce((acc, st) => {
+      const g = st.group || 1
+      ;(acc[g] ||= []).push(st)
+      return acc
+    }, {} as Record<number, Subtask[]>)
+    const groupNums = Object.keys(grouped).map(Number).sort((a, b) => a - b)
+    const rosterRoles = Array.from(new Set(draftPlan.subtasks.map((s) => s.role))).filter((r) => WORKER_ROLES.includes(r))
+    const canRemove = rosterRoles.length > 1
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex gap-3 justify-start"
+      >
+        <span className="mt-1 shrink-0 w-7 h-7 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-white/60">
+          <AgentIcon role="planner" size={14} />
+        </span>
+
+        <div className="w-full max-w-[88%] rounded-2xl rounded-bl-lg bg-[#1e1e22] border border-white/[0.08] overflow-hidden">
+          {/* Header — the agent's answer */}
+          <div className="px-4 pt-3.5 pb-3 border-b border-white/[0.06]">
+            <h3 className="text-[15px] font-semibold text-white leading-snug">Here's how I'll split this</h3>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-white/45">
+              Breaking <span className="text-white/85 font-medium">{draftPlan.goalLabel}</span> into{' '}
+              <span className="text-white/85 font-medium">{draftPlan.subtasks.length} subtask{draftPlan.subtasks.length === 1 ? '' : 's'}</span>{' '}
+              across {rosterRoles.length} agent{rosterRoles.length === 1 ? '' : 's'}. Steps in the same group run in parallel.
+            </p>
+          </div>
+
+          {/* Grouped split */}
+          <div className="px-4 py-3 space-y-3.5">
+            {groupNums.map((g) => (
+              <div key={g} className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Group {g} · parallel</span>
+                  <span className="h-px flex-1 bg-white/[0.06]" />
+                </div>
+                {grouped[g].map((st) => {
+                  const meta = ROLE_META[st.role] || ROLE_META.coder
+                  return (
+                    <div key={st.id} className="flex items-start gap-2.5">
+                      <span
+                        className="mt-0.5 shrink-0 inline-flex items-center gap-1 h-5 px-2 rounded-full text-[10px] font-medium capitalize"
+                        style={{ color: meta.color, background: meta.bg }}
+                      >
+                        <AgentIcon role={st.role} size={10} /> {st.role}
+                      </span>
+                      <span className="text-[12.5px] leading-relaxed text-white/70">{st.instruction}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+
+          {/* Roster editor — add/remove actually changes the plan */}
+          <div className="px-4 py-2.5 border-t border-white/[0.06] flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] text-white/35 mr-0.5">Agents</span>
+            {rosterRoles.map((r) => {
+              const meta = ROLE_META[r]
+              return (
+                <span key={r} className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-[11px] text-white/70">
+                  <AgentIcon role={r} size={11} /> {meta.label}
+                  {canRemove && (
+                    <button
+                      type="button"
+                      onClick={() => removeRoleFromPlan(r)}
+                      className="ml-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white/30 hover:text-white/80 hover:bg-white/[0.08] transition-colors"
+                      aria-label={`Remove ${meta.label}`}
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </span>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setShowAddAgentModal(true)}
+              className="inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] text-white/40 hover:text-white/80 hover:bg-white/[0.05] transition-colors"
+            >
+              <Plus size={11} /> Add agent
+            </button>
+          </div>
+
+          {/* Actions */}
+          <div className="px-4 py-3 border-t border-white/[0.06] flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleConfirmAndLaunch}
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#1488fc] text-white font-semibold text-[12.5px] hover:brightness-110 shadow-md transition-all"
+            >
+              <Play size={13} fill="currentColor" /> Launch build <ArrowRight size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={handleRegeneratePlan}
+              disabled={isPlanning}
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl text-white/55 hover:text-white hover:bg-white/[0.06] text-[12px] transition-colors disabled:opacity-40"
+            >
+              {isPlanning ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Regenerate
+            </button>
+            <button
+              type="button"
+              onClick={() => setDraftPlan(null)}
+              className="inline-flex items-center h-9 px-3 rounded-xl text-white/40 hover:text-white/70 text-[12px] transition-colors"
+            >
+              Dismiss
+            </button>
+            <span className="ml-auto text-[10.5px] text-white/25 hidden sm:block">Run &amp; preview on localhost after launch</span>
+          </div>
+        </div>
+      </motion.div>
     )
   }
 
