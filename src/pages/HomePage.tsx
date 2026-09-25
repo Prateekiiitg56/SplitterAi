@@ -186,20 +186,20 @@ const QUICKSTART = [
   {
     to: '/projects',
     icon: Plus,
-    title: 'New project',
-    detail: 'Point agents at a fresh repo or workspace folder.',
+    title: 'Start a new project',
+    detail: 'Create a project and let AI agents work on your code or tasks.',
   },
   {
     to: '/agents',
     icon: Bot,
-    title: 'Launch an agent',
-    detail: 'Run a single scoped worker without a full pipeline.',
+    title: 'Run a single AI agent',
+    detail: 'Start one AI helper to complete a specific job quickly.',
   },
   {
     to: '/integrations',
     icon: Plug,
     title: 'Connect a tool',
-    detail: 'Give agents access to GitHub, a database, or an MCP server.',
+    detail: 'Link GitHub, a database, or another service to your workspace.',
   },
 ] as const
 
@@ -301,11 +301,11 @@ export default function HomePage() {
           />
           <StatCard
             icon={<CheckCircle2 size={14} aria-hidden="true" />}
-            label="Completed today"
+            label="Done today"
             value={stats.completedToday.length}
             loading={sessionsLoading && sessions.length === 0}
             sub={
-              stats.subtasksToday > 0 ? `${stats.subtasksToday} subtasks total` : 'No runs finished yet'
+              stats.subtasksToday > 0 ? `${stats.subtasksToday} steps completed` : 'No runs finished yet'
             }
           />
           <StatCard
@@ -316,18 +316,18 @@ export default function HomePage() {
             loading={sessionsLoading && sessions.length === 0}
             sub={
               stats.failed.length === 0
-                ? 'Nothing failing'
+                ? 'Everything is working'
                 : `${projectName(stats.failed[0])} · failed`
             }
           />
           <StatCard
             icon={<Plug size={14} aria-hidden="true" />}
-            label="Integrations"
+            label="Connected tools"
             value={stats.effectiveConnectedCount}
             loading={integrationsLoading && integrations.length === 0}
             sub={
               stats.effectiveConnectedCount === 0
-                ? 'None connected'
+                ? 'No tools connected'
                 : stats.connected
                     .slice(0, 2)
                     .map((i) => i.name)
@@ -356,7 +356,7 @@ export default function HomePage() {
                 className="py-6 px-4 gap-1.5"
                 icon={<Folder size={28} aria-hidden="true" />}
                 title="No projects yet"
-                detail="Start a run from the Console and it will show up here with its live progress."
+                detail="Start a task from the Workspace and it will show up here with live progress."
                 action={
                   <Button
                     variant="primary"
@@ -364,7 +364,7 @@ export default function HomePage() {
                     icon={<Plus size={14} aria-hidden="true" />}
                     onClick={() => navigate('/console')}
                   >
-                    New project
+                    Start new project
                   </Button>
                 }
               />
@@ -377,7 +377,7 @@ export default function HomePage() {
         </div>
 
         {/* ── Quickstart ───────────────────────────────────────────── */}
-        <SectionRow title="Start something new" className="mt-5" />
+        <SectionRow title="What do you want to do?" className="mt-5" />
 
         <div className="grid grid-cols-1 min-[900px]:grid-cols-3 gap-3">
           {QUICKSTART.map(({ to, icon: Icon, title, detail }) => (

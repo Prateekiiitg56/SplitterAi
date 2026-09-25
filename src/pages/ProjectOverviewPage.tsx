@@ -74,14 +74,14 @@ export default function ProjectOverviewPage() {
                 onClick={() => setMultiMode(true)}
                 className={multiMode ? 'active' : ''}
               >
-                Multi-Agent
+                Team Mode
               </button>
               <button
                 type="button"
                 onClick={() => setMultiMode(false)}
                 className={!multiMode ? 'active' : ''}
               >
-                Single Agent
+                Solo Mode
               </button>
             </div>
 
@@ -103,7 +103,7 @@ export default function ProjectOverviewPage() {
             <div className="value">{subtasks.length}</div>
           </div>
           <div className="stat-cell">
-            <div className="label">Subtasks</div>
+            <div className="label">Completed</div>
             <div className="value good">
               {completedCount} of {subtasks.length}
             </div>
@@ -113,9 +113,9 @@ export default function ProjectOverviewPage() {
             <div className="value accent">{new Set(subtasks.map((st) => st.role)).size || 4}</div>
           </div>
           <div className="stat-cell">
-            <div className="label">Execution Mode</div>
+            <div className="label">Status</div>
             <div className="value" style={{ fontSize: '14px', marginTop: '4px' }}>
-              {runStatus === 'planning' ? 'Planning...' : runStatus === 'executing' ? 'Executing' : 'Ready'}
+              {runStatus === 'planning' ? 'Planning...' : runStatus === 'executing' ? 'Running' : 'Ready'}
             </div>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function ProjectOverviewPage() {
             <div className="p-3 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-micro text-[var(--faint)] uppercase font-bold tracking-wider">
-                  MASTER TASK PROMPT
+                  TASK GOAL
                 </span>
                 <Button
                   variant="primary"
@@ -172,26 +172,26 @@ export default function ProjectOverviewPage() {
             {/* Active Subtasks Group Column */}
             <div>
               <h3>
-                <Zap size={13} /> Active Subtasks & Parallel Worker Nodes
+                <Zap size={13} /> Active Steps & Running Agents
               </h3>
 
               {groupNumbers.length === 0 ? (
                 /* Fallback layout if no subtasks yet */
                 <div className="group-col">
-                  <div className="group-label">GROUP 1 (PARALLEL EXECUTION)</div>
+                  <div className="group-label">STEP 1 (RUNNING IN PARALLEL)</div>
                   <div className="task-card">
                     <div className="tc-top">
                       <span className="tc-id">T1</span>
                       <StatusBadge status="completed" />
                     </div>
-                    <div className="tc-instr">Decompose task requirements & construct worker DAG</div>
+                    <div className="tc-instr">Break down the task and assign work to agents</div>
                   </div>
                   <div className="task-card">
                     <div className="tc-top">
                       <span className="tc-id">T2</span>
                       <StatusBadge status={runStatus === 'executing' ? 'working' : 'idle'} />
                     </div>
-                    <div className="tc-instr">Implement backend API handlers and authentication middleware</div>
+                    <div className="tc-instr">Build backend API and handle authentication</div>
                   </div>
                 </div>
               ) : (
@@ -200,7 +200,7 @@ export default function ProjectOverviewPage() {
                   return (
                     <div key={gNum} className="group-col">
                       <div className="group-label">
-                        GROUP {gNum} (PARALLEL EXECUTION — {groupSubtasks.length} WORKERS)
+                        STEP {gNum} ({groupSubtasks.length} AGENTS WORKING TOGETHER)
                       </div>
                       {groupSubtasks.map((st) => (
                         <div key={st.id} className="task-card" onClick={() => setSelectedAgentRole(st.role)}>
@@ -221,14 +221,14 @@ export default function ProjectOverviewPage() {
             {/* Live Terminal Output Box */}
             <div className="flex-1 min-h-[180px]">
               <h3 className="mb-2">
-                <Cpu size={13} /> Live Execution Stream
+                <Cpu size={13} /> Live Output
               </h3>
               <div className="term">
                 {logs.length === 0 ? (
                   <div className="ln">
                     <span className="ts">10:00:00</span>
                     <span className="role planner">PLANNER</span>
-                    <span className="msg">System initialized. Ready for task execution.</span>
+                    <span className="msg">System ready. Waiting for your task.</span>
                   </div>
                 ) : (
                   logs.map((log, idx) => {

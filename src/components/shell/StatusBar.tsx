@@ -46,13 +46,13 @@ export function StatusBar() {
               className="w-1.5 h-1.5 rounded-full bg-[var(--ide-accent)] animate-pulse motion-reduce:animate-none"
             />
             <span>
-              {liveCount} {liveCount === 1 ? 'project' : 'projects'} live
+              {liveCount} {liveCount === 1 ? 'project' : 'projects'} running
             </span>
           </ItemShell>
         ) : (
           <ItemShell>
             <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-[var(--ide-text-faint)]" />
-            <span>{runStatus === 'idle' ? 'Idle' : runStatus}</span>
+            <span>{runStatus === 'idle' ? 'Ready' : runStatus}</span>
           </ItemShell>
         )}
       </div>

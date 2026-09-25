@@ -32,11 +32,11 @@ export interface ActivityItem {
 
 export const ACTIVITY_ITEMS: ActivityItem[] = [
   { to: '/home', label: 'Home', icon: House, matches: ['/home'] },
-  { to: '/console', label: 'Console', icon: TerminalWindow, matches: ['/console'] },
+  { to: '/console', label: 'Workspace', icon: TerminalWindow, matches: ['/console'] },
   { to: '/projects', label: 'Projects', icon: FolderSimple, matches: ['/projects', '/run'] },
-  { to: '/agents', label: 'Agents', icon: Robot, matches: ['/agents', '/agent/'] },
-  { to: '/flow', label: 'Workflow', icon: Network, matches: ['/flow'] },
-  { to: '/integrations', label: 'Integrations', icon: PlugsConnected, matches: ['/integrations'] },
+  { to: '/agents', label: 'AI Agents', icon: Robot, matches: ['/agents', '/agent/'] },
+  { to: '/flow', label: 'Workflow Map', icon: Network, matches: ['/flow'] },
+  { to: '/integrations', label: 'Connected Tools', icon: PlugsConnected, matches: ['/integrations'] },
 ]
 
 export function isActivityItemActive(item: ActivityItem, pathname: string): boolean {
@@ -54,9 +54,9 @@ export interface ShellChrome {
 
 const PROJECT_TAB_LABELS: Record<string, { label: string; icon: ShellIcon }> = {
   overview: { label: 'Overview', icon: Layout },
-  flow: { label: 'Flow', icon: Network },
+  flow: { label: 'Workflow Map', icon: Network },
   tasks: { label: 'Tasks', icon: CheckSquareOffset },
-  agents: { label: 'Agents', icon: UsersThree },
+  agents: { label: 'AI Agents', icon: UsersThree },
   files: { label: 'Files', icon: TreeStructure },
   activity: { label: 'Activity', icon: GitBranch },
 }
@@ -73,7 +73,7 @@ export function getShellChrome(pathname: string): ShellChrome {
   }
 
   if (parts[0] === 'console') {
-    return { label: 'Console', icon: TerminalWindow, crumbs: ['SplitterAI', 'Console'] }
+    return { label: 'Workspace', icon: TerminalWindow, crumbs: ['SplitterAI', 'Workspace'] }
   }
 
   if (parts[0] === 'projects') {
@@ -92,9 +92,9 @@ export function getShellChrome(pathname: string): ShellChrome {
 
   if (parts[0] === 'agents') {
     if (parts.length === 1) {
-      return { label: 'Agents', icon: Robot, crumbs: ['SplitterAI', 'Agents'] }
+      return { label: 'AI Agents', icon: Robot, crumbs: ['SplitterAI', 'AI Agents'] }
     }
-    return { label: parts[1], icon: Robot, crumbs: ['SplitterAI', 'Agents', parts[1]] }
+    return { label: parts[1], icon: Robot, crumbs: ['SplitterAI', 'AI Agents', parts[1]] }
   }
 
   if (parts[0] === 'agent') {
@@ -103,11 +103,11 @@ export function getShellChrome(pathname: string): ShellChrome {
   }
 
   if (parts[0] === 'flow') {
-    return { label: 'Flow', icon: Network, crumbs: ['SplitterAI', 'Workflow'] }
+    return { label: 'Workflow Map', icon: Network, crumbs: ['SplitterAI', 'Workflow Map'] }
   }
 
   if (parts[0] === 'integrations') {
-    return { label: 'Integrations', icon: PlugsConnected, crumbs: ['SplitterAI', 'Integrations'] }
+    return { label: 'Connected Tools', icon: PlugsConnected, crumbs: ['SplitterAI', 'Connected Tools'] }
   }
 
   if (parts[0] === 'run') {

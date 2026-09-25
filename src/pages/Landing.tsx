@@ -19,12 +19,12 @@ const GITHUB_URL = 'https://github.com/Prateekiiitg56/SplitterAi'
 /* ── Tech strip items ──────────────────────────────────────────── */
 
 const TECH_ITEMS = [
-  { icon: Boxes, label: 'Multi-agent' },
-  { icon: Terminal, label: 'Sandboxed runtime' },
-  { icon: Layers, label: 'Parallel execution' },
-  { icon: Cpu, label: 'Free-tier models' },
-  { icon: Database, label: 'Local workspace' },
-  { icon: Workflow, label: 'n8n-compatible' },
+  { icon: Boxes, label: 'Multiple AI agents' },
+  { icon: Terminal, label: 'Safe isolated environment' },
+  { icon: Layers, label: 'Tasks run in parallel' },
+  { icon: Cpu, label: 'Free AI models' },
+  { icon: Database, label: 'Works on your computer' },
+  { icon: Workflow, label: 'Import workflows' },
 ]
 
 /* ── Landing Page ──────────────────────────────────────────────── */
@@ -64,12 +64,12 @@ export default function Landing() {
               className="h-8 w-auto object-contain transition-transform duration-[var(--d-quick)] group-hover:scale-105"
             />
             <span className="hidden border-l border-white/15 pl-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--dim)] sm:block">
-              Control plane
+              Dashboard
             </span>
           </button>
 
           <nav className="flex items-center gap-5 font-mono text-[11px] uppercase tracking-[0.1em] text-[var(--dim)] sm:gap-7">
-            <a href="#stack" className="hidden transition-colors hover:text-[var(--text)] sm:block">Stack</a>
+            <a href="#stack" className="hidden transition-colors hover:text-[var(--text)] sm:block">Features</a>
             <a
               href={GITHUB_URL}
               target="_blank"
@@ -116,7 +116,7 @@ export default function Landing() {
             'mb-8',
           )}
         >
-          Open Console
+          Get Started
           <ArrowRight size={15} />
         </button>
 
@@ -139,7 +139,7 @@ export default function Landing() {
             MIT License
           </a>
           <span aria-hidden="true" className="w-px h-3 bg-[var(--border)]" />
-          <span>Runs entirely on free-tier API quotas.</span>
+          <span>Uses free AI model limits — no paid plan needed.</span>
         </div>
       </section>
     </div>

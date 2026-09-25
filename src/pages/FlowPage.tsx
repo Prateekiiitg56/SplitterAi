@@ -36,21 +36,21 @@ export default function FlowPage() {
   const [nodes, setNodes] = useState<Record<string, FlowNodeData>>({
     master: {
       id: 'master',
-      title: 'Master Prompt',
+      title: 'Main Goal',
       role: 'planner',
       agentRole: 'planner',
       status: 'completed',
-      task: 'Task Instruction: Build authentication system with JWT',
+      task: 'Task: Build authentication system with JWT',
       progress: 100,
       color: 'var(--role-planner)',
       x: 40,
       y: 180,
       group: 1,
-      activity: [['10:00', 'Task decomposed into 5 parallel subtasks']],
+      activity: [['10:00', 'Task split into 5 parallel steps']],
     },
     alpha: {
       id: 'alpha',
-      title: 'Coder — Alpha',
+      title: 'Code Writer A',
       role: 'coder',
       agentRole: 'coder',
       status: 'working',
@@ -67,7 +67,7 @@ export default function FlowPage() {
     },
     delta: {
       id: 'delta',
-      title: 'Coder — Delta',
+      title: 'Code Writer B',
       role: 'coder',
       agentRole: 'coder',
       status: 'working',
@@ -84,7 +84,7 @@ export default function FlowPage() {
     },
     auditor: {
       id: 'auditor',
-      title: 'Auditor — Beta',
+      title: 'Code Reviewer',
       role: 'auditor',
       agentRole: 'auditor',
       status: 'idle',
@@ -294,7 +294,7 @@ export default function FlowPage() {
           {/* Right Inspector Panel */}
           <div className="flow-side">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="m-0">Node Inspector</h3>
+              <h3 className="m-0">Agent Details</h3>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -308,7 +308,7 @@ export default function FlowPage() {
                 icon={<Upload size={12} />}
                 onClick={() => fileInputRef.current?.click()}
               >
-                Import n8n
+                Import Workflow
               </Button>
             </div>
 
@@ -320,11 +320,11 @@ export default function FlowPage() {
                   </span>
                   <h3 className="m-0 text-title">{selectedNode.title}</h3>
                 </div>
-                <div className="sub">Group {selectedNode.group} Worker Node</div>
+                <div className="sub">Step {selectedNode.group} Agent</div>
 
                 <div className="space-y-1 mb-4">
                   <div className="kv-row">
-                    <span className="k">Node ID</span>
+                    <span className="k">Agent ID</span>
                     <span className="v">{selectedNode.id}</span>
                   </div>
                   <div className="kv-row">
@@ -344,14 +344,14 @@ export default function FlowPage() {
                 </div>
 
                 <div className="mb-4">
-                  <div className="k text-micro font-mono uppercase mb-1">Instruction Task</div>
+                  <div className="k text-micro font-mono uppercase mb-1">Current Task</div>
                   <div className="p-2.5 rounded bg-[var(--bg-inset)] border border-[var(--border-soft)] text-meta text-[var(--text-2)] font-sans leading-relaxed">
                     {selectedNode.task}
                   </div>
                 </div>
 
                 <div>
-                  <div className="k text-micro font-mono uppercase mb-2">Node Activity Log</div>
+                  <div className="k text-micro font-mono uppercase mb-2">Activity Log</div>
                   <div className="space-y-1.5 font-mono text-micro">
                     {selectedNode.activity.map(([time, msg], i) => (
                       <div key={i} className="flex gap-2 p-1.5 rounded bg-[var(--panel)] border border-[var(--border-soft)]">
@@ -364,7 +364,7 @@ export default function FlowPage() {
               </>
             ) : (
               <div className="text-center p-6 text-[var(--faint)] text-meta font-mono">
-                Click any node on the graph canvas to inspect its parameters.
+                Click any agent on the map to see its details.
               </div>
             )}
           </div>

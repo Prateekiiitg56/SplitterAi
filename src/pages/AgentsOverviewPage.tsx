@@ -25,26 +25,26 @@ export default function AgentsOverviewPage() {
   const baseRoster: { role: AgentRole; title: string; desc: string; modelChain: string }[] = [
     {
       role: 'coder',
-      title: 'Coder — Alpha',
-      desc: 'Primary code generation & file editing worker',
+      title: 'Code Writer',
+      desc: 'Writes and edits code files for your project',
       modelChain: 'gemini-3.5-flash → nemotron-3-super',
     },
     {
       role: 'auditor',
-      title: 'Auditor — Beta',
-      desc: 'Security & PEP 8 compliance scanner',
+      title: 'Code Reviewer',
+      desc: 'Checks code for bugs, security issues, and best practices',
       modelChain: 'gemini-3.5-flash → nemotron-3-ultra',
     },
     {
       role: 'tester',
-      title: 'Tester — Gamma',
-      desc: 'Test execution engine & pytest suite verifier',
+      title: 'Test Runner',
+      desc: 'Writes and runs tests to verify your code works',
       modelChain: 'gemini-3.5-flash → grok-2-beta',
     },
     {
       role: 'planner',
-      title: 'Planner — Delta',
-      desc: 'Task decomposition & DAG architecture generator',
+      title: 'Task Planner',
+      desc: 'Breaks down your goal into smaller steps for other agents',
       modelChain: 'gemini-3.5-flash → grok-2-beta',
     },
   ]
@@ -133,7 +133,7 @@ export default function AgentsOverviewPage() {
         meta="/ roster"
         actions={
           <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowLaunchModal(true)}>
-            Launch agent
+            Start an agent
           </Button>
         }
       />
@@ -212,7 +212,7 @@ export default function AgentsOverviewPage() {
                   </div>
 
                   <div className="ac-task">
-                    {agent.currentTask ? agent.currentTask : 'Idle — ready for task assignment'}
+                    {agent.currentTask ? agent.currentTask : 'Waiting — ready for a task'}
                   </div>
 
                   <div className="ac-progress-track">
@@ -262,8 +262,8 @@ export default function AgentsOverviewPage() {
           {/* Launch Strip Banner */}
           <div className="launch-strip">
             <div>
-              <div className="lt">Need a custom worker team?</div>
-              <div className="ld">Configure roles, task priorities and dependency chains for complex multi-agent runs.</div>
+              <div className="lt">Want to build your own team of AI helpers?</div>
+              <div className="ld">Set up different agents, assign them specific jobs, and let them work together on complex tasks.</div>
             </div>
             <button
               type="button"
@@ -280,7 +280,7 @@ export default function AgentsOverviewPage() {
       <Modal
         open={showLaunchModal}
         onClose={() => setShowLaunchModal(false)}
-        title="Launch Worker Agent"
+        title="Start an AI Agent"
         width={420}
         footer={
           <>
@@ -295,25 +295,25 @@ export default function AgentsOverviewPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="text-micro font-mono text-[var(--faint)] block mb-1">Target Agent Role</label>
+            <label className="text-micro font-mono text-[var(--faint)] block mb-1">Choose Agent Type</label>
             <select
               value={modalRole}
               onChange={(e) => setModalRole(e.target.value as AgentRole)}
               className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded-control px-3 py-2 text-meta text-[var(--text)] font-mono outline-none cursor-pointer"
             >
-              <option value="coder">Coder Agent (Code Generation)</option>
-              <option value="auditor">Auditor Agent (Security & Review)</option>
-              <option value="tester">Tester Agent (Unit Test Suite)</option>
-              <option value="planner">Planner Agent (Architecture DAG)</option>
+              <option value="coder">Code Writer (Writes & edits code)</option>
+              <option value="auditor">Code Reviewer (Checks for bugs & security)</option>
+              <option value="tester">Test Runner (Writes & runs tests)</option>
+              <option value="planner">Task Planner (Plans & organizes the work)</option>
             </select>
           </div>
 
           <div>
-            <label className="text-micro font-mono text-[var(--faint)] block mb-1">Instruction Task</label>
+            <label className="text-micro font-mono text-[var(--faint)] block mb-1">What should the agent do?</label>
             <textarea
               value={modalTask}
               onChange={(e) => setModalTask(e.target.value)}
-              placeholder="e.g. Implement authentication module with unit tests..."
+              placeholder="e.g. Add a login form with email and password..."
               rows={3}
               className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded-control p-2.5 text-meta text-[var(--text)] font-sans outline-none resize-none"
             />

@@ -148,7 +148,7 @@ export default function ProjectsPage() {
                 onClick={() => setStatusFilter('working')}
                 className={`chip ${statusFilter === 'working' ? 'active' : ''}`}
               >
-                Working
+                Running
               </button>
               <button
                 type="button"
@@ -173,7 +173,7 @@ export default function ProjectsPage() {
           {sessionsLoading ? (
             <div className="p-8 flex items-center justify-center gap-2 text-[var(--dim)] font-mono text-meta">
               <Loader2 size={14} className="animate-spin" />
-              <span>Loading workspace projects…</span>
+              <span>Loading your projects…</span>
             </div>
           ) : sessionsError ? (
             <div className="p-4 rounded-md border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between">
@@ -248,7 +248,7 @@ export default function ProjectsPage() {
                         <StatusBadge status={s.status || 'working'} />
                         <span className="sep" />
                         <span>
-                          {subtasksDone} of {subtasksTotal} subtasks
+                          {subtasksDone} of {subtasksTotal} steps done
                         </span>
                       </div>
                       <div className="pc-progress-track">
@@ -345,7 +345,7 @@ export default function ProjectsPage() {
       >
         <div className="space-y-4">
           <p className="text-meta text-[var(--dim)] leading-relaxed">
-            Upload a <strong>.zip</strong> archive of your repository. It will be safely extracted into a sandboxed server workspace.
+            Upload a <strong>.zip</strong> file of your project folder. It will be extracted and ready to use.
           </p>
 
           <input
