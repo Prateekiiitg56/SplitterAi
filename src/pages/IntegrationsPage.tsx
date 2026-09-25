@@ -23,7 +23,7 @@ import { useIntegrations } from '../hooks/useIntegrations'
 import type { AgentRole, Integration } from '../types'
 import { Button } from '../components/primitives/Button'
 import { PageHeader } from '../components/PageHeader'
-import { TextField } from '../components/primitives/Field'
+import { TextField, SearchField } from '../components/primitives/Field'
 import { Modal } from '../components/primitives/Modal'
 
 /* ── Catalog data ──────────────────────────────────────────────────── */
@@ -299,20 +299,20 @@ export default function IntegrationsPage() {
                     )}
                   </div>
                   <div className="cr-actions">
-                    <button
-                      type="button"
-                      className="btn btn-ghost sm"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setReconfigureTarget(item)}
                     >
                       Configure
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-quiet sm"
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      size="sm"
                       onClick={() => disconnect(item.id)}
                     >
                       Disconnect
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -321,16 +321,13 @@ export default function IntegrationsPage() {
 
           {/* Available Integration Catalog Section */}
           <div className="section-label">Add a Tool</div>
-          <div className="toolbar" style={{ marginBottom: '16px' }}>
-            <div className="field" style={{ flex: 1 }}>
-              <Search size={13} />
-              <input
-                type="text"
-                placeholder="Search catalog…"
-                value={catalogSearch}
-                onChange={(e) => setCatalogSearch(e.target.value)}
-              />
-            </div>
+          <div className="mb-4">
+            <SearchField
+              label="Search catalog"
+              placeholder="Search catalog by name or function…"
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+            />
           </div>
 
           <div className="catalog-grid">
@@ -368,13 +365,13 @@ export default function IntegrationsPage() {
                       Already connected
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      className="btn btn-primary sm"
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => handleCatalogClick(card.id)}
                     >
                       {card.buttonLabel}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )

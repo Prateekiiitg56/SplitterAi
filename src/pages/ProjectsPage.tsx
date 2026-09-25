@@ -6,7 +6,7 @@ import type { SessionEntry } from '../types'
 import { StatusBadge } from '../components/Badges'
 import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
-import { TextField } from '../components/primitives/Field'
+import { TextField, SearchField } from '../components/primitives/Field'
 import { uploadWorkspace } from '../lib/api'
 import { PageHeader } from '../components/PageHeader'
 
@@ -124,46 +124,32 @@ export default function ProjectsPage() {
       <div className="page-body flex-1 overflow-y-auto">
         <div className="projects-body">
           {/* Toolbar */}
-          <div className="toolbar">
-            <div className="field" style={{ flex: 1 }}>
-              <Search size={13} />
-              <input
-                type="text"
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="flex-1 min-w-[220px]">
+              <SearchField
+                label="Search projects"
+                placeholder="Search projects by name or path…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search projects…"
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`chip ${statusFilter === 'all' ? 'active' : ''}`}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('working')}
-                className={`chip ${statusFilter === 'working' ? 'active' : ''}`}
-              >
-                Running
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('completed')}
-                className={`chip ${statusFilter === 'completed' ? 'active' : ''}`}
-              >
-                Completed
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('failed')}
-                className={`chip ${statusFilter === 'failed' ? 'active' : ''}`}
-              >
-                Failed
-              </button>
+            <div className="flex items-center gap-1.5">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'working', label: 'Running' },
+                { id: 'completed', label: 'Completed' },
+                { id: 'failed', label: 'Failed' },
+              ].map((f) => (
+                <Button
+                  key={f.id}
+                  variant={statusFilter === f.id ? 'primary' : 'quiet'}
+                  size="sm"
+                  onClick={() => setStatusFilter(f.id)}
+                >
+                  {f.label}
+                </Button>
+              ))}
             </div>
 
             <span className="count-pill">{filtered.length} projects</span>

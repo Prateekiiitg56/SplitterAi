@@ -7,6 +7,7 @@ import { AgentIcon, StatusBadge } from '../components/Badges'
 import { Search, Plus, Bot } from 'lucide-react'
 import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
+import { SearchField } from '../components/primitives/Field'
 import { PageHeader } from '../components/PageHeader'
 
 export default function AgentsOverviewPage() {
@@ -142,46 +143,27 @@ export default function AgentsOverviewPage() {
       <div className="page-body flex-1 overflow-y-auto">
         <div className="agents-page">
           {/* Toolbar */}
-          <div className="toolbar">
-            <div className="field" style={{ flex: 1 }}>
-              <Search size={13} />
-              <input
-                type="text"
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="flex-1 min-w-[220px]">
+              <SearchField
+                label="Search agents"
+                placeholder="Search agents by name or role…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search agents…"
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`chip ${statusFilter === 'all' ? 'active' : ''}`}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('working')}
-                className={`chip ${statusFilter === 'working' ? 'active' : ''}`}
-              >
-                Working
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('idle')}
-                className={`chip ${statusFilter === 'idle' ? 'active' : ''}`}
-              >
-                Idle
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('failed')}
-                className={`chip ${statusFilter === 'failed' ? 'active' : ''}`}
-              >
-                Failed
-              </button>
+            <div className="flex items-center gap-1.5">
+              {(['all', 'working', 'idle', 'failed'] as const).map((filterKey) => (
+                <Button
+                  key={filterKey}
+                  variant={statusFilter === filterKey ? 'primary' : 'quiet'}
+                  size="sm"
+                  onClick={() => setStatusFilter(filterKey)}
+                >
+                  {filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}
+                </Button>
+              ))}
             </div>
 
             <span className="count-pill">{filteredAgents.length} agents</span>
@@ -228,30 +210,30 @@ export default function AgentsOverviewPage() {
                   <div className="ac-foot">
                     <span className="ac-model">{agent.modelChain}</span>
                     <div className="ac-actions">
-                      <button
-                        type="button"
-                        className="btn btn-ghost sm"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
                           navigate(`/agents/${agent.role}`)
                         }}
                       >
                         Open
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-quiet sm"
+                      </Button>
+                      <Button
+                        variant="quiet"
+                        size="sm"
                         onClick={(e) => handlePause(agent.role, e)}
                       >
                         {agent.status === 'paused' ? 'Resume' : 'Pause'}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-quiet sm"
+                      </Button>
+                      <Button
+                        variant="quiet"
+                        size="sm"
                         onClick={(e) => handleStop(agent.role, e)}
                       >
                         Stop
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -265,13 +247,13 @@ export default function AgentsOverviewPage() {
               <div className="lt">Want to build your own team of AI helpers?</div>
               <div className="ld">Set up different agents, assign them specific jobs, and let them work together on complex tasks.</div>
             </div>
-            <button
-              type="button"
-              className="btn btn-ghost sm"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => navigate('/projects/default/agents')}
             >
               Open builder
-            </button>
+            </Button>
           </div>
         </div>
       </div>
