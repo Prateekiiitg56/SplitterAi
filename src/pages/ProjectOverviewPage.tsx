@@ -86,12 +86,12 @@ export default function ProjectOverviewPage() {
             </div>
 
             <Button
-              variant="ghost"
+              variant={runStatus === 'done' ? 'primary' : 'ghost'}
               size="sm"
               icon={<ExternalLink size={12} />}
               onClick={() => window.open('http://localhost:8000/preview', '_blank')}
             >
-              Preview
+              {runStatus === 'done' ? 'Run & preview (localhost)' : 'Preview'}
             </Button>
           </div>
         </div>

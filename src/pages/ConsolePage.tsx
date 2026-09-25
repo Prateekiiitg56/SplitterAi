@@ -722,7 +722,7 @@ export default function ConsolePage() {
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto relative z-10">
           <AnimatePresence mode="wait">
-            {!hasMessages ? (
+            {!inChatView ? (
               /* ── Hero state ───────────────────────────────────── */
               <motion.div
                 key="hero"
@@ -809,12 +809,14 @@ export default function ConsolePage() {
                         <span>{activeAgentName} ({selectedModel.label}) is typing…</span>
                       </div>
                     )}
-                    {isPlanning && (
+                    {isPlanning && !draftPlan && (
                       <div className="flex items-center gap-2.5 text-[12px] text-white/40">
                         <Loader2 size={14} className="animate-spin text-[#1488fc]" />
                         <span>Planning task split across agents…</span>
                       </div>
                     )}
+
+                    {renderPlanProposal()}
 
                     <div ref={chatEndRef} />
                   </div>
@@ -825,7 +827,7 @@ export default function ConsolePage() {
         </div>
 
         {/* Docked input (chat state) */}
-        {hasMessages && (
+        {inChatView && (
           <div className="shrink-0 relative z-10 px-4 sm:px-8 pb-5 pt-2 flex justify-center">
             <div className="w-full max-w-[720px]">
               {/* Agent pills row */}
@@ -857,53 +859,6 @@ export default function ConsolePage() {
           </div>
         )}
 
-
-      {/* ── Plan-and-confirm dialog ─────────────────────────────── */}
-      <Modal
-        open={!!draftPlan}
-        onClose={() => setDraftPlan(null)}
-        title="Multi-agent split proposed"
-        description="Review how the task divides before launching. Each subtask runs as its own worker."
-        width={520}
-        footer={
-          <>
-            <Button variant="ghost" size="md" onClick={() => setDraftPlan(null)}>Cancel</Button>
-            <Button variant="primary" size="md" icon={<Play size={13} />} onClick={handleConfirmAndLaunch}>
-              Start project & launch
-            </Button>
-          </>
-        }
-      >
-        {draftPlan && (
-          <div className="space-y-2">
-            <p className="font-mono text-[11px] text-[var(--faint)] tabular-nums">
-              {draftPlan.subtasks.length} subtasks · {draftPlan.taskTitle}
-            </p>
-            <div className="space-y-1.5 max-h-[260px] overflow-y-auto">
-              {draftPlan.subtasks.map((st, idx) => (
-                <div
-                  key={st.id}
-                  className="flex items-center justify-between gap-3 px-2.5 py-2 rounded-lg bg-[var(--panel-2)] border border-[var(--border-soft)]"
-                >
-                  <span className="truncate flex-1 text-[12px] text-[var(--text)]">
-                    <span className="font-mono text-[11px] text-[var(--faint)] mr-2 tabular-nums">{idx + 1}</span>
-                    {st.instruction}
-                  </span>
-                  <span className={cx(
-                    'shrink-0 font-mono text-[10px] font-medium',
-                    st.role === 'planner' && 'text-[var(--role-planner)]',
-                    st.role === 'coder' && 'text-[var(--role-coder)]',
-                    st.role === 'auditor' && 'text-[var(--role-reviewer)]',
-                    st.role === 'tester' && 'text-[var(--role-runner)]',
-                  )}>
-                    {st.role}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Modal>
 
       {/* ── Add-agent dialog ───────────────────────────────────── */}
       <Modal
