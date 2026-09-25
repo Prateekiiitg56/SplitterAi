@@ -348,7 +348,7 @@ export default function IntegrationsPage() {
                       <div className="cat-name">{card.title}</div>
                       <div className="cat-sub">{card.subtitle}</div>
                     </div>
-                    <span className="cat-badge chip">{card.badge}</span>
+                    <span className="cat-badge">{card.badge}</span>
                   </div>
 
                   <div className="cat-desc">{card.description}</div>
