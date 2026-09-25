@@ -360,8 +360,10 @@ export default function ConsolePage() {
   function renderInputCard() {
     return (
       <div className={cx(
-        'w-full rounded-2xl border backdrop-blur-xl shadow-lg transition-colors',
+        'w-full rounded-2xl border backdrop-blur-xl transition-all duration-200',
         'bg-[#1e1e22]/90 border-white/[0.10] hover:border-white/[0.16]',
+        'shadow-[0_16px_50px_-24px_rgba(0,0,0,0.85)]',
+        'focus-within:border-[#1488fc]/45 focus-within:shadow-[0_0_0_3px_rgba(20,136,252,0.10),0_16px_50px_-24px_rgba(0,0,0,0.85)]',
         hasMessages ? 'max-w-[720px]' : 'max-w-[680px]',
       )}>
         {/* Textarea */}
@@ -533,7 +535,7 @@ export default function ConsolePage() {
           <AgentIcon role="planner" size={14} />
         </span>
 
-        <div className="w-full max-w-[88%] rounded-2xl rounded-bl-lg bg-[#1e1e22] border border-white/[0.08] overflow-hidden">
+        <div className="w-full max-w-[88%] rounded-2xl rounded-bl-lg bg-[#1e1e22] border border-white/[0.08] overflow-hidden shadow-[0_16px_48px_-20px_rgba(0,0,0,0.75)]">
           {/* Header — the agent's answer */}
           <div className="px-4 pt-3.5 pb-3 border-b border-white/[0.06]">
             <h3 className="text-[15px] font-semibold text-white leading-snug">Here's how I'll split this</h3>
