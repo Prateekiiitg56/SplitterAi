@@ -261,7 +261,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'cv01', 'cv02', 'ss01';
+  font-optical-sizing: auto;     /* Inter/JetBrains expose an optical axis */
   text-rendering: optimizeLegibility;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Type finishing
+   Variable fonts carry an optical-size axis (enabled on body); here we even
+   out line breaks. text-wrap:balance keeps headlines from dropping a lonely
+   last word onto its own line; text-wrap:pretty does the same, more loosely,
+   for running copy. Purely typographic — no colour or size changes.
+   ═══════════════════════════════════════════════════════════════════════ */
+h1, h2, h3, h4,
+.pc-title, .ac-name, .as-name, .cr-name, .cat-name, .fn-title,
+.proj-id h1, .launch-strip .lt, .mcp-tip .mt-title {
+  text-wrap: balance;
+}
+.md-p, .ac-desc, .as-desc, .cat-desc, .cr-sub, .mcp-tip .mt-desc,
+.launch-strip .ld {
+  text-wrap: pretty;
 }
 
 .app-shell {
@@ -921,6 +939,34 @@ button {
 .cat-card--connected { opacity: 0.65; pointer-events: none; }
 .cat-card--connected:hover { border-color: var(--border-soft); }
 .cr-status { flex-shrink: 0; margin-right: 4px; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Elevation polish
+   Every raised card carries the same one-level shadow at rest, and the
+   genuinely clickable ones lift a hair on hover with a deeper shadow. One
+   shared depth language for the whole card family — no more some-cards-lift,
+   some-stay-flat — so the surface reads as tactile rather than printed on.
+   List rows and the launch strip take the resting shadow but never lift.
+   ═══════════════════════════════════════════════════════════════════════ */
+.project-card, .agent-card, .cat-card, .task-row,
+.connected-row, .launch-strip, .fnode {
+  box-shadow: var(--shadow-raise);
+  transition: border-color var(--d-quick) var(--e-standard),
+              background var(--d-quick) var(--e-standard),
+              color var(--d-quick) var(--e-standard),
+              transform var(--d-base) var(--e-out),
+              box-shadow var(--d-base) var(--e-out);
+}
+.project-card:hover, .agent-card:hover, .cat-card:hover, .fnode:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -10px rgba(0, 0, 0, 0.6),
+              0 2px 6px -2px rgba(0, 0, 0, 0.4);
+}
+/* Connected/disabled catalog cards stay put. */
+.cat-card--connected, .cat-card--connected:hover {
+  box-shadow: var(--shadow-raise);
+  transform: none;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    Console Bolt — Bolt-style hero + chat page at /console
