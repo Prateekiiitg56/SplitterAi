@@ -311,9 +311,9 @@ export default function ConsoleSidebar({
           showFull ? 'gap-3 px-4 py-3.5' : 'flex-col gap-2 px-2 py-3.5',
         )}>
           <img
-            src="/splitterai-logo.png"
+            src="/splitterai-logo.svg"
             alt="SplitterAI"
-            className="h-7 w-7 object-contain shrink-0"
+            className="h-7 w-7 shrink-0"
           />
           {showFull && (
             <span className="font-semibold text-[13px] text-white/90 tracking-tight flex-1 whitespace-nowrap overflow-hidden">

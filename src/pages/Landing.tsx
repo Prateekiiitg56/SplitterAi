@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { animate, createSpring } from 'animejs'
 import {
   ArrowRight,
   ArrowUpRight,
@@ -31,6 +33,24 @@ const TECH_ITEMS = [
 
 export default function Landing() {
   const navigate = useNavigate()
+  const ctaRef = useRef<HTMLButtonElement>(null)
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const springTo = (scale: number) => {
+    if (!ctaRef.current || reduceMotion()) return
+    animate(ctaRef.current, { scale, ease: createSpring({ stiffness: 320, damping: 14 }) })
+  }
+
+  useEffect(() => {
+    const el = ctaRef.current
+    if (!el || reduceMotion()) return
+    const pop = animate(el, {
+      scale: [0.4, 1],
+      opacity: [0, 1],
+      delay: 350,
+      ease: createSpring({ stiffness: 260, damping: 11 }),
+    })
+    return () => { pop.revert() }
+  }, [])
 
   return (
     <div className="relative h-screen overflow-x-hidden overflow-y-auto bg-[var(--bg)] text-[var(--text)] font-sans">
@@ -59,10 +79,13 @@ export default function Landing() {
             aria-label="Go to SplitterAI home"
           >
             <img
-              src="/splitterai-logo.png"
-              alt="SplitterAI"
-              className="h-8 w-auto object-contain transition-transform duration-[var(--d-quick)] group-hover:scale-105"
+              src="/splitterai-logo.svg"
+              alt=""
+              className="h-8 w-8 transition-transform duration-[var(--d-quick)] group-hover:scale-105"
             />
+            <span className="text-[15px] font-semibold tracking-tight text-[var(--text)]">
+              Splitter<span className="text-[var(--accent)]">AI</span>
+            </span>
             <span className="hidden border-l border-white/15 pl-3 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--dim)] sm:block">
               Dashboard
             </span>
@@ -106,18 +129,25 @@ export default function Landing() {
       <section className="relative z-10 flex min-h-[calc(100vh-88px)] flex-col items-center justify-end px-6 pb-32 pt-20 text-center">
 
         <button
+          ref={ctaRef}
           type="button"
           onClick={() => navigate('/console')}
+          onPointerEnter={() => springTo(1.06)}
+          onPointerLeave={() => springTo(1)}
+          onPointerDown={() => springTo(0.94)}
+          onPointerUp={() => springTo(1.06)}
           className={cx(
-            'relative inline-flex h-10 items-center gap-2 rounded-control border border-[var(--accent)]/50 bg-[var(--accent)] px-6',
-            'text-[var(--accent-ink)] font-semibold text-ui',
-            'hover:brightness-110 active:scale-[0.985]',
-            'transition-all duration-[var(--d-quick)] ease-standard',
+            'group relative inline-flex h-11 items-center gap-2 rounded-full px-7',
+            'border border-white/20 bg-white/[0.03] backdrop-blur-md',
+            'text-[var(--text)] font-medium text-ui tracking-[0.02em]',
+            'hover:border-white/40 hover:bg-white/[0.07]',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40',
+            'transition-colors duration-[var(--d-quick)] ease-standard',
             'mb-8',
           )}
         >
           Get Started
-          <ArrowRight size={15} />
+          <ArrowRight size={15} className="transition-transform duration-[var(--d-quick)] group-hover:translate-x-1" />
         </button>
 
         <div className="flex items-center gap-4 text-micro text-[var(--faint)]">
