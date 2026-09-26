@@ -32,7 +32,7 @@ export const ROLE_META: Record<AgentRole, { label: string; color: string; bg: st
   coder:      { label: 'Coder',      color: '#1A73E8', bg: '#1A73E814', desc: 'Writes, edits, and runs code using sandboxed tools' },
   auditor:    { label: 'Auditor',    color: '#E8710A', bg: '#E8710A14', desc: 'Reviews code for bugs, security issues, and quality' },
   tester:     { label: 'Tester',     color: '#0E9F6E', bg: '#0E9F6E14', desc: 'Writes and runs tests, verifies correctness' },
-  unassigned: { label: 'Unassigned', color: '#888888', bg: '#88888814', desc: 'Unassigned node — please select a role before launching' },
+  unassigned: { label: 'Unassigned', color: '#888888', bg: '#88888814', desc: 'Unassigned node. Select a role before launching.' },
 }
 
 export const STATUS_META: Record<SubtaskStatus, { label: string; color: string; bg: string }> = {

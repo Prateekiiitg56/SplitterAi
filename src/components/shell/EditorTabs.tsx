@@ -87,7 +87,9 @@ export function Breadcrumb({ crumbs }: { crumbs: string[] }) {
                  text-[11.5px] text-[var(--ide-text-faint)]
                  border-b border-[var(--ide-border-soft)]"
     >
-      <div className="w-full max-w-[1100px] mx-auto px-8 flex items-center gap-1.5 overflow-hidden text-[12px]">
+      {/* Left-aligned with the editor tabs, as in an IDE. A centred 1100px column lined up
+          with Home only and sat ~140px off every full-width page. */}
+      <div className="w-full px-5 flex items-center gap-1.5 overflow-hidden text-[12px]">
         {crumbs.map((crumb, i) => (
           <span key={`${crumb}-${i}`} className="flex items-center gap-1.5 min-w-0">
             {i > 0 && (

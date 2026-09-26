@@ -9,6 +9,9 @@ import { AVAILABLE_MODELS } from '../data'
 import type { AgentRole, Subtask } from '../types'
 import { StatusBadge } from '../components/Badges'
 import { Cpu, ExternalLink, Play, Loader2, Zap } from 'lucide-react'
+import { API_BASE } from '../config'
+
+const RUN_LABEL = { idle: 'Ready', planning: 'Planning…', executing: 'Running', done: 'Completed', error: 'Failed' } as const
 
 export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId?: string }>()
@@ -36,11 +39,12 @@ export default function ProjectOverviewPage() {
 
   const groupNumbers = Object.keys(groupedSubtasks).map(Number).sort((a, b) => a - b)
 
+  const isBusy = runStatus === 'planning' || runStatus === 'executing'
+
   const completedCount = subtasks.filter((st) => {
     const s = (st.status as string) || ''
     return s === 'completed' || s === 'success' || s === 'done'
   }).length
-  const totalSubtasks = subtasks.length || 5
 
   return (
     <ProjectTabShell>
@@ -49,11 +53,12 @@ export default function ProjectOverviewPage() {
         <div className="ov-bar">
           <div className="lead">
             <Cpu size={15} />
-            <span className="t">{taskTitle || 'JWT Authentication Service'}</span>
+            <span className="t">{taskTitle || (subtasks.length ? 'Current run' : 'No task started')}</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <select
+              aria-label="Model"
               value={selectedModel.id}
               onChange={(e) => {
                 const next = AVAILABLE_MODELS.find((m) => m.id === e.target.value)
@@ -74,24 +79,24 @@ export default function ProjectOverviewPage() {
                 onClick={() => setMultiMode(true)}
                 className={multiMode ? 'active' : ''}
               >
-                Multi-Agent
+                Team Mode
               </button>
               <button
                 type="button"
                 onClick={() => setMultiMode(false)}
                 className={!multiMode ? 'active' : ''}
               >
-                Single Agent
+                Solo Mode
               </button>
             </div>
 
             <Button
-              variant="ghost"
+              variant={runStatus === 'done' ? 'primary' : 'ghost'}
               size="sm"
               icon={<ExternalLink size={12} />}
-              onClick={() => window.open('http://localhost:8000/preview', '_blank')}
+              onClick={() => window.open(`${API_BASE}/preview`, '_blank')}
             >
-              Preview
+              {runStatus === 'done' ? 'Run & preview (localhost)' : 'Preview'}
             </Button>
           </div>
         </div>
@@ -103,30 +108,33 @@ export default function ProjectOverviewPage() {
             <div className="value">{subtasks.length}</div>
           </div>
           <div className="stat-cell">
-            <div className="label">Subtasks</div>
+            <div className="label">Completed</div>
             <div className="value good">
               {completedCount} of {subtasks.length}
             </div>
           </div>
           <div className="stat-cell">
             <div className="label">Active Agents</div>
-            <div className="value accent">{new Set(subtasks.map((st) => st.role)).size || 4}</div>
+            <div className="value accent">{new Set(subtasks.map((st) => st.role)).size}</div>
           </div>
           <div className="stat-cell">
-            <div className="label">Execution Mode</div>
-            <div className="value" style={{ fontSize: '14px', marginTop: '4px' }}>
-              {runStatus === 'planning' ? 'Planning...' : runStatus === 'executing' ? 'Executing' : 'Ready'}
+            <div className="label">Status</div>
+            <div
+              className={`value ${runStatus === 'done' ? 'good' : ''}`}
+              style={{ fontSize: '14px', marginTop: '4px', color: runStatus === 'error' ? 'var(--bad)' : undefined }}
+            >
+              {RUN_LABEL[runStatus]}
             </div>
           </div>
         </div>
 
         {/* Execution Error Banner */}
         {errorMessage && (
-          <div className="mx-5 mt-3 p-3 rounded-panel border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
+          <div role="alert" className="mx-5 mt-3 p-3 rounded-panel border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
             <span>
               <strong>Execution Error:</strong> {errorMessage}
             </span>
-            <button onClick={clearError} className="font-bold ml-4 hover:underline">
+            <button type="button" onClick={clearError} aria-label="Dismiss error" className="font-bold ml-4 hover:underline">
               ✕
             </button>
           </div>
@@ -140,15 +148,15 @@ export default function ProjectOverviewPage() {
             <div className="p-3 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-micro text-[var(--faint)] uppercase font-bold tracking-wider">
-                  MASTER TASK PROMPT
+                  TASK GOAL
                 </span>
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={runStatus === 'planning' || runStatus === 'executing'}
+                  disabled={isBusy || !(taskInput.trim() || taskTitle.trim())}
                   onClick={() => {
-                    const taskToRun = taskInput.trim() || taskTitle.trim() || 'build jwt authentication endpoints'
-                    executeTask(taskToRun, currentWorkspace, selectedModel.id)
+                    const taskToRun = taskInput.trim() || taskTitle.trim()
+                    if (taskToRun) executeTask(taskToRun, currentWorkspace, selectedModel.id)
                   }}
                   icon={runStatus === 'planning' || runStatus === 'executing' ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} fill="currentColor" />}
                 >
@@ -160,10 +168,11 @@ export default function ProjectOverviewPage() {
                 value={taskInput}
                 onChange={(e) => setTaskInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && taskInput.trim()) {
+                  if (e.key === 'Enter' && taskInput.trim() && !isBusy) {
                     executeTask(taskInput.trim(), currentWorkspace, selectedModel.id)
                   }
                 }}
+                aria-label="Task goal"
                 placeholder="Type a task prompt here (e.g. create auth API endpoints)..."
                 className="w-full h-8 px-3 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-meta text-[var(--text)] placeholder:text-[var(--faint)] outline-none focus:border-[var(--accent)]"
               />
@@ -172,26 +181,15 @@ export default function ProjectOverviewPage() {
             {/* Active Subtasks Group Column */}
             <div>
               <h3>
-                <Zap size={13} /> Active Subtasks & Parallel Worker Nodes
+                <Zap size={13} /> Active Steps & Running Agents
               </h3>
 
               {groupNumbers.length === 0 ? (
-                /* Fallback layout if no subtasks yet */
                 <div className="group-col">
-                  <div className="group-label">GROUP 1 (PARALLEL EXECUTION)</div>
-                  <div className="task-card">
-                    <div className="tc-top">
-                      <span className="tc-id">T1</span>
-                      <StatusBadge status="completed" />
-                    </div>
-                    <div className="tc-instr">Decompose task requirements & construct worker DAG</div>
-                  </div>
-                  <div className="task-card">
-                    <div className="tc-top">
-                      <span className="tc-id">T2</span>
-                      <StatusBadge status={runStatus === 'executing' ? 'working' : 'idle'} />
-                    </div>
-                    <div className="tc-instr">Implement backend API handlers and authentication middleware</div>
+                  <div className="tc-instr">
+                    {runStatus === 'planning'
+                      ? 'The planner is breaking the task into steps…'
+                      : 'No steps yet. Start a task to see its plan and agents here.'}
                   </div>
                 </div>
               ) : (
@@ -200,7 +198,7 @@ export default function ProjectOverviewPage() {
                   return (
                     <div key={gNum} className="group-col">
                       <div className="group-label">
-                        GROUP {gNum} (PARALLEL EXECUTION — {groupSubtasks.length} WORKERS)
+                        STEP {gNum} ({groupSubtasks.length} AGENTS WORKING TOGETHER)
                       </div>
                       {groupSubtasks.map((st) => (
                         <div key={st.id} className="task-card" onClick={() => setSelectedAgentRole(st.role)}>
@@ -221,14 +219,12 @@ export default function ProjectOverviewPage() {
             {/* Live Terminal Output Box */}
             <div className="flex-1 min-h-[180px]">
               <h3 className="mb-2">
-                <Cpu size={13} /> Live Execution Stream
+                <Cpu size={13} /> Live Output
               </h3>
               <div className="term">
                 {logs.length === 0 ? (
                   <div className="ln">
-                    <span className="ts">10:00:00</span>
-                    <span className="role planner">PLANNER</span>
-                    <span className="msg">System initialized. Ready for task execution.</span>
+                    <span className="msg">No output yet. Logs stream here while a task runs.</span>
                   </div>
                 ) : (
                   logs.map((log, idx) => {

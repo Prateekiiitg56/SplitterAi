@@ -113,7 +113,7 @@ export function ChatPanel({ collapsed, onToggle }: ChatPanelProps) {
                 <button
                   type="button"
                   disabled
-                  aria-label="Send — chat is not connected yet"
+                  aria-label="Send (chat is not connected yet)"
                   title="Chat is not connected yet"
                   className="w-[22px] h-[22px] rounded-[5px] inline-flex items-center justify-center
                              bg-[var(--ide-accent)] text-white

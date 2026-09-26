@@ -71,6 +71,7 @@ export interface SessionInfo {
   status: string
   subtask_count: number
   created_at: string
+  updated_at?: number
 }
 
 export interface AgentConfig {
@@ -126,7 +127,7 @@ export async function runTask(request: RunRequest): Promise<RunResult> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
-  }, 180000)
+  }, 900000) // multi-agent runs routinely exceed a few minutes
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Run failed: ${res.status} ${res.statusText}` }))
     throw new Error(err.detail || `Run failed (${res.status})`)
@@ -134,14 +135,11 @@ export async function runTask(request: RunRequest): Promise<RunResult> {
   return res.json()
 }
 
+// Throws on failure so callers can tell "no projects" apart from "backend down".
 export async function getSessions(): Promise<SessionInfo[]> {
-  try {
-    const res = await fetchWithTimeout(`${API_BASE}/sessions`, {}, 10000)
-    if (!res.ok) return []
-    return res.json()
-  } catch {
-    return []
-  }
+  const res = await fetchWithTimeout(`${API_BASE}/sessions`, {}, 10000)
+  if (!res.ok) throw new Error(`Could not load projects (HTTP ${res.status})`)
+  return res.json()
 }
 
 export const fetchSessions = getSessions
@@ -224,14 +222,11 @@ export async function sendChatMessage(
   return res.json()
 }
 
+// Throws on failure so the UI can show "backend unreachable" instead of "nothing connected".
 export async function fetchIntegrations(): Promise<any[]> {
-  try {
-    const res = await fetchWithTimeout(`${API_BASE}/integrations`, {}, 10000)
-    if (!res.ok) return []
-    return res.json()
-  } catch {
-    return []
-  }
+  const res = await fetchWithTimeout(`${API_BASE}/integrations`, {}, 10000)
+  if (!res.ok) throw new Error(`Could not load integrations (HTTP ${res.status})`)
+  return res.json()
 }
 
 export interface HealthStatus {
@@ -309,20 +304,24 @@ export class AgentWebSocket {
   private handlers: WebSocketHandlers
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private shouldReconnect = true
+  private retries = 0
 
   constructor(handlers: WebSocketHandlers) {
     this.handlers = handlers
   }
 
   connect(): void {
+    this.shouldReconnect = true
     try {
-      this.ws = new WebSocket(WS_URL)
+      const ws = new WebSocket(WS_URL)
+      this.ws = ws
 
-      this.ws.onopen = () => {
+      ws.onopen = () => {
+        this.retries = 0
         this.handlers.onConnect?.()
       }
 
-      this.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
 
@@ -339,22 +338,22 @@ export class AgentWebSocket {
         }
       }
 
-      this.ws.onclose = () => {
+      ws.onclose = () => {
         this.handlers.onDisconnect?.()
-        if (this.shouldReconnect) {
-          this.reconnectTimer = setTimeout(() => this.connect(), 3000)
-        }
-      }
-
-      this.ws.onerror = (err) => {
-        console.warn('[agentcli] WebSocket error:', err)
+        this.scheduleReconnect()
       }
     } catch (err) {
       console.warn('[agentcli] Failed to create WebSocket:', err)
-      if (this.shouldReconnect) {
-        this.reconnectTimer = setTimeout(() => this.connect(), 3000)
-      }
+      this.scheduleReconnect()
     }
+  }
+
+  /** Exponential backoff (1s .. 30s) so a downed backend isn't hammered. */
+  private scheduleReconnect(): void {
+    if (!this.shouldReconnect) return
+    const delay = Math.min(1000 * 2 ** this.retries, 30000)
+    this.retries++
+    this.reconnectTimer = setTimeout(() => this.connect(), delay)
   }
 
   disconnect(): void {
@@ -362,8 +361,17 @@ export class AgentWebSocket {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
     }
-    this.ws?.close()
+    const ws = this.ws
     this.ws = null
+    if (!ws) return
+    // Detach so a late close from this socket can't flip state for a newer one.
+    ws.onopen = ws.onmessage = ws.onclose = null
+    if (ws.readyState === WebSocket.CONNECTING) {
+      // Closing mid-handshake logs a browser warning (StrictMode remount); close once open instead.
+      ws.onopen = () => ws.close()
+    } else {
+      ws.close()
+    }
   }
 
   get connected(): boolean {

@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { MotionConfig } from 'framer-motion'
+import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom'
 import AgentPage from './pages/AgentPage'
 import AgentsOverviewPage from './pages/AgentsOverviewPage'
 import IntegrationsPage from './pages/IntegrationsPage'
@@ -14,9 +16,12 @@ import { AppProvider } from './context/AppContext'
 import { UIProvider } from './context/UIContext'
 
 import FlowPage from './pages/FlowPage'
-import Landing from './pages/Landing'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AppShell } from './components/shell/AppShell'
+import { EmptyState } from './components/primitives/EmptyState'
+
+// Landing is the only three.js consumer; loading it lazily keeps ~0.5 MB of WebGL code off dashboard routes.
+const Landing = lazy(() => import('./pages/Landing'))
 
 /**
  * Layout — the authenticated app, inside the Cursor-style shell.
@@ -62,6 +67,17 @@ function Layout() {
           <Route path="/flow" element={<FlowPage />} />
           <Route path="/integrations" element={<IntegrationsPage />} />
           <Route path="/run" element={<ProjectOverviewPage />} />
+          <Route
+            path="*"
+            element={
+              <EmptyState
+                className="flex-1"
+                title={<span role="heading" aria-level={1}>Page not found</span>}
+                detail={`Nothing lives at ${location.pathname}.`}
+                action={<Link to="/home" className="text-[12px] text-[var(--ide-accent)] underline">Go to Home</Link>}
+              />
+            }
+          />
         </Routes>
       </ErrorBoundary>
     </AppShell>
@@ -73,7 +89,11 @@ function AppRoutes() {
 
   // The landing page is the default entry point and remains standalone.
   if (location.pathname === '/' || location.pathname === '/welcome') {
-    return <Landing />
+    return (
+      <Suspense fallback={null}>
+        <Landing />
+      </Suspense>
+    )
   }
 
 
@@ -82,12 +102,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppProvider>
-        <UIProvider>
-          <AppRoutes />
-        </UIProvider>
-      </AppProvider>
-    </BrowserRouter>
+    // reducedMotion="user": framer-motion drops transform/layout animation for
+    // visitors with prefers-reduced-motion, keeping only opacity fades.
+    <MotionConfig reducedMotion="user">
+      <BrowserRouter>
+        <AppProvider>
+          <UIProvider>
+            <AppRoutes />
+          </UIProvider>
+        </AppProvider>
+      </BrowserRouter>
+    </MotionConfig>
   )
 }

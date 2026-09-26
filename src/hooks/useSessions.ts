@@ -18,6 +18,7 @@ export function useSessions() {
             task: s.task,
             status: (s.status as any) || 'done',
             createdAt: s.created_at || 'Just now',
+            updatedAt: s.updated_at ? new Date(s.updated_at * 1000).toISOString() : undefined,
             subtaskCount: s.subtask_count || 1,
           }))
         )
@@ -33,6 +34,7 @@ export function useSessions() {
   useEffect(() => {
     let active = true
     let timerId: any = null
+    let retries = 0
 
     const poll = async () => {
       if (!active) return
@@ -46,6 +48,7 @@ export function useSessions() {
               task: s.task,
               status: (s.status as any) || 'done',
               createdAt: s.created_at || 'Just now',
+            updatedAt: s.updated_at ? new Date(s.updated_at * 1000).toISOString() : undefined,
               subtaskCount: s.subtask_count || 1,
             }))
           )
@@ -56,8 +59,9 @@ export function useSessions() {
         if (active) {
           setError(err?.message || 'Failed to fetch sessions')
           setLoading(false)
-          // Silent polling retry if server booting
-          timerId = setTimeout(poll, 3000)
+          // Back off (3s .. 30s) so a busy or rate-limited backend isn't hammered.
+          timerId = setTimeout(poll, Math.min(3000 * 2 ** retries, 30000))
+          retries++
         }
       }
     }

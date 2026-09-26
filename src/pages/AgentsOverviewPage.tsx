@@ -7,6 +7,7 @@ import { AgentIcon, StatusBadge } from '../components/Badges'
 import { Search, Plus, Bot } from 'lucide-react'
 import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
+import { SearchField } from '../components/primitives/Field'
 import { PageHeader } from '../components/PageHeader'
 
 export default function AgentsOverviewPage() {
@@ -15,7 +16,6 @@ export default function AgentsOverviewPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [agentOverrides, setAgentOverrides] = useState<Record<string, AgentStatus>>({})
 
   const [showLaunchModal, setShowLaunchModal] = useState(false)
   const [modalRole, setModalRole] = useState<AgentRole>('coder')
@@ -25,52 +25,51 @@ export default function AgentsOverviewPage() {
   const baseRoster: { role: AgentRole; title: string; desc: string; modelChain: string }[] = [
     {
       role: 'coder',
-      title: 'Coder — Alpha',
-      desc: 'Primary code generation & file editing worker',
+      title: 'Code Writer',
+      desc: 'Writes and edits code files for your project',
       modelChain: 'gemini-3.5-flash → nemotron-3-super',
     },
     {
       role: 'auditor',
-      title: 'Auditor — Beta',
-      desc: 'Security & PEP 8 compliance scanner',
+      title: 'Code Reviewer',
+      desc: 'Checks code for bugs, security issues, and best practices',
       modelChain: 'gemini-3.5-flash → nemotron-3-ultra',
     },
     {
       role: 'tester',
-      title: 'Tester — Gamma',
-      desc: 'Test execution engine & pytest suite verifier',
+      title: 'Test Runner',
+      desc: 'Writes and runs tests to verify your code works',
       modelChain: 'gemini-3.5-flash → grok-2-beta',
     },
     {
       role: 'planner',
-      title: 'Planner — Delta',
-      desc: 'Task decomposition & DAG architecture generator',
+      title: 'Task Planner',
+      desc: 'Breaks down your goal into smaller steps for other agents',
       modelChain: 'gemini-3.5-flash → grok-2-beta',
     },
   ]
 
   const agents = baseRoster.map((item) => {
     const activeSubtask = subtasks.find((s) => s.role === item.role)
-    let status: AgentStatus = agentOverrides[item.role] || 'idle'
+    let status: AgentStatus = 'idle'
 
-    if (!agentOverrides[item.role]) {
-      if (activeSubtask) {
-        if (activeSubtask.status === 'running' || activeSubtask.status === 'working') {
-          status = 'working'
-        } else if (activeSubtask.status === 'success' || activeSubtask.status === 'completed') {
-          status = 'completed'
-        } else if (activeSubtask.status === 'error' || activeSubtask.status === 'failed') {
-          status = 'failed'
-        }
-      } else if (runStatus === 'planning' && item.role === 'planner') {
+    if (activeSubtask) {
+      if (activeSubtask.status === 'running' || activeSubtask.status === 'working') {
         status = 'working'
-      } else if (runStatus === 'executing' && item.role === 'coder') {
-        status = 'working'
+      } else if (activeSubtask.status === 'success' || activeSubtask.status === 'completed') {
+        status = 'completed'
+      } else if (activeSubtask.status === 'error' || activeSubtask.status === 'failed') {
+        status = 'failed'
+      } else {
+        status = 'queued'
       }
+    } else if (runStatus === 'planning' && item.role === 'planner') {
+      status = 'working'
     }
 
-    const currentTask = activeSubtask ? activeSubtask.instruction : runStatus !== 'idle' ? taskTitle : null
-    const progress = status === 'completed' ? 100 : status === 'working' ? 75 : 0
+    const currentTask = activeSubtask ? activeSubtask.instruction : status === 'working' ? taskTitle : null
+    // No per-step progress is reported; the bar is a full-width status stripe once the agent is involved.
+    const progress = status === 'idle' || status === 'queued' ? 0 : 100
 
     return {
       ...item,
@@ -98,19 +97,6 @@ export default function AgentsOverviewPage() {
     return matchesSearch && matchesStatus
   })
 
-  const handlePause = (role: AgentRole, e: React.MouseEvent) => {
-    e.stopPropagation()
-    const next = agentOverrides[role] === 'paused' ? 'working' : 'paused'
-    setAgentOverrides({ ...agentOverrides, [role]: next })
-    addEvent({ role, message: `Agent ${role} execution ${next}` })
-  }
-
-  const handleStop = (role: AgentRole, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setAgentOverrides({ ...agentOverrides, [role]: 'idle' })
-    addEvent({ role, message: `Agent ${role} execution stopped` })
-  }
-
   const handleLaunchSubmit = async () => {
     if (!modalTask.trim()) return
     setShowLaunchModal(false)
@@ -133,7 +119,7 @@ export default function AgentsOverviewPage() {
         meta="/ roster"
         actions={
           <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => setShowLaunchModal(true)}>
-            Launch agent
+            Start an agent
           </Button>
         }
       />
@@ -142,46 +128,27 @@ export default function AgentsOverviewPage() {
       <div className="page-body flex-1 overflow-y-auto">
         <div className="agents-page">
           {/* Toolbar */}
-          <div className="toolbar">
-            <div className="field" style={{ flex: 1 }}>
-              <Search size={13} />
-              <input
-                type="text"
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="flex-1 min-w-[220px]">
+              <SearchField
+                label="Search agents"
+                placeholder="Search agents by name or role…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search agents…"
               />
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('all')}
-                className={`chip ${statusFilter === 'all' ? 'active' : ''}`}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('working')}
-                className={`chip ${statusFilter === 'working' ? 'active' : ''}`}
-              >
-                Working
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('idle')}
-                className={`chip ${statusFilter === 'idle' ? 'active' : ''}`}
-              >
-                Idle
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('failed')}
-                className={`chip ${statusFilter === 'failed' ? 'active' : ''}`}
-              >
-                Failed
-              </button>
+            <div className="flex items-center gap-1.5">
+              {(['all', 'working', 'idle', 'failed'] as const).map((filterKey) => (
+                <Button
+                  key={filterKey}
+                  variant={statusFilter === filterKey ? 'primary' : 'quiet'}
+                  size="sm"
+                  onClick={() => setStatusFilter(filterKey)}
+                >
+                  {filterKey.charAt(0).toUpperCase() + filterKey.slice(1)}
+                </Button>
+              ))}
             </div>
 
             <span className="count-pill">{filteredAgents.length} agents</span>
@@ -212,7 +179,7 @@ export default function AgentsOverviewPage() {
                   </div>
 
                   <div className="ac-task">
-                    {agent.currentTask ? agent.currentTask : 'Idle — ready for task assignment'}
+                    {agent.currentTask ? agent.currentTask : 'Waiting, ready for a task'}
                   </div>
 
                   <div className="ac-progress-track">
@@ -228,30 +195,25 @@ export default function AgentsOverviewPage() {
                   <div className="ac-foot">
                     <span className="ac-model">{agent.modelChain}</span>
                     <div className="ac-actions">
-                      <button
-                        type="button"
-                        className="btn btn-ghost sm"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
                           navigate(`/agents/${agent.role}`)
                         }}
                       >
                         Open
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-quiet sm"
-                        onClick={(e) => handlePause(agent.role, e)}
-                      >
-                        {agent.status === 'paused' ? 'Resume' : 'Pause'}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-quiet sm"
-                        onClick={(e) => handleStop(agent.role, e)}
-                      >
-                        Stop
-                      </button>
+                      </Button>
+                      {/* No backend pause/stop endpoint yet: shown disabled rather than faking state. */}
+                      <span className="inline-flex gap-1" title="Pausing or stopping agents is not supported by the backend yet">
+                        <Button variant="quiet" size="sm" disabled>
+                          Pause
+                        </Button>
+                        <Button variant="quiet" size="sm" disabled>
+                          Stop
+                        </Button>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -262,16 +224,16 @@ export default function AgentsOverviewPage() {
           {/* Launch Strip Banner */}
           <div className="launch-strip">
             <div>
-              <div className="lt">Need a custom worker team?</div>
-              <div className="ld">Configure roles, task priorities and dependency chains for complex multi-agent runs.</div>
+              <div className="lt">Want to build your own team of AI helpers?</div>
+              <div className="ld">Set up different agents, assign them specific jobs, and let them work together on complex tasks.</div>
             </div>
-            <button
-              type="button"
-              className="btn btn-ghost sm"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => navigate('/projects/default/agents')}
             >
               Open builder
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -280,7 +242,7 @@ export default function AgentsOverviewPage() {
       <Modal
         open={showLaunchModal}
         onClose={() => setShowLaunchModal(false)}
-        title="Launch Worker Agent"
+        title="Start an AI Agent"
         width={420}
         footer={
           <>
@@ -295,25 +257,25 @@ export default function AgentsOverviewPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="text-micro font-mono text-[var(--faint)] block mb-1">Target Agent Role</label>
+            <label className="text-micro font-mono text-[var(--faint)] block mb-1">Choose Agent Type</label>
             <select
               value={modalRole}
               onChange={(e) => setModalRole(e.target.value as AgentRole)}
               className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded-control px-3 py-2 text-meta text-[var(--text)] font-mono outline-none cursor-pointer"
             >
-              <option value="coder">Coder Agent (Code Generation)</option>
-              <option value="auditor">Auditor Agent (Security & Review)</option>
-              <option value="tester">Tester Agent (Unit Test Suite)</option>
-              <option value="planner">Planner Agent (Architecture DAG)</option>
+              <option value="coder">Code Writer (Writes & edits code)</option>
+              <option value="auditor">Code Reviewer (Checks for bugs & security)</option>
+              <option value="tester">Test Runner (Writes & runs tests)</option>
+              <option value="planner">Task Planner (Plans & organizes the work)</option>
             </select>
           </div>
 
           <div>
-            <label className="text-micro font-mono text-[var(--faint)] block mb-1">Instruction Task</label>
+            <label className="text-micro font-mono text-[var(--faint)] block mb-1">What should the agent do?</label>
             <textarea
               value={modalTask}
               onChange={(e) => setModalTask(e.target.value)}
-              placeholder="e.g. Implement authentication module with unit tests..."
+              placeholder="e.g. Add a login form with email and password..."
               rows={3}
               className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded-control p-2.5 text-meta text-[var(--text)] font-sans outline-none resize-none"
             />

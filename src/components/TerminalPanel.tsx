@@ -20,8 +20,8 @@ interface TerminalPanelProps {
 }
 
 const typeLabel: Record<string, string> = {
-  model_request: 'MODEL',
-  model_response: 'RESP',
+  model_request: 'AI ASK',
+  model_response: 'AI REPLY',
   model_fallback: 'FALLBACK',
   tool_call: 'TOOL',
   tool_result: 'RESULT',
@@ -29,8 +29,8 @@ const typeLabel: Record<string, string> = {
   group_start: 'GROUP',
   group_end: 'GROUP',
   subtask_start: 'START',
-  subtask_end: 'END',
-  sandbox_block: 'BLOCK',
+  subtask_end: 'DONE',
+  sandbox_block: 'BLOCKED',
   info: 'INFO',
   error: 'ERROR',
   shell: 'SHELL',
@@ -100,7 +100,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
       <div className="h-8 flex-shrink-0 border-t border-[var(--border)] bg-[var(--panel-2)] px-4 flex items-center justify-between text-micro font-mono text-[var(--dim)] select-none z-20">
         <div className="flex items-center gap-2">
           <Terminal size={13} className="text-[var(--accent)]" />
-          <span className="font-medium text-[var(--text)]">Terminal collapsed</span>
+          <span className="font-medium text-[var(--text)]">Output log hidden</span>
           <span className="text-[var(--faint)]">({allLogs.length} events logged)</span>
         </div>
         <button
@@ -125,12 +125,12 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 font-sans font-medium text-[var(--text)] text-meta pr-2 border-r border-[var(--border-soft)]">
             <Terminal size={14} className="text-[var(--accent)]" />
-            <span>Terminal Logs</span>
+            <span>Output Log</span>
           </div>
 
           {(['all', 'tools', 'shell'] as const).map((tab) => {
             const isAct = activeTab === tab
-            const label = tab === 'all' ? 'All Events' : tab === 'tools' ? 'Tool Outputs' : 'Commands'
+            const label = tab === 'all' ? 'All Output' : tab === 'tools' ? 'Tool Calls' : 'Commands'
             return (
               <button
                 key={tab}
@@ -198,8 +198,8 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleRunCommand()
           }}
-          placeholder="Execute sandboxed command (e.g. pytest, python script.py, ls)..."
-          aria-label="Sandboxed command input"
+          placeholder="Type a command or question (e.g. pytest, ls, python script.py)..."
+          aria-label="Run a command"
           className="flex-1 bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-meta"
         />
         <button
@@ -216,7 +216,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
       <div className="flex-1 overflow-y-auto font-mono text-meta p-2 bg-[var(--bg-inset)] select-text">
         {filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-micro p-4 text-center">
-            <span>Terminal ready — type a command above or run an agent task.</span>
+            <span>Ready. Type a command above or run an AI agent task.</span>
           </div>
         ) : (
           filteredLogs.map((log) => {

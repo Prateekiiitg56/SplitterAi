@@ -59,18 +59,18 @@ export default function TopBar() {
   // Derive breadcrumbs based on route
   const getBreadcrumb = () => {
     const path = location.pathname
-    if (path === '/console') return { section: 'Console', detail: 'Interactive AI Workspace' }
+    if (path === '/console') return { section: 'Workspace', detail: 'Your AI work area' }
     if (path.startsWith('/projects')) {
       const parts = path.split('/').filter(Boolean)
-      if (parts.length === 1) return { section: 'Projects', detail: 'Overview' }
+      if (parts.length === 1) return { section: 'Projects', detail: 'All projects' }
       const projectId = parts[1]
       const sub = parts[2] || 'overview'
-      return { section: `Project: ${projectId}`, detail: sub.toUpperCase() }
+      return { section: `Project: ${projectId}`, detail: sub.charAt(0).toUpperCase() + sub.slice(1) }
     }
-    if (path.startsWith('/agents')) return { section: 'Agents', detail: 'Multi-Agent Mesh' }
-    if (path === '/flow') return { section: 'Flow', detail: 'Visual Canvas' }
-    if (path === '/integrations') return { section: 'Integrations', detail: 'API Connections' }
-    return { section: 'SplitterAI', detail: 'Developer Console' }
+    if (path.startsWith('/agents')) return { section: 'AI Agents', detail: 'Your helper bots' }
+    if (path === '/flow') return { section: 'Workflow Map', detail: 'Visual task overview' }
+    if (path === '/integrations') return { section: 'Connected Tools', detail: 'External connections' }
+    return { section: 'SplitterAI', detail: 'Home' }
   }
 
   const breadcrumb = getBreadcrumb()
@@ -105,13 +105,13 @@ export default function TopBar() {
           {workspaceOpen && (
             <div role="menu" className="absolute top-full left-0 mt-1 w-72 bg-[var(--panel)] border border-[var(--border)] rounded-panel shadow-xl p-2 z-50">
               <div className="text-micro font-mono text-[var(--faint)] uppercase px-2 py-1 tracking-wider border-b border-[var(--border)] mb-1">
-                Active Workspace
+                Current Workspace
               </div>
               <div className="px-2 py-1.5 rounded-control bg-[var(--panel-2)] border border-[var(--border)] mb-2">
                 <div className="font-mono text-meta font-semibold text-[var(--accent)] truncate">{DEFAULT_WORKSPACE}</div>
                 <div className="flex items-center gap-1.5 mt-1 text-micro text-[var(--dim)]">
                   <span className="w-2 h-2 rounded-full bg-[var(--good)] inline-block" />
-                  <span>Sandboxed Local Environment</span>
+                  <span>Running safely on your machine</span>
                 </div>
               </div>
 
@@ -158,9 +158,9 @@ export default function TopBar() {
         <div className="hidden sm:flex h-8 items-center gap-2 rounded-lg bg-[var(--panel-2)] px-3 border border-[var(--border-soft)] text-micro font-mono">
           <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-[var(--good)] animate-pulse' : 'bg-[var(--warn)]'}`} />
           <span className="hidden lg:inline text-[var(--dim)]">
-            {wsConnected ? 'Connected' : 'Standby'}
+            {wsConnected ? 'Online' : 'Offline'}
           </span>
-          <span className="sr-only">WebSocket {wsConnected ? 'connected' : 'on standby'}</span>
+          <span className="sr-only">Connection {wsConnected ? 'active' : 'lost'}</span>
         </div>
 
         {/* Quota Popover */}
@@ -168,8 +168,8 @@ export default function TopBar() {
           <button
             onClick={() => setQuotaOpen(!quotaOpen)}
             className="flex h-8 w-8 items-center justify-center rounded-control hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
-            title="API Quotas & Usage"
-            aria-label="API Quotas & Usage"
+            title="AI model usage"
+            aria-label="AI model usage"
             aria-haspopup="true"
             aria-expanded={quotaOpen}
           >
@@ -180,7 +180,7 @@ export default function TopBar() {
             <div role="menu" className="absolute top-full right-0 mt-1 w-64 bg-[var(--panel)] border border-[var(--border)] rounded-panel shadow-xl p-3 z-50">
               <div className="flex items-center justify-between border-b border-[var(--border)] pb-2 mb-2">
                 <span className="font-mono text-meta font-semibold text-[var(--text)] flex items-center gap-1.5">
-                  <Cpu size={14} className="text-[var(--accent)]" /> Model Quotas
+                  <Cpu size={14} className="text-[var(--accent)]" /> AI Model Usage
                 </span>
                 <button onClick={() => setQuotaOpen(false)} className="flex h-8 w-8 items-center justify-center text-[var(--faint)] hover:text-[var(--text)] rounded-control transition-colors" aria-label="Close">
                   <X size={13} />
@@ -207,8 +207,8 @@ export default function TopBar() {
         <Link
           to="/integrations"
           className="flex h-8 w-8 items-center justify-center rounded-control hover:bg-[var(--panel-2)] text-[var(--dim)] hover:text-[var(--text)] transition-colors relative"
-          title="Integrations"
-          aria-label="Integrations"
+          title="Connected Tools"
+          aria-label="Connected Tools"
         >
           <PlugsConnected size={17} />
           <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--accent)]" />

@@ -48,7 +48,8 @@ const RUNNING = new Set(['executing', 'planning'])
 /** Folder name when the workspace is a path, else whatever identifies it. */
 function projectName(session: SessionEntry): string {
   const fromWorkspace = (session.workspace || '').split(/[/\\]/).filter(Boolean).pop()
-  return fromWorkspace || session.task || session.id
+  // "." (the repo root) says nothing; fall back to the task text.
+  return (fromWorkspace && fromWorkspace !== '.' ? fromWorkspace : '') || session.task || session.id
 }
 
 /**
@@ -61,10 +62,9 @@ function projectProgress(session: SessionEntry): number {
   if (typeof session.progress === 'number') {
     return Math.max(0, Math.min(100, session.progress))
   }
-  if (session.status === 'done') return 100
-  if (session.status === 'error') return 45
-  if (session.status === 'idle') return 0
-  return 78
+  // No per-step progress is reported: show the outcome, not an invented percentage.
+  if (session.status === 'done' || session.status === 'error') return 100
+  return 0
 }
 
 function relativeTime(value?: string): string {
@@ -173,7 +173,7 @@ function RecentRow({ session, filled }: { session: SessionEntry; filled: boolean
           label={`${name} progress`}
         />
         <span className="text-[11px] text-[var(--ide-text-faint)] hidden md:block">
-          {relativeTime(session.createdAt)}
+          {relativeTime(session.updatedAt) || session.createdAt}
         </span>
       </div>
     </Link>
@@ -186,20 +186,20 @@ const QUICKSTART = [
   {
     to: '/projects',
     icon: Plus,
-    title: 'New project',
-    detail: 'Point agents at a fresh repo or workspace folder.',
+    title: 'Start a new project',
+    detail: 'Create a project and let AI agents work on your code or tasks.',
   },
   {
     to: '/agents',
     icon: Bot,
-    title: 'Launch an agent',
-    detail: 'Run a single scoped worker without a full pipeline.',
+    title: 'Run a single AI agent',
+    detail: 'Start one AI helper to complete a specific job quickly.',
   },
   {
     to: '/integrations',
     icon: Plug,
     title: 'Connect a tool',
-    detail: 'Give agents access to GitHub, a database, or an MCP server.',
+    detail: 'Link GitHub, a database, or another service to your workspace.',
   },
 ] as const
 
@@ -207,7 +207,7 @@ const QUICKSTART = [
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { sessions, sessionsLoading } = useApp()
+  const { sessions, sessionsLoading, sessionsError } = useApp()
   const { integrations, loading: integrationsLoading, health } = useIntegrations()
   const filled = useMountedFill()
 
@@ -215,7 +215,7 @@ export default function HomePage() {
 
   const stats = useMemo(() => {
     const running = sessions.filter((s) => RUNNING.has(s.status))
-    const completedToday = sessions.filter((s) => s.status === 'done' && isToday(s.createdAt))
+    const completedToday = sessions.filter((s) => s.status === 'done' && isToday(s.updatedAt))
     const failed = sessions.filter((s) => s.status === 'error')
     const connected = integrations.filter((i) => i.status === 'connected')
 
@@ -249,9 +249,11 @@ export default function HomePage() {
     ? 'Loading your workspace…'
     : stats.running.length > 0
       ? `${stats.running.length} ${stats.running.length === 1 ? 'project is' : 'projects are'} running right now.`
+      : sessionsError && sessions.length === 0
+        ? 'The backend is unreachable right now.'
       : sessions.length > 0
         ? 'Nothing is running. Pick up where you left off below.'
-        : 'No projects yet — point an agent at a workspace to get started.'
+        : 'No projects yet. Point an agent at a workspace to get started.'
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto text-[13px] leading-[1.4]">
@@ -301,11 +303,11 @@ export default function HomePage() {
           />
           <StatCard
             icon={<CheckCircle2 size={14} aria-hidden="true" />}
-            label="Completed today"
+            label="Done today"
             value={stats.completedToday.length}
             loading={sessionsLoading && sessions.length === 0}
             sub={
-              stats.subtasksToday > 0 ? `${stats.subtasksToday} subtasks total` : 'No runs finished yet'
+              stats.subtasksToday > 0 ? `${stats.subtasksToday} steps completed` : 'No runs finished yet'
             }
           />
           <StatCard
@@ -316,18 +318,18 @@ export default function HomePage() {
             loading={sessionsLoading && sessions.length === 0}
             sub={
               stats.failed.length === 0
-                ? 'Nothing failing'
+                ? 'Everything is working'
                 : `${projectName(stats.failed[0])} · failed`
             }
           />
           <StatCard
             icon={<Plug size={14} aria-hidden="true" />}
-            label="Integrations"
+            label="Connected tools"
             value={stats.effectiveConnectedCount}
             loading={integrationsLoading && integrations.length === 0}
             sub={
               stats.effectiveConnectedCount === 0
-                ? 'None connected'
+                ? 'No tools connected'
                 : stats.connected
                     .slice(0, 2)
                     .map((i) => i.name)
@@ -355,8 +357,12 @@ export default function HomePage() {
               <EmptyState
                 className="py-6 px-4 gap-1.5"
                 icon={<Folder size={28} aria-hidden="true" />}
-                title="No projects yet"
-                detail="Start a run from the Console and it will show up here with its live progress."
+                title={sessionsError ? "Couldn't load projects" : 'No projects yet'}
+                detail={
+                  sessionsError
+                    ? `${sessionsError} Retrying automatically.`
+                    : 'Start a task from the Workspace and it will show up here with live progress.'
+                }
                 action={
                   <Button
                     variant="primary"
@@ -364,7 +370,7 @@ export default function HomePage() {
                     icon={<Plus size={14} aria-hidden="true" />}
                     onClick={() => navigate('/console')}
                   >
-                    New project
+                    Start new project
                   </Button>
                 }
               />
@@ -377,7 +383,7 @@ export default function HomePage() {
         </div>
 
         {/* ── Quickstart ───────────────────────────────────────────── */}
-        <SectionRow title="Start something new" className="mt-5" />
+        <SectionRow title="What do you want to do?" className="mt-5" />
 
         <div className="grid grid-cols-1 min-[900px]:grid-cols-3 gap-3">
           {QUICKSTART.map(({ to, icon: Icon, title, detail }) => (

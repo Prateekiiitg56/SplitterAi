@@ -218,6 +218,7 @@ export default function FileExplorer({
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
+            aria-label="Filter files"
             placeholder="Filter files in workspace..."
             className="w-full bg-transparent outline-none text-[var(--text)] placeholder:text-[var(--faint)] font-mono text-micro"
           />

@@ -23,8 +23,9 @@ import { useIntegrations } from '../hooks/useIntegrations'
 import type { AgentRole, Integration } from '../types'
 import { Button } from '../components/primitives/Button'
 import { PageHeader } from '../components/PageHeader'
-import { TextField } from '../components/primitives/Field'
+import { TextField, SearchField } from '../components/primitives/Field'
 import { Modal } from '../components/primitives/Modal'
+import { API_BASE } from '../config'
 
 /* ── Catalog data ──────────────────────────────────────────────────── */
 
@@ -32,52 +33,55 @@ const CATALOG = [
   {
     id: 'supabase_storage',
     title: 'Supabase Storage',
-    subtitle: 'File & Artifact Storage',
+    subtitle: 'Save & Store Files',
     badge: 'Storage',
     icon: HardDrive,
-    description: 'Upload workspace artifacts and agent outputs to a dedicated Supabase Storage bucket for persistence across sessions.',
-    features: ['Artifact persistence', 'Public URL generation', 'Cross-session storage'],
+    description: 'Save your project files and AI outputs to Supabase Storage so nothing is lost between sessions.',
+    features: ['Files saved across sessions', 'Shareable public links', 'Cloud backup'],
     buttonLabel: 'Connect Supabase',
   },
   {
     id: 'github',
-    title: 'GitHub Connector',
+    title: 'GitHub',
     subtitle: 'Code & Repositories',
     badge: 'Recommended',
     icon: GitBranch,
-    description: 'Grant agents scoped read/write access to repositories, branches, and PR workflows.',
-    features: ['Repository access', 'Branch management', 'Pull request workflows'],
-    buttonLabel: 'Configure GitHub',
+    description: 'Let AI agents read and write code to your GitHub repositories and branches.',
+    features: ['Read & write access', 'Branch management', 'Pull request support'],
+    buttonLabel: 'Connect GitHub',
   },
   {
     id: 'mcp',
-    title: 'Custom MCP Server',
-    subtitle: 'Model Context Protocol',
+    title: 'Custom Tool Server',
+    subtitle: 'Add your own tool',
     badge: 'Flexible',
     icon: Server,
-    description: 'Connect standard SSE/HTTP MCP server endpoints with automatic validation.',
-    features: ['SSE/HTTP support', 'Automatic validation', 'Custom tool integration'],
-    buttonLabel: 'Add MCP Server',
+    description: 'Connect any external tool or service to let AI agents use it automatically.',
+    features: ['Works with any HTTP server', 'Auto-detected on connect', 'Custom tools for agents'],
+    buttonLabel: 'Add Custom Tool',
   },
   {
     id: 'postgres',
-    title: 'PostgreSQL DB MCP',
+    title: 'PostgreSQL Database',
     subtitle: 'Database Tools',
     badge: 'Database',
     icon: Database,
-    description: 'Relational DB schema inspection, SQL queries, and migration execution.',
-    features: ['Schema inspection', 'SQL query execution', 'Migration support'],
+    description: 'Let agents read your database structure, run queries, and apply database changes.',
+    features: ['View database structure', 'Run SQL queries', 'Apply database changes'],
     buttonLabel: 'Connect Database',
   },
 ]
 
 export default function IntegrationsPage() {
-  const { integrations, loading, error, health, connect, disconnect } = useIntegrations()
+  const { integrations, loading, error, health, connect, disconnect, refetch } = useIntegrations()
 
   const [showConnectGithubModal, setShowConnectGithubModal] = useState(false)
   const [showConnectMcpModal, setShowConnectMcpModal] = useState(false)
   const [showConnectSupabaseModal, setShowConnectSupabaseModal] = useState(false)
   const [reconfigureTarget, setReconfigureTarget] = useState<Integration | null>(null)
+  const [disconnectTarget, setDisconnectTarget] = useState<Integration | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [disconnectError, setDisconnectError] = useState<string | null>(null)
   const [errorDismissed, setErrorDismissed] = useState(false)
   const [catalogSearch, setCatalogSearch] = useState('')
 
@@ -102,7 +106,7 @@ export default function IntegrationsPage() {
 
   const handleConnectGithub = async () => {
     if (!ghRepo.trim()) {
-      setFormError('Please enter a target repository')
+      setFormError('Please enter your GitHub repository name (e.g. username/repo-name)')
       return
     }
     setFormError(null)
@@ -117,13 +121,13 @@ export default function IntegrationsPage() {
       setShowConnectGithubModal(false)
       setGhToken('')
     } catch (err: any) {
-      setFormError(err?.message || 'Connection handshake failed')
+      setFormError(err?.message || 'Could not connect to GitHub. Please check your details and try again.')
     }
   }
 
   const handleConnectMcp = async () => {
     if (!mcpName.trim() || !mcpUrl.trim()) {
-      setFormError('Please fill in server name and server URL')
+      setFormError('Please enter a name and the URL for your tool server')
       return
     }
     setFormError(null)
@@ -140,7 +144,7 @@ export default function IntegrationsPage() {
       setMcpUrl('')
       setMcpToken('')
     } catch (err: any) {
-      setFormError(err?.message || 'MCP Handshake validation failed')
+      setFormError(err?.message || 'Could not connect to tool server. Please check the URL and try again.')
     }
   }
 
@@ -155,7 +159,7 @@ export default function IntegrationsPage() {
       })
       setShowConnectSupabaseModal(false)
     } catch (err: any) {
-      setFormError(err?.message || 'Supabase connection verification failed')
+      setFormError(err?.message || 'Could not connect to Supabase. Please check your settings in the .env file.')
     } finally {
       setSupabaseConnecting(false)
     }
@@ -209,14 +213,14 @@ export default function IntegrationsPage() {
               <div className="flex items-center gap-2">
                 <AlertTriangle size={16} className="flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="font-semibold text-[var(--bad)]">Backend server unreachable</div>
+                  <div className="font-semibold text-[var(--bad)]">Can't reach the backend server</div>
                   <div className="text-micro text-[var(--dim)] mt-0.5">
-                    Failed to connect to <code className="font-mono text-[var(--text)]">http://localhost:8000</code>.
+                    Unable to connect to <code className="font-mono text-[var(--text)]">{API_BASE}</code>. Is it running?
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" icon={<RefreshCw size={12} />} onClick={() => window.location.reload()}>
+                <Button variant="ghost" size="sm" icon={<RefreshCw size={12} />} onClick={() => { setErrorDismissed(false); refetch() }}>
                   Retry
                 </Button>
                 <Button variant="quiet" size="sm" icon={<X size={14} />} label="Dismiss" onClick={() => setErrorDismissed(true)} />
@@ -229,8 +233,8 @@ export default function IntegrationsPage() {
             <div className="mb-4 p-3 rounded-panel border border-[var(--good)]/30 bg-[var(--good)]/8 text-meta flex items-center gap-3">
               <ShieldCheck size={16} className="text-[var(--good)] flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <span className="text-[var(--text)] font-medium">Supabase detected</span>
-                <span className="text-[var(--dim)] ml-2">Your backend has Supabase configured. Add it as an integration to enable artifact storage.</span>
+                <span className="text-[var(--text)] font-medium">Supabase is ready to connect</span>
+                <span className="text-[var(--dim)] ml-2">Your backend has Supabase set up. Connect it to save project files to the cloud.</span>
               </div>
               <Button
                 variant="primary"
@@ -243,18 +247,18 @@ export default function IntegrationsPage() {
           )}
 
           {/* Connected Integrations Section */}
-          <div className="section-label">Connected Integrations</div>
+          <h2 className="int-section-label">Tools You've Connected</h2>
           {loading ? (
             <div className="p-6 flex items-center gap-2 text-[var(--dim)] font-mono text-meta">
               <Loader2 size={16} className="animate-spin text-[var(--accent)]" />
-              <span>Loading workspace integrations…</span>
+              <span>Loading your connected tools…</span>
             </div>
           ) : integrations.length === 0 ? (
             <div className="empty-state p-6 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] mb-6 text-center">
               <Plug size={26} className="text-[var(--ghost)] mb-2" />
-              <div className="es-title">No integrations connected yet</div>
+              <div className="es-title">No tools connected yet</div>
               <div className="es-detail">
-                Connect GitHub, Supabase Storage, or an MCP server to grant agents access to external tools and repos.
+                Connect GitHub, Supabase Storage, or another service to let agents use them automatically.
               </div>
             </div>
           ) : (
@@ -299,20 +303,20 @@ export default function IntegrationsPage() {
                     )}
                   </div>
                   <div className="cr-actions">
-                    <button
-                      type="button"
-                      className="btn btn-ghost sm"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setReconfigureTarget(item)}
                     >
                       Configure
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-quiet sm"
-                      onClick={() => disconnect(item.id)}
+                    </Button>
+                    <Button
+                      variant="quiet"
+                      size="sm"
+                      onClick={() => { setDisconnectError(null); setDisconnectTarget(item) }}
                     >
                       Disconnect
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -320,17 +324,14 @@ export default function IntegrationsPage() {
           )}
 
           {/* Available Integration Catalog Section */}
-          <div className="section-label">Catalog</div>
-          <div className="toolbar" style={{ marginBottom: '16px' }}>
-            <div className="field" style={{ flex: 1 }}>
-              <Search size={13} />
-              <input
-                type="text"
-                placeholder="Search catalog…"
-                value={catalogSearch}
-                onChange={(e) => setCatalogSearch(e.target.value)}
-              />
-            </div>
+          <h2 className="int-section-label">Add a Tool</h2>
+          <div className="mb-4">
+            <SearchField
+              label="Search catalog"
+              placeholder="Search catalog by name or function…"
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+            />
           </div>
 
           <div className="catalog-grid">
@@ -348,7 +349,7 @@ export default function IntegrationsPage() {
                       <div className="cat-name">{card.title}</div>
                       <div className="cat-sub">{card.subtitle}</div>
                     </div>
-                    <span className="cat-badge chip">{card.badge}</span>
+                    <span className="cat-badge">{card.badge}</span>
                   </div>
 
                   <div className="cat-desc">{card.description}</div>
@@ -368,13 +369,13 @@ export default function IntegrationsPage() {
                       Already connected
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      className="btn btn-primary sm"
+                    <Button
+                      variant="primary"
+                      size="sm"
                       onClick={() => handleCatalogClick(card.id)}
                     >
                       {card.buttonLabel}
-                    </button>
+                    </Button>
                   )}
                 </div>
               )
@@ -385,9 +386,9 @@ export default function IntegrationsPage() {
           <div className="mcp-tip">
             <Lightbulb size={16} />
             <div>
-              <div className="mt-title">Model Context Protocol (MCP) Supported</div>
+              <div className="mt-title">Connect any external tool</div>
               <div className="mt-desc">
-                Plug in any standard SSE/HTTP MCP server to grant agents read/write capabilities against databases, issue trackers, or cloud deployments.
+                Add a custom tool server to give your AI agents access to databases, project trackers, or cloud services.
               </div>
             </div>
           </div>
@@ -398,7 +399,7 @@ export default function IntegrationsPage() {
       <Modal
         open={showConnectGithubModal}
         onClose={() => setShowConnectGithubModal(false)}
-        title="Connect GitHub Repository"
+        title="Connect to GitHub"
         width={440}
         footer={
           <>
@@ -406,7 +407,7 @@ export default function IntegrationsPage() {
               Cancel
             </Button>
             <Button variant="primary" size="md" onClick={handleConnectGithub} disabled={!ghRepo.trim()}>
-              Authorize & Connect
+              Connect GitHub
             </Button>
           </>
         }
@@ -418,7 +419,7 @@ export default function IntegrationsPage() {
             </div>
           )}
           <TextField
-            label="Target Repo (org/repo)"
+            label="Repository (username/repo-name)"
             value={ghRepo}
             onChange={(e) => setGhRepo(e.target.value)}
             placeholder="Prateekiiitg56/SplitterAi"
@@ -429,7 +430,7 @@ export default function IntegrationsPage() {
             value={ghToken}
             onChange={(e) => setGhToken(e.target.value)}
             placeholder="ghp_…"
-            hint="Optional: for private repositories"
+            hint="Optional: only needed for private repositories"
           />
         </div>
       </Modal>
@@ -438,7 +439,7 @@ export default function IntegrationsPage() {
       <Modal
         open={showConnectMcpModal}
         onClose={() => setShowConnectMcpModal(false)}
-        title="Connect MCP Server"
+        title="Add a Custom Tool Server"
         width={440}
         footer={
           <>
@@ -446,7 +447,7 @@ export default function IntegrationsPage() {
               Cancel
             </Button>
             <Button variant="primary" size="md" onClick={handleConnectMcp} disabled={!mcpName.trim() || !mcpUrl.trim()}>
-              Validate & Connect
+              Connect Tool
             </Button>
           </>
         }
@@ -458,10 +459,10 @@ export default function IntegrationsPage() {
             </div>
           )}
           <TextField
-            label="Server Name"
+            label="Tool Name"
             value={mcpName}
             onChange={(e) => setMcpName(e.target.value)}
-            placeholder="e.g. Asana Workflow MCP"
+            placeholder="e.g. My Task Manager"
           />
           <TextField
             label="Server URL"
@@ -499,10 +500,10 @@ export default function IntegrationsPage() {
               {supabaseConnecting ? (
                 <span className="flex items-center gap-2">
                   <Loader2 size={14} className="animate-spin" />
-                  Verifying…
+                  Connecting…
                 </span>
               ) : (
-                'Verify & Connect'
+                'Connect'
               )}
             </Button>
           </>
@@ -518,23 +519,23 @@ export default function IntegrationsPage() {
           <div className="p-3 rounded-panel border border-[var(--border-soft)] bg-[var(--panel-2)] text-meta">
             <div className="flex items-center gap-2 mb-2">
               <CloudCog size={14} className="text-[var(--accent)]" />
-              <span className="text-[var(--text)] font-medium text-[12px]">Server-Side Credentials</span>
+              <span className="text-[var(--text)] font-medium text-[12px]">Settings are in your backend</span>
             </div>
             <p className="text-[var(--dim)] text-[11px] leading-relaxed">
-              Supabase credentials are configured in your backend <code className="font-mono text-[var(--text)]">.env</code> file.
-              Clicking "Verify & Connect" will validate the connection and register it as an integration.
+              Supabase credentials are set up in your backend <code className="font-mono text-[var(--text)]">.env</code> file.
+              Click "Connect" to verify and activate the connection.
             </p>
           </div>
 
           {health.supabase_enabled ? (
             <div className="flex items-center gap-2 text-[var(--good)] text-[11.5px]">
               <ShieldCheck size={14} />
-              <span>Supabase client initialized successfully</span>
+              <span>Supabase is connected and ready</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-[var(--bad)] text-[11.5px]">
               <AlertTriangle size={14} />
-              <span>Supabase client not detected — check SUPABASE_URL & SUPABASE_KEY in .env</span>
+              <span>Supabase client not detected. Check SUPABASE_URL and SUPABASE_KEY in .env</span>
             </div>
           )}
 
@@ -548,17 +549,57 @@ export default function IntegrationsPage() {
         </div>
       </Modal>
 
+      {/* Disconnect confirmation (destructive) */}
+      <Modal
+        open={!!disconnectTarget}
+        onClose={() => !disconnecting && setDisconnectTarget(null)}
+        title="Disconnect tool?"
+        description={disconnectTarget ? <>Agents will lose access to <strong>{disconnectTarget.name}</strong>.</> : undefined}
+        width={420}
+        footer={
+          <>
+            <Button variant="ghost" size="md" disabled={disconnecting} onClick={() => setDisconnectTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={disconnecting}
+              onClick={async () => {
+                if (!disconnectTarget) return
+                setDisconnecting(true)
+                setDisconnectError(null)
+                try {
+                  await disconnect(disconnectTarget.id)
+                  setDisconnectTarget(null)
+                } catch (err: any) {
+                  setDisconnectError(err?.message || 'Could not disconnect. Please try again.')
+                } finally {
+                  setDisconnecting(false)
+                }
+              }}
+            >
+              Disconnect
+            </Button>
+          </>
+        }
+      >
+        {disconnectError && (
+          <p role="alert" className="text-meta text-[var(--bad)]">{disconnectError}</p>
+        )}
+      </Modal>
+
       {/* Reconfigure Modal */}
       <Modal
         open={!!reconfigureTarget}
         onClose={() => setReconfigureTarget(null)}
-        title="Reconfigure Integration"
+        title="Edit Connection Settings"
         width={440}
       >
         {reconfigureTarget && (
           <div className="space-y-3 text-meta text-[var(--dim)]">
-            <p>Reconfiguration for <strong className="text-[var(--text)]">{reconfigureTarget.name}</strong> is ready.</p>
-            <p className="text-micro">This allows updating tokens, scopes, and allowed roles.</p>
+            <p>You can update the settings for <strong className="text-[var(--text)]">{reconfigureTarget.name}</strong>.</p>
+            <p className="text-micro">Change your access token, permissions, or which agents can use this tool.</p>
           </div>
         )}
       </Modal>

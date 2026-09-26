@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from enum import Enum
 from typing import Optional
 
@@ -83,7 +84,7 @@ class RunResult(BaseModel):
 
 class LogEntry(BaseModel):
     """A single observability event in the execution stream."""
-    id: str = Field(default_factory=lambda: f"log-{int(time.time() * 1000)}")
+    id: str = Field(default_factory=lambda: f"log-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}")
     timestamp: str = Field(
         default_factory=lambda: time.strftime("%H:%M:%S")
     )

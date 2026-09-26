@@ -54,7 +54,7 @@ export default function ProjectTasksPage() {
             <PlanView
               subtasks={subtasks}
               runStatus={runStatus}
-              task={taskTitle}
+              task={taskTitle || (subtasks.length ? 'Current run' : '')}
               selectedSubtask={selectedSubtask}
               onSelectSubtask={setSelectedSubtask}
             />

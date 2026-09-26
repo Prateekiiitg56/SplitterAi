@@ -123,7 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Breadcrumb crumbs={chrome.crumbs} />
           {/* Pages own their own scrolling, exactly as they did under the old
               layout — this stays overflow-hidden so nothing double-scrolls. */}
-          <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">{children}</div>
+          <main id="main-content" className="flex-1 min-h-0 relative flex flex-col overflow-hidden">{children}</main>
         </div>
 
         {mounted && (
