@@ -4,7 +4,7 @@ A personal, model-agnostic multi-agent system that takes a high-level task, brea
 
 Independent subtasks run in parallel. Dependent subtasks run in sequence. The system is triggerable via CLI, an HTTP webhook (for n8n), and later, voice.
 
-**Analogy:** A manager (Planner) hands out tickets to specialist workers (Coder / Auditor / Tester). Workers whose tickets don't touch the same files work simultaneously. Workers whose tickets depend on another ticket's output wait their turn. A final step combines everyone's output into one result.
+**Analogy:** A Planner hands out tickets to specialist workers (Coder / Auditor / Tester). Workers whose tickets don't touch the same files work simultaneously. Workers whose tickets depend on another ticket's output wait their turn. A final step combines everyone's output into one result.
 
 ---
 
