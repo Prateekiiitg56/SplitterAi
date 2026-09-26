@@ -1,222 +1,208 @@
-"""LangGraph decision workflow for autonomous agent execution."""
+"""LangGraph execution workflow.
+
+contract -> workers -> evidence -> synthesize -> verify --PASS--> finalize
+                                                  |  ^
+                                             FAIL |  | (repair budget left)
+                                                  v  |
+                                                 repair
+
+Workers run the plan as a dependency graph through the Orchestrator, capped at
+the strategy's agent count. The synthesizer sees only the contract and worker
+evidence, never raw conversations. The verifier inspects the workspace itself.
+"""
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any, Callable, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from .allocation import REPAIR_BUDGET, stage_subtasks
 from .config import ExecutionConfig
-from .planner import generate_plan
+from .models import select_chain
+from .orchestrator import Orchestrator
+from .prompts import SYNTHESIZER_SYSTEM, VERIFIER_SYSTEM
 from .sandbox import Sandbox
 from .schemas import AgentRole, LogEntry, LogType, Plan, RunResult, RunStatus, Subtask, SubtaskStatus
 from .worker import AgentWorker
 
+EVIDENCE_OUTPUT_CHARS = 2000
+STAGE_LABELS = {
+    "synthesize": "Combine the worker results into one report",
+    "verify": "Check the workspace against the task contract",
+    "repair": "Fix the problems the verifier found",
+}
+_VERDICT = re.compile(r"VERDICT:\s*(PASS|FAIL)", re.IGNORECASE)
 
-class GraphState(TypedDict, total=False):
+
+class ExecutionState(TypedDict, total=False):
     task: str
-    workspace: str
+    plan: Plan
     config: ExecutionConfig
     sandbox: Sandbox
     on_event: Callable[[LogEntry], None] | None
-    plan: Plan
-    subtasks: list[Subtask]
-    index: int
-    current: Subtask
-    completed: list[Subtask]
-    results: dict[str, str]
-    errors: list[str]
-    retry_count: int
-    route: str
+    preset: str
     started_at: float
+    contract: str
+    workers: list[Subtask]
+    evidence: str
+    synthesis: Subtask
+    verifications: list[Subtask]
+    repairs: list[Subtask]
+    verdict: str
+    issues: str
 
 
-def _emit(state: GraphState, entry: LogEntry) -> None:
+def _emit(state: ExecutionState, message: str, detail: str | None = None) -> None:
     callback = state.get("on_event")
     if callback:
-        callback(entry)
+        callback(LogEntry(type=LogType.info, role=AgentRole.planner, message=message, detail=detail))
 
 
-async def intake(state: GraphState) -> dict[str, Any]:
-    _emit(state, LogEntry(type=LogType.info, message=f"Intake received task: {state['task'][:120]}"))
-    return {"started_at": time.time(), "index": 0, "retry_count": 0, "completed": [], "results": {}, "errors": []}
+def _worker(state: ExecutionState, role: AgentRole, **kwargs: Any) -> AgentWorker:
+    return AgentWorker(role, state["config"], state["sandbox"], state.get("on_event"), **kwargs)
 
 
-async def planner(state: GraphState) -> dict[str, Any]:
-    if state.get("plan"):
-        plan = state["plan"]
-    else:
-        plan = await generate_plan(state["task"], state["config"], state.get("on_event"))
-    _emit(state, LogEntry(
-        type=LogType.plan_generated,
-        role=AgentRole.planner,
-        message=f"Planner created {len(plan.subtasks)} subtask(s)",
-    ))
-    return {"plan": plan, "subtasks": plan.subtasks}
+async def contract(state: ExecutionState) -> dict[str, Any]:
+    subtasks = state["plan"].subtasks
+    lines = [f"TASK:\n{state['task']}", "", "WORK SPLIT:"]
+    lines += [f"- [{st.id}] ({st.role.value}) {st.instruction}" for st in subtasks]
+    _emit(state, f"Task contract: {len(subtasks)} worker subtask(s)")
+    return {"contract": "\n".join(lines), "started_at": time.time(), "verifications": [], "repairs": []}
 
 
-async def route_subtask(state: GraphState) -> dict[str, Any]:
-    index = state.get("index", 0)
-    subtasks = state["subtasks"]
-    if index >= len(subtasks):
-        return {"route": "finalize"}
-    current = subtasks[index]
-    _emit(state, LogEntry(
-        type=LogType.info,
-        role=current.role,
-        subtask_id=current.id,
-        message=f"Router selected subtask {current.id}",
-    ))
-    role_route = {"auditor": "reviewer", "tester": "tester"}.get(current.role.value, "coder")
-    return {"current": current, "route": role_route}
-
-
-async def coder(state: GraphState) -> dict[str, Any]:
-    current = state["current"]
-    worker = AgentWorker(current.role, state["config"], state["sandbox"], state.get("on_event"))
-    result = await worker.run(current)
-    return {"current": result}
-
-
-async def reviewer_agent(state: GraphState) -> dict[str, Any]:
-    current = state["current"]
-    worker = AgentWorker(AgentRole.auditor, state["config"], state["sandbox"], state.get("on_event"))
-    return {"current": await worker.run(current)}
-
-
-async def tester_agent(state: GraphState) -> dict[str, Any]:
-    current = state["current"]
-    worker = AgentWorker(AgentRole.tester, state["config"], state["sandbox"], state.get("on_event"))
-    return {"current": await worker.run(current)}
-
-
-async def reviewer(state: GraphState) -> dict[str, Any]:
-    current = state["current"]
-    if current.status == SubtaskStatus.error:
-        return {"route": "decision"}
-    _emit(state, LogEntry(
-        type=LogType.info,
-        role=AgentRole.auditor,
-        subtask_id=current.id,
-        message=f"Reviewer checking {current.id}",
-    ))
-    review = Subtask(
-        id=f"{current.id}-review",
-        role=AgentRole.auditor,
-        group=current.group,
-        instruction=f"Review the implementation for this task and report concrete issues:\n{current.instruction}",
+async def workers(state: ExecutionState) -> dict[str, Any]:
+    context = (
+        f"{state['contract']}\n\nOther agents handle the other items in parallel or after you. "
+        "Do only your assignment, keep to the file names and shared names the split specifies, "
+        "and read files other agents already wrote before changing them."
     )
-    result = await AgentWorker(AgentRole.auditor, state["config"], state["sandbox"], state.get("on_event")).run(review)
-    if result.status == SubtaskStatus.error:
-        current.error = result.error
-        current.status = SubtaskStatus.error
-    return {"current": current, "route": "decision" if current.status == SubtaskStatus.error else "tester"}
+    result = await Orchestrator(state["config"], state["sandbox"], state.get("on_event"), context=context).execute(state["plan"])
+    return {"workers": result.subtasks}
 
 
-async def tester(state: GraphState) -> dict[str, Any]:
-    current = state["current"]
-    if current.status == SubtaskStatus.error:
-        return {"route": "decision"}
-    test = Subtask(
-        id=f"{current.id}-test",
-        role=AgentRole.tester,
-        group=current.group,
-        instruction=f"Test the implementation for this task and fix any failures using the available tools:\n{current.instruction}",
+async def evidence(state: ExecutionState) -> dict[str, Any]:
+    blocks = []
+    for st in state["workers"]:
+        body = st.output if st.status == SubtaskStatus.success else f"FAILED: {st.error}"
+        blocks.append(f"### [{st.id}] {st.role.value} - {st.status.value}\n{(body or '')[:EVIDENCE_OUTPUT_CHARS]}")
+    return {"evidence": "\n\n".join(blocks)}
+
+
+async def synthesize(state: ExecutionState) -> dict[str, Any]:
+    _emit(state, "Synthesizer combining worker results")
+    synth, _ = stage_subtasks(
+        [st.id for st in state["workers"]], state["preset"],
+        synthesis_instruction=f"{state['contract']}\n\nWORKER EVIDENCE:\n{state['evidence']}",
     )
-    result = await AgentWorker(AgentRole.tester, state["config"], state["sandbox"], state.get("on_event")).run(test)
-    if result.status == SubtaskStatus.error:
-        current.error = result.error
-        current.status = SubtaskStatus.error
-    return {"current": current, "route": "decision"}
+    return {"synthesis": await _worker(state, AgentRole.planner, system_prompt=SYNTHESIZER_SYSTEM).run(synth)}
 
 
-async def decision(state: GraphState) -> dict[str, Any]:
-    current = state["current"]
-    completed = [*state.get("completed", [])]
-    results = dict(state.get("results", {}))
-    errors = [*state.get("errors", [])]
-    retry_count = state.get("retry_count", 0)
-
-    if current.status == SubtaskStatus.error:
-        errors.append(current.error or f"{current.id} failed")
-        if retry_count < 2:
-            _emit(state, LogEntry(type=LogType.info, message=f"Decision: retrying {current.id}"))
-            return {"retry_count": retry_count + 1, "errors": errors, "route": "retry"}
-    completed.append(current)
-    results[current.id] = current.output or current.error or ""
-    next_index = state.get("index", 0) + 1
-    route = "route_subtask" if next_index < len(state["subtasks"]) else "finalize"
-    return {"completed": completed, "results": results, "errors": errors, "index": next_index, "retry_count": 0, "route": route}
+def _verify_instruction(state: ExecutionState) -> str:
+    synthesis = state["synthesis"].output or "(synthesis unavailable)"
+    text = f"{state['contract']}\n\nWHAT THE WORKERS REPORT:\n{synthesis}"
+    if state["repairs"]:
+        # The synthesis predates the repairs; without this the verifier re-reports already-fixed gaps.
+        text += "\n\nThe report above was written BEFORE these repair rounds changed the workspace:"
+        for fix in state["repairs"]:
+            text += f"\n- {fix.id}: {(fix.output or fix.error or '')[:EVIDENCE_OUTPUT_CHARS]}"
+    return text
 
 
-async def finalize(state: GraphState) -> dict[str, Any]:
-    _emit(state, LogEntry(
-        type=LogType.info,
-        message=f"Decision: finalized workflow with {len(state.get('completed', []))} completed subtask(s)",
-    ))
-    return state
+async def verify(state: ExecutionState) -> dict[str, Any]:
+    rounds = len(state["verifications"])
+    _emit(state, "Verifier checking the workspace against the contract" + (f" (after repair {rounds})" if rounds else ""))
+    _, check = stage_subtasks([], state["preset"], verify_instruction=_verify_instruction(state))
+    check.id = f"verify-{rounds + 1}" if rounds else check.id
+    check.depends_on = [state["repairs"][-1].id] if state["repairs"] else [state["synthesis"].id]
+    result = await _worker(state, AgentRole.auditor, system_prompt=VERIFIER_SYSTEM).run(check)
+
+    matches = _VERDICT.findall(result.output or "")
+    verdict = matches[-1].lower() if result.status == SubtaskStatus.success and matches else "unknown"
+    issues = (result.output or "").split(matches[-1], 1)[-1].strip() if verdict == "fail" else ""
+    _emit(state, f"Verification: {verdict.upper()}", issues or None)
+    return {"verifications": [*state["verifications"], result], "verdict": verdict, "issues": issues}
+
+
+def after_verify(state: ExecutionState) -> str:
+    budget = REPAIR_BUDGET.get(state["preset"], 1)
+    if state["verdict"] == "fail" and len(state["repairs"]) < budget:
+        return "repair"
+    return "finalize"
+
+
+async def repair(state: ExecutionState) -> dict[str, Any]:
+    n = len(state["repairs"]) + 1
+    _emit(state, f"Repair round {n}: fixing verifier findings")
+    fix = Subtask(
+        id=f"repair-{n}", role=AgentRole.coder, group=0, capability="coding", size="m",
+        depends_on=[state["verifications"][-1].id],
+        model_chain=select_chain("coding", state["preset"]),
+        instruction=(
+            f"{state['contract']}\n\nThe verifier found these problems in the workspace. First read every "
+            "file involved (list_directory, then read_file), so your fix matches the ids, classes and names "
+            "the other files actually use. Then fix every problem with write_file and re-run the relevant "
+            f"checks:\n{state['issues']}"
+        ),
+    )
+    return {"repairs": [*state["repairs"], await _worker(state, AgentRole.coder).run(fix)]}
+
+
+async def finalize(state: ExecutionState) -> dict[str, Any]:
+    _emit(state, f"Workflow finished: verification {state['verdict'].upper()}, {len(state['repairs'])} repair round(s)")
+    return {}
 
 
 def build_graph():
-    graph = StateGraph(GraphState)
-    graph.add_node("intake", intake)
-    graph.add_node("planner", planner)
-    graph.add_node("route_subtask", route_subtask)
-    graph.add_node("coder", coder)
-    graph.add_node("reviewer", reviewer)
-    graph.add_node("reviewer_agent", reviewer_agent)
-    graph.add_node("tester", tester)
-    graph.add_node("tester_agent", tester_agent)
-    graph.add_node("decision", decision)
-    graph.add_node("finalize", finalize)
-    graph.add_edge(START, "intake")
-    graph.add_edge("intake", "planner")
-    graph.add_edge("planner", "route_subtask")
-    graph.add_conditional_edges("route_subtask", lambda state: state.get("route", "finalize"), {
-        "coder": "coder",
-        "reviewer": "reviewer_agent",
-        "tester": "tester_agent",
-        "finalize": "finalize",
-    })
-    graph.add_edge("coder", "reviewer")
-    graph.add_conditional_edges("reviewer", lambda state: state.get("route", "decision"), {
-        "tester": "tester",
-        "decision": "decision",
-    })
-    graph.add_edge("tester", "decision")
-    graph.add_edge("reviewer_agent", "decision")
-    graph.add_edge("tester_agent", "decision")
-    graph.add_conditional_edges("decision", lambda state: state.get("route", "finalize"), {
-        "retry": "coder",
-        "route_subtask": "route_subtask",
-        "finalize": "finalize",
-    })
+    graph = StateGraph(ExecutionState)
+    for name, node in [("contract", contract), ("workers", workers), ("evidence", evidence),
+                       ("synthesize", synthesize), ("verify", verify), ("repair", repair), ("finalize", finalize)]:
+        graph.add_node(name, node)
+    graph.add_edge(START, "contract")
+    graph.add_edge("contract", "workers")
+    graph.add_edge("workers", "evidence")
+    graph.add_edge("evidence", "synthesize")
+    graph.add_edge("synthesize", "verify")
+    graph.add_conditional_edges("verify", after_verify, {"repair": "repair", "finalize": "finalize"})
+    graph.add_edge("repair", "verify")
     graph.add_edge("finalize", END)
     return graph.compile()
 
 
 async def run_graph(
     task: str,
-    workspace: str,
+    plan: Plan,
     config: ExecutionConfig,
     sandbox: Sandbox,
     on_event: Callable[[LogEntry], None] | None = None,
-    plan: Plan | None = None,
+    preset: str = "balanced",
 ) -> RunResult:
     state = await build_graph().ainvoke({
-        "task": task,
-        "workspace": workspace,
-        "config": config,
-        "sandbox": sandbox,
-        "on_event": on_event,
-        "plan": plan,
+        "task": task, "plan": plan, "config": config, "sandbox": sandbox,
+        "on_event": on_event, "preset": preset,
     })
-    completed = state.get("completed", [])
-    has_errors = any(st.status == SubtaskStatus.error for st in completed)
+    workers_done = state["workers"]
+    stages = [state["synthesis"]]
+    for i, check in enumerate(state["verifications"]):
+        stages.append(check)
+        if i < len(state["repairs"]):
+            stages.append(state["repairs"][i])
+    # Stages run one after another once the workers are done: give them their own
+    # steps and short labels (their real instructions embed the whole contract).
+    next_group = max((st.group for st in workers_done), default=0) + 1
+    for i, st in enumerate(stages):
+        st.group = next_group + i
+        st.instruction = STAGE_LABELS[st.id.split("-")[0]]
+    all_subtasks = [*workers_done, *stages]
+
+    failed = any(st.status == SubtaskStatus.error for st in workers_done) or state["verdict"] == "fail"
     return RunResult(
-        subtasks=completed,
-        results=state.get("results", {}),
-        status=RunStatus.error if has_errors else RunStatus.done,
-        total_duration_ms=(time.time() - state.get("started_at", time.time())) * 1000,
+        subtasks=all_subtasks,
+        results={st.id: st.output or st.error or "" for st in all_subtasks},
+        status=RunStatus.error if failed else RunStatus.done,
+        total_duration_ms=(time.time() - state["started_at"]) * 1000,
+        synthesis=state["synthesis"].output,
+        verification={"verdict": state["verdict"], "issues": state["issues"], "repair_rounds": len(state["repairs"])},
     )

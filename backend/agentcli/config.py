@@ -115,6 +115,13 @@ class ExecutionConfig:
     max_concurrent_agents: int = field(
         default_factory=lambda: int(os.environ.get("MAX_CONCURRENT_AGENTS", "4"))
     )
+    # Free models writing whole files regularly need well over 30s per call.
+    model_timeout: int = field(
+        default_factory=lambda: int(os.environ.get("MODEL_TIMEOUT", "90"))
+    )
+    step_timeout: int = field(
+        default_factory=lambda: int(os.environ.get("STEP_TIMEOUT", "180"))
+    )
     shell_timeout: int = field(
         default_factory=lambda: int(os.environ.get("SHELL_TIMEOUT", "30"))
     )

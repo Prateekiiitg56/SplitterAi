@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "title": "The Midnight Library",
+    "author": "Matt Haig",
+    "coverUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNFRUVFRVUiLz48dGV4dCB4PSIxNTAiIHk9IjIwMCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI0Y5Rjk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+    "genre": "Fiction",
+    "year": 2020,
+    "shortDescription": "A novel about a woman who finds herself in a library between life and death, where each book shows a different version of her life."
+  },
+  {
+    "id": 2,
+    "title": "Project Hail Mary",
+    "author": "Andy Weir",
+    "coverUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNFRUVFRVUiLz48dGV4dCB4PSIxNTAiIHk9IjIwMCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI0Y5Rjk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+    "genre": "Science Fiction",
+    "year": 2021,
+    "shortDescription": "An astronaut wakes up on a spaceship with no memory of his mission and must save Earth from an extinction-level threat."
+  },
+  {
+    "id": 3,
+    "title": "The Seven Husbands of Evelyn Hugo",
+    "author": "Taylor Jenkins Reid",
+    "coverUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNFRUVFRVUiLz48dGV4dCB4PSIxNTAiIHk9IjIwMCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI0Y5Rjk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+    "genre": "Historical Fiction",
+    "year": 2017,
+    "shortDescription": "A reclusive Hollywood icon recounts her rise to fame and the seven husbands who shaped her life."
+  },
+  {
+    "id": 4,
+    "title": "Klara and the Sun",
+    "author": "Kazuo Ishiguro",
+    "coverUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNFRUVFRVUiLz48dGV4dCB4PSIxNTAiIHk9IjIwMCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI0Y5Rjk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+    "genre": "Science Fiction",
+    "year": 2021,
+    "shortDescription": "An Artificial Friend with exceptional observational qualities watches customers who come and go in a store."
+  },
+  {
+    "id": 5,
+    "title": "The Invisible Life of Addie LaRue",
+    "author": "V.E. Schwab",
+    "coverUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNFRUVFRVUiLz48dGV4dCB4PSIxNTAiIHk9IjIwMCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI0Y5Rjk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+    "genre": "Fantasy",
+    "year": 2020,
+    "shortDescription": "A young woman makes a Faustian bargain to live forever but is cursed to be forgotten by everyone she meets."
+  },
+  {
+    "id": 6,
+    "title": "Where the Crawdads Sing",
+    "author": "Delia Owens",
+    "coverUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNFRUVFRVUiLz48dGV4dCB4PSIxNTAiIHk9IjIwMCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI0Y5Rjk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+    "genre": "Mystery",
+    "year": 2018,
+    "shortDescription": "A young woman who raised herself in the marshes of North Carolina becomes a suspect in a murder investigation."
+  },
+  {
+    "id": 7,
+    "title": "The Song of Achilles",
+    "author": "Madeline Miller",
+    "coverUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNFRUVFRVUiLz48dGV4dCB4PSIxNTAiIHk9IjIwMCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI0Y5Rjk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+    "genre": "Mythology",
+    "year": 2011,
+    "shortDescription": "A retelling of the Iliad from the perspective of Patroclus, focusing on his relationship with Achilles."
+  },
+  {
+    "id": 8,
+    "title": "The Vanishing Half",
+    "author": "Brit Bennett",
+    "coverUrl": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCI+PHJlY3Qgd2lkdGg9IjMwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9IiNFRUVFRVUiLz48dGV4dCB4PSIxNTAiIHk9IjIwMCIgZm9udC1zaXplPSIyNCIgZmlsbD0iI0Y5Rjk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Tm8gSW1hZ2U8L3RleHQ+PC9zdmc+",
+    "genre": "Literary Fiction",
+    "year": 2020,
+    "shortDescription": "The story of twin sisters who choose to live in two very different worlds, one black and one white."
+  }
+]

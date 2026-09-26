@@ -67,6 +67,12 @@ class Subtask(BaseModel):
     finished_at: Optional[float] = None
     duration_ms: Optional[float] = None
     steps: int = 0
+    depends_on: list[str] = Field(default_factory=list)
+    capability: Optional[str] = None
+    size: Optional[str] = None
+    model_chain: Optional[list[str]] = None
+    tokens_in: int = 0
+    tokens_out: int = 0
 
 
 class Plan(BaseModel):
@@ -80,6 +86,9 @@ class RunResult(BaseModel):
     results: dict[str, str] = Field(default_factory=dict)
     status: RunStatus = RunStatus.done
     total_duration_ms: Optional[float] = None
+    report: Optional[dict] = None
+    synthesis: Optional[str] = None
+    verification: Optional[dict] = None  # {"verdict": pass|fail|unknown, "issues": str, "repair_rounds": int}
 
 
 class LogEntry(BaseModel):
@@ -120,6 +129,8 @@ class RunRequest(BaseModel):
     model: Optional[str] = None
     plan_file: Optional[str] = None  # FR-8: manual plan mode
     subtasks: Optional[list[dict]] = None  # User-confirmed subtasks from plan review UI
+    agent_count: Optional[int] = None  # Concurrent agents chosen from the strategy table
+    strategy: Optional[str] = None  # cost | balanced | fastest | quality; None keeps the legacy single-chain run
 
 
 class HealthResponse(BaseModel):

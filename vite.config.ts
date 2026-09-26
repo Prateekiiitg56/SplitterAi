@@ -12,6 +12,8 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    // Agents write into these while a run is in flight; reloading on those writes would wipe the UI's run state.
+    watch: { ignored: ['**/workspace_output/**', '**/workspace/**', '**/backend/**'] },
   },
   build: {
     rollupOptions: {

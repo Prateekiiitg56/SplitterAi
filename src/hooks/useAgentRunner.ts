@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { AgentWebSocket, runTask } from '../lib/api'
+import type { RunReport, StrategyId, Verification } from '../lib/api'
 import { DEFAULT_WORKSPACE } from '../config'
 import type { Subtask, LogEntry, RunStatus, SubtaskResult, LogEvent, ConnectionStatus } from '../types'
 
@@ -19,6 +20,8 @@ export function useAgentRunner() {
   const [runStatus, setRunStatus] = useState<RunStatus>('idle')
   const [taskTitle, setTaskTitle] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [runReport, setRunReport] = useState<RunReport | null>(null)
+  const [runOutcome, setRunOutcome] = useState<{ synthesis: string | null; verification: Verification | null } | null>(null)
 
   useEffect(() => {
     const ws = new AgentWebSocket({
@@ -104,6 +107,8 @@ export function useAgentRunner() {
       try {
         const result = await runTask({ task: newTask, workspace, model })
         setRunStatus(result.status === 'error' ? 'error' : 'done')
+        setRunReport(null)
+        setRunOutcome({ synthesis: result.synthesis ?? null, verification: result.verification ?? null })
         if (result.subtasks) {
           setSubtasks(
             result.subtasks.map((st) => ({
@@ -137,8 +142,16 @@ export function useAgentRunner() {
   )
 
   const executeTaskWithPlan = useCallback(
-    async (newTask: string, initialSubtasks: Subtask[], workspace: string = DEFAULT_WORKSPACE, model?: string) => {
+    async (
+      newTask: string,
+      initialSubtasks: Subtask[],
+      workspace: string = DEFAULT_WORKSPACE,
+      model?: string,
+      strategy?: { id: StrategyId; agents: number },
+    ) => {
       setTaskTitle(newTask)
+      setRunReport(null)
+      setRunOutcome(null)
       setRunStatus('executing')
       // Nothing runs until the backend says so; later groups wait on earlier ones.
       setSubtasks(initialSubtasks.map((st) => ({ ...st, status: 'pending' })))
@@ -159,8 +172,15 @@ export function useAgentRunner() {
             group: st.group || 1,
             instruction: st.instruction,
             status: st.status,
+            depends_on: st.dependsOn,
+            capability: st.capability,
+            size: st.size,
           })),
+          strategy: strategy?.id,
+          agent_count: strategy?.agents,
         })
+        setRunReport(result.report ?? null)
+        setRunOutcome({ synthesis: result.synthesis ?? null, verification: result.verification ?? null })
         setRunStatus(result.status === 'error' ? 'error' : 'done')
         if (result.subtasks && result.subtasks.length > 0) {
           setSubtasks(
@@ -217,6 +237,8 @@ export function useAgentRunner() {
     runStatus,
     taskTitle,
     errorMessage,
+    runReport,
+    runOutcome,
     executeTask,
     executeTaskWithPlan,
     addEvent,

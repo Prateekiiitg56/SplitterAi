@@ -25,7 +25,7 @@ if sys.platform == "win32":
         pass
 
 from agentcli.config import ExecutionConfig
-from agentcli.orchestrator import Orchestrator
+from agentcli.graph import run_graph
 from agentcli.planner import generate_plan, load_manual_plan
 from agentcli.sandbox import Sandbox
 from agentcli.schemas import AgentRole, LogEntry, LogType, RunStatus, SubtaskStatus
@@ -139,8 +139,7 @@ async def execute_task(
     # Step 2: Execution
     click.echo(click.style("  ── Executing ─────────────────────────────", fg="bright_black"))
 
-    orchestrator = Orchestrator(config=config, sandbox=sandbox, on_event=print_event)
-    result = await orchestrator.execute(plan)
+    result = await run_graph(task, plan, config, sandbox, print_event)
 
     click.echo()
 

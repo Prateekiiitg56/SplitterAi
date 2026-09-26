@@ -24,12 +24,69 @@ export interface RunRequest {
     group: number
     instruction: string
     status?: string
+    depends_on?: string[]
+    capability?: string
+    size?: string
   }>
+  strategy?: StrategyId
+  agent_count?: number
+}
+
+export type StrategyId = 'cost' | 'balanced' | 'fastest' | 'quality'
+export type Confidence = 'low' | 'medium' | 'high'
+
+/** One estimated configuration. Ranges are [low, high]; point values are the uncalibrated centre. */
+export interface ExecutionEstimate {
+  agents: number
+  time_s: [number, number]
+  tokens: [number, number]
+  point_time_s: number
+  point_tokens: number
+  confidence: Confidence
+  sources: string[]
+}
+
+export interface StrategyOption extends ExecutionEstimate {
+  id: StrategyId
+  label: string
+  repairs: number
+  models: string[]
+}
+
+export interface PlanAnalysis {
+  complexity: string
+  subtask_count: number
+  dependency_levels: number
+  max_parallel: number
+  max_useful_agents: number
+  recommended: StrategyId
+  recommended_agents: number
+  reasons: string[]
+  options: ExecutionEstimate[]
+  strategies: StrategyOption[]
+}
+
+export interface RunReport {
+  strategy: StrategyId
+  agents: number
+  models_used: string[]
+  estimated: { time_s: [number, number]; tokens: [number, number]; confidence: Confidence }
+  actual: { time_s: number; tokens: number }
+  failed_subtasks: number
+  parallel_efficiency: number | null
+  verification: Verification | null
+}
+
+export interface Verification {
+  verdict: 'pass' | 'fail' | 'unknown'
+  issues: string
+  repair_rounds: number
 }
 
 export interface PlanResult {
   task: string
   subtasks: SubtaskResult[]
+  analysis?: PlanAnalysis
 }
 
 export interface SubtaskResult {
@@ -45,6 +102,11 @@ export interface SubtaskResult {
   finished_at?: number
   duration_ms?: number
   steps: number
+  depends_on?: string[]
+  capability?: string
+  size?: string
+  tokens_in?: number
+  tokens_out?: number
 }
 
 export interface RunResult {
@@ -52,6 +114,9 @@ export interface RunResult {
   results: Record<string, string>
   status: string
   total_duration_ms?: number
+  report?: RunReport | null
+  synthesis?: string | null
+  verification?: Verification | null
 }
 
 export interface LogEvent {

@@ -3,6 +3,7 @@ import { useSessions } from '../hooks/useSessions'
 import { useAgentRunner } from '../hooks/useAgentRunner'
 import { DEFAULT_WORKSPACE } from '../config'
 import type { Subtask, LogEntry, RunStatus, SessionEntry, ConnectionStatus } from '../types'
+import type { RunReport, StrategyId, Verification } from '../lib/api'
 
 interface AppContextType {
   currentWorkspace: string
@@ -19,7 +20,15 @@ interface AppContextType {
   taskTitle: string
   errorMessage: string | null
   executeTask: (newTask: string, workspace?: string, model?: string) => Promise<void>
-  executeTaskWithPlan: (newTask: string, initialSubtasks: Subtask[], workspace?: string, model?: string) => Promise<void>
+  runReport: RunReport | null
+  runOutcome: { synthesis: string | null; verification: Verification | null } | null
+  executeTaskWithPlan: (
+    newTask: string,
+    initialSubtasks: Subtask[],
+    workspace?: string,
+    model?: string,
+    strategy?: { id: StrategyId; agents: number },
+  ) => Promise<void>
   addEvent: (event: Partial<LogEntry>) => void
   clearError: () => void
 }
@@ -57,6 +66,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     runStatus,
     taskTitle,
     errorMessage,
+    runReport,
+    runOutcome,
     executeTask,
     executeTaskWithPlan,
     addEvent,
@@ -79,6 +90,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         runStatus,
         taskTitle,
         errorMessage,
+        runReport,
+        runOutcome,
         executeTask,
         executeTaskWithPlan,
         addEvent,
