@@ -27,3 +27,20 @@ dist-ssr
 
 # Execution history (estimator telemetry)
 backend/.splitter/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+.eggs/
+
+# Playwright MCP (logs & screenshots)
+.playwright-mcp/
+
+# Generated workspace output
+workspace_output/
+
+# AI tool metadata
+.claude/
