@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import time
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 
@@ -100,6 +101,9 @@ class AgentWorker:
         must_write = self.use_tools and self.role == AgentRole.coder
         wrote_files = False
         write_nudges = 0
+        # write_file replaces whole files. An agent that never read an existing file would wipe
+        # everything it didn't restate, so overwriting requires reading (or creating) it first.
+        known_files: set[str] = set()
 
         try:
             for step in range(self.max_steps):
@@ -164,13 +168,26 @@ class AgentWorker:
 
                         # Execute with sandbox
                         try:
-                            result = execute_tool(
-                                sandbox=self.sandbox,
-                                tool_name=tool_name,
-                                arguments=args,
-                                shell_timeout=self.config.shell_timeout,
-                                max_output=self.config.output_max_bytes,
-                            )
+                            file_key = None
+                            if tool_name in ("read_file", "write_file") and isinstance(args.get("path"), str):
+                                file_key = str(self.sandbox.resolve_path(args["path"]))
+                            if tool_name == "write_file" and file_key and file_key not in known_files \
+                                    and Path(file_key).exists():
+                                result = (
+                                    f"Refused: {args['path']} already exists and you have not read it. write_file "
+                                    "replaces the whole file, so read_file it first, then write back the complete "
+                                    "updated content (existing parts included)."
+                                )
+                            else:
+                                result = execute_tool(
+                                    sandbox=self.sandbox,
+                                    tool_name=tool_name,
+                                    arguments=args,
+                                    shell_timeout=self.config.shell_timeout,
+                                    max_output=self.config.output_max_bytes,
+                                )
+                                if file_key and not result.startswith(("Error", "BLOCKED")):
+                                    known_files.add(file_key)
                         except SandboxEscapeError as e:
                             result = f"BLOCKED: {e}"
                             self._emit(LogEntry(

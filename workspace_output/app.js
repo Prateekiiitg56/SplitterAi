@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const booksGrid = document.getElementById('featured-books');
+    const booksGrid = document.querySelector('.books-grid');
     const loadMoreBtn = document.getElementById('load-more');
 
     let books = [];

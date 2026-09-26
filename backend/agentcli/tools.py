@@ -13,6 +13,7 @@ import os
 import re
 import hashlib
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -78,7 +79,7 @@ def list_directory(sandbox: Sandbox, path: str = ".") -> str:
 # Dangerous host/cloud probes blocked at command level
 # Package managers resolve the project root by walking up to the nearest package.json. Without
 # one in the workspace, an install lands in whatever project contains the workspace.
-_NODE_INSTALL = re.compile(r"(npm|pnpm|yarn)\s+(install|i|add|ci)")
+_NODE_INSTALL = re.compile(r"(?<![\w-])(npm|pnpm|yarn)\s+(install|i|add|ci)(?![\w-])")
 
 BLOCKED_PROBE_PATTERNS = [
     "169.254.169.254",
@@ -173,6 +174,16 @@ def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int
         return f"Error executing command: {e}"
 
 
+def run_python(sandbox: Sandbox, code: str, timeout: int = 30, max_output: int = 10240) -> str:
+    """Run a multi-line Python script with the workspace as cwd.
+
+    Models routinely cram scripts into one-line `python -c` calls (a SyntaxError for loops) or
+    call interpreters the host lacks. The script file lives in the shell scratch dir, not the workspace.
+    """
+    script = Path(_shell_scratch_dir(sandbox)) / f"script-{hashlib.sha1(code.encode('utf-8')).hexdigest()[:10]}.py"
+    script.write_text(code, encoding="utf-8")
+    return run_shell(sandbox, f'"{sys.executable}" "{script}"', timeout=timeout, max_output=max_output)
+
 
 def search_code(sandbox: Sandbox, query: str, path: str = ".") -> str:
     """Search for a pattern in files within the sandbox."""
@@ -234,6 +245,8 @@ def execute_tool(
             return list_directory(sandbox, arguments.get("path", "."))
         elif tool_name == "run_shell":
             return run_shell(sandbox, arguments["command"], timeout=shell_timeout, max_output=max_output)
+        elif tool_name == "run_python":
+            return run_python(sandbox, arguments["code"], timeout=shell_timeout, max_output=max_output)
         elif tool_name == "search_code":
             return search_code(sandbox, arguments["query"], arguments.get("path", "."))
         else:
@@ -295,13 +308,29 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "run_shell",
-            "description": "Execute a shell command in the workspace directory. Output is captured and returned.",
+            "description": "Execute a shell command in the workspace directory. Output is captured and returned. "
+                           "On Windows this is cmd.exe: no bash syntax (heredocs, &&-chains of bash builtins).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "The shell command to execute."}
                 },
                 "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_python",
+            "description": "Run a multi-line Python script with the workspace as the working directory and return "
+                           "its output. Use this for checks and data processing instead of `python -c` in run_shell.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string", "description": "Complete Python source, with normal newlines."}
+                },
+                "required": ["code"],
             },
         },
     },
