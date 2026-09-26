@@ -84,7 +84,8 @@ export function getShellChrome(pathname: string): ShellChrome {
     const sub = parts[2] ?? 'overview'
     const meta = PROJECT_TAB_LABELS[sub] ?? { label: sub, icon: FolderSimple }
     return {
-      label: projectId,
+      // Each project sub-page opens its own tab; without the section every tab read "api-s0".
+      label: sub === 'overview' ? projectId : `${projectId} · ${meta.label}`,
       icon: FolderSimple,
       crumbs: ['SplitterAI', 'Projects', projectId, meta.label],
     }

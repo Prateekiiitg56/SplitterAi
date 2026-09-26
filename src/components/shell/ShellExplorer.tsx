@@ -20,13 +20,14 @@ import type { AgentRole, SessionEntry } from '../../types'
 /** Folder name if the workspace is a path, otherwise whatever identifies it. */
 function projectLabel(session: SessionEntry): string {
   const fromWorkspace = (session.workspace || '').split(/[/\\]/).filter(Boolean).pop()
-  return fromWorkspace || session.task || session.id
+  // "." (the repo root) says nothing; fall back to the task text.
+  return (fromWorkspace && fromWorkspace !== '.' ? fromWorkspace : '') || session.task || session.id
 }
 
 const AGENT_ROLES: AgentRole[] = ['planner', 'coder', 'auditor', 'tester']
 
 export function ShellExplorer({ pathname }: { pathname: string }) {
-  const { sessions, sessionsLoading } = useApp()
+  const { sessions, sessionsLoading, sessionsError } = useApp()
 
   const recent = sessions.slice(0, 6)
 
@@ -40,7 +41,12 @@ export function ShellExplorer({ pathname }: { pathname: string }) {
           />
         )}
         {!sessionsLoading && recent.length === 0 && (
-          <ExplorerRow to="/projects" icon={<Folder size={14} />} label="No projects yet" />
+          <ExplorerRow
+            to="/projects"
+            icon={<Folder size={14} />}
+            label={sessionsError ? "Couldn't load projects" : 'No projects yet'}
+            title={sessionsError ?? undefined}
+          />
         )}
         {recent.map((session) => {
           const to = `/projects/${session.id || 'default'}`

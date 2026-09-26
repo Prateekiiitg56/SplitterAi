@@ -16,7 +16,6 @@ export default function AgentsOverviewPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [agentOverrides, setAgentOverrides] = useState<Record<string, AgentStatus>>({})
 
   const [showLaunchModal, setShowLaunchModal] = useState(false)
   const [modalRole, setModalRole] = useState<AgentRole>('coder')
@@ -52,26 +51,25 @@ export default function AgentsOverviewPage() {
 
   const agents = baseRoster.map((item) => {
     const activeSubtask = subtasks.find((s) => s.role === item.role)
-    let status: AgentStatus = agentOverrides[item.role] || 'idle'
+    let status: AgentStatus = 'idle'
 
-    if (!agentOverrides[item.role]) {
-      if (activeSubtask) {
-        if (activeSubtask.status === 'running' || activeSubtask.status === 'working') {
-          status = 'working'
-        } else if (activeSubtask.status === 'success' || activeSubtask.status === 'completed') {
-          status = 'completed'
-        } else if (activeSubtask.status === 'error' || activeSubtask.status === 'failed') {
-          status = 'failed'
-        }
-      } else if (runStatus === 'planning' && item.role === 'planner') {
+    if (activeSubtask) {
+      if (activeSubtask.status === 'running' || activeSubtask.status === 'working') {
         status = 'working'
-      } else if (runStatus === 'executing' && item.role === 'coder') {
-        status = 'working'
+      } else if (activeSubtask.status === 'success' || activeSubtask.status === 'completed') {
+        status = 'completed'
+      } else if (activeSubtask.status === 'error' || activeSubtask.status === 'failed') {
+        status = 'failed'
+      } else {
+        status = 'queued'
       }
+    } else if (runStatus === 'planning' && item.role === 'planner') {
+      status = 'working'
     }
 
-    const currentTask = activeSubtask ? activeSubtask.instruction : runStatus !== 'idle' ? taskTitle : null
-    const progress = status === 'completed' ? 100 : status === 'working' ? 75 : 0
+    const currentTask = activeSubtask ? activeSubtask.instruction : status === 'working' ? taskTitle : null
+    // No per-step progress is reported; the bar is a full-width status stripe once the agent is involved.
+    const progress = status === 'idle' || status === 'queued' ? 0 : 100
 
     return {
       ...item,
@@ -98,19 +96,6 @@ export default function AgentsOverviewPage() {
 
     return matchesSearch && matchesStatus
   })
-
-  const handlePause = (role: AgentRole, e: React.MouseEvent) => {
-    e.stopPropagation()
-    const next = agentOverrides[role] === 'paused' ? 'working' : 'paused'
-    setAgentOverrides({ ...agentOverrides, [role]: next })
-    addEvent({ role, message: `Agent ${role} execution ${next}` })
-  }
-
-  const handleStop = (role: AgentRole, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setAgentOverrides({ ...agentOverrides, [role]: 'idle' })
-    addEvent({ role, message: `Agent ${role} execution stopped` })
-  }
 
   const handleLaunchSubmit = async () => {
     if (!modalTask.trim()) return
@@ -194,7 +179,7 @@ export default function AgentsOverviewPage() {
                   </div>
 
                   <div className="ac-task">
-                    {agent.currentTask ? agent.currentTask : 'Waiting — ready for a task'}
+                    {agent.currentTask ? agent.currentTask : 'Waiting, ready for a task'}
                   </div>
 
                   <div className="ac-progress-track">
@@ -220,20 +205,15 @@ export default function AgentsOverviewPage() {
                       >
                         Open
                       </Button>
-                      <Button
-                        variant="quiet"
-                        size="sm"
-                        onClick={(e) => handlePause(agent.role, e)}
-                      >
-                        {agent.status === 'paused' ? 'Resume' : 'Pause'}
-                      </Button>
-                      <Button
-                        variant="quiet"
-                        size="sm"
-                        onClick={(e) => handleStop(agent.role, e)}
-                      >
-                        Stop
-                      </Button>
+                      {/* No backend pause/stop endpoint yet: shown disabled rather than faking state. */}
+                      <span className="inline-flex gap-1" title="Pausing or stopping agents is not supported by the backend yet">
+                        <Button variant="quiet" size="sm" disabled>
+                          Pause
+                        </Button>
+                        <Button variant="quiet" size="sm" disabled>
+                          Stop
+                        </Button>
+                      </span>
                     </div>
                   </div>
                 </div>

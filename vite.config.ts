@@ -18,7 +18,9 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('three')) {
+            // Match the three package itself; a bare 'three' also caught @designcodeio/threeui's CSS,
+            // which made every route eagerly load the WebGL chunk.
+            if (id.includes('/node_modules/three/')) {
               return 'vendor-three'
             }
             if (id.includes('framer-motion')) {

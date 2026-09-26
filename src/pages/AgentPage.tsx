@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, FileText, Pause, Play, Square, Zap, Terminal, Loader2 } from 'lucide-react'
+import { ArrowLeft, FileText, Pause, Square, Zap, Terminal, Loader2 } from 'lucide-react'
 import { ROLE_META } from '../data'
 import type { AgentRole, AgentStatus } from '../types'
 import { AgentIcon, StatusBadge } from '../components/Badges'
@@ -26,34 +26,39 @@ export function AgentPage() {
     }
   }, [effectiveRole, selectedRole, setSelectedRole])
 
-  const { agentData, loading, error } = useAgentDetail(selectedRole)
+  // Fetch the role in the URL directly; the shared selectedRole starts as 'coder'
+  // and only syncs after mount, which fetched the wrong agent first.
+  const { agentData, loading, error } = useAgentDetail(effectiveRole)
   const { fileTree: workspaceFiles } = useWorkspaceFiles(currentWorkspace)
 
   const logEndRef = useRef<HTMLDivElement>(null)
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
-  const [localStatusOverride, setLocalStatusOverride] = useState<AgentStatus | null>(null)
 
-  const meta = ROLE_META[selectedRole] || ROLE_META.coder
+  const meta = ROLE_META[effectiveRole] || ROLE_META.coder
 
   const agentLogs =
     globalLogs && globalLogs.length > 0
-      ? globalLogs.filter((l) => !l.role || l.role === selectedRole)
+      ? globalLogs.filter((l) => !l.role || l.role === effectiveRole)
       : agentData?.logs || []
 
-  const currentSubtask = subtasks.find((st) => st.role === selectedRole)
+  const currentSubtask = subtasks.find((st) => st.role === effectiveRole)
 
-  let agentStatus: AgentStatus = localStatusOverride || 'idle'
-  if (!localStatusOverride) {
-    if (currentSubtask) {
-      if (currentSubtask.status === 'running' || currentSubtask.status === 'working') agentStatus = 'working'
-      else if (currentSubtask.status === 'success' || currentSubtask.status === 'completed') agentStatus = 'completed'
-      else if (currentSubtask.status === 'error' || currentSubtask.status === 'failed') agentStatus = 'failed'
-    } else if (runStatus === 'planning' && selectedRole === 'planner') agentStatus = 'working'
-    else if (runStatus === 'executing' && selectedRole === 'coder') agentStatus = 'working'
-  }
+  // Derived only from real run state; no guessed "working" for roles without a subtask.
+  let agentStatus: AgentStatus = 'idle'
+  if (currentSubtask) {
+    if (currentSubtask.status === 'running' || currentSubtask.status === 'working') agentStatus = 'working'
+    else if (currentSubtask.status === 'success' || currentSubtask.status === 'completed') agentStatus = 'completed'
+    else if (currentSubtask.status === 'error' || currentSubtask.status === 'failed') agentStatus = 'failed'
+    else agentStatus = 'queued'
+  } else if (runStatus === 'planning' && effectiveRole === 'planner') agentStatus = 'working'
+
+  const primaryModel: string | undefined = currentSubtask?.model || agentData?.modelChain?.[0]
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Scroll only the log box; scrollIntoView also scrolled the page, which on phones
+    // jumped past the agent header on load.
+    const box = logEndRef.current?.parentElement
+    if (box) box.scrollTop = box.scrollHeight
   }, [agentLogs.length])
 
   return (
@@ -61,46 +66,34 @@ export function AgentPage() {
       <div className="agent-wrap">
         {/* Left Side Inspector */}
         <div className="agent-side">
-          <div className="back-link" onClick={() => navigate('/agents')}>
-            <ArrowLeft size={12} />
+          <button type="button" className="back-link" onClick={() => navigate('/agents')}>
+            <ArrowLeft size={12} aria-hidden="true" />
             <span>Back to agents</span>
-          </div>
+          </button>
 
           <div className="as-glyph" style={{ color: meta.color }}>
-            <AgentIcon role={selectedRole} size={20} />
+            <AgentIcon role={effectiveRole} size={20} />
           </div>
-          <div className="as-name">{meta.label} Worker</div>
+          <h1 className="as-name">{meta.label} Worker</h1>
           <div className="as-desc">{meta.desc || 'Specialized AI task processing agent'}</div>
 
-          <div className="as-actions">
-            <Button
-              variant="ghost"
-              size="sm"
-              style={{ flex: 1 }}
-              icon={agentStatus === 'paused' ? <Play size={12} /> : <Pause size={12} />}
-              onClick={() => setLocalStatusOverride(agentStatus === 'paused' ? 'working' : 'paused')}
-            >
-              {agentStatus === 'paused' ? 'Resume' : 'Pause'}
+          {/* The backend has no pause/stop endpoint yet; keep the controls visible but honest. */}
+          <div className="as-actions" title="Pausing or stopping a running agent is not supported by the backend yet">
+            <Button variant="ghost" size="sm" style={{ flex: 1 }} icon={<Pause size={12} />} disabled>
+              Pause
             </Button>
-            <Button
-              variant="quiet"
-              size="sm"
-              icon={<Square size={12} />}
-              label="Stop"
-              onClick={() => setLocalStatusOverride('idle')}
-              title="Stop Agent"
-            />
+            <Button variant="quiet" size="sm" icon={<Square size={12} />} label="Stop agent (not supported yet)" disabled />
           </div>
 
           <div className="as-section">
             <h4>Parameters</h4>
             <div className="kv-row">
               <span className="k">Role</span>
-              <span className="v">{selectedRole}</span>
+              <span className="v">{effectiveRole}</span>
             </div>
             <div className="kv-row">
               <span className="k">Model</span>
-              <span className="v">gemini-3.5-flash</span>
+              <span className="v truncate" title={primaryModel}>{primaryModel?.split('/').pop() ?? 'Not set'}</span>
             </div>
             <div className="kv-row">
               <span className="k">Status</span>
@@ -110,7 +103,7 @@ export function AgentPage() {
             </div>
             <div className="kv-row">
               <span className="k">Group</span>
-              <span className="v">{currentSubtask?.group || 1}</span>
+              <span className="v">{currentSubtask?.group ?? 'None'}</span>
             </div>
           </div>
 
@@ -124,14 +117,15 @@ export function AgentPage() {
                 </div>
               ) : (
                 workspaceFiles.slice(0, 8).map((f) => (
-                  <div
+                  <button
+                    type="button"
                     key={f.path || f.name}
-                    className="ft-row"
+                    className="ft-row w-full text-left"
                     onClick={() => setSelectedFilePath(f.path || f.name)}
                   >
-                    <FileText size={12} />
+                    <FileText size={12} aria-hidden="true" />
                     <span className="truncate">{f.name || f.path}</span>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -144,13 +138,13 @@ export function AgentPage() {
           <div className="am-head">
             <div className="title">
               <Terminal size={14} />
-              <span>Activity Stream — {meta.label}</span>
+              <span>{meta.label} activity</span>
             </div>
 
             {/* Role Tabs */}
             <nav className="tab-strip" aria-label="Role selector">
               {(['coder', 'auditor', 'tester', 'planner'] as AgentRole[]).map((r) => {
-                const isSel = selectedRole === r
+                const isSel = effectiveRole === r
                 return (
                   <button
                     key={r}
@@ -180,11 +174,9 @@ export function AgentPage() {
                   ? currentSubtask.instruction
                   : taskTitle
                   ? taskTitle
-                  : 'Idle — ready for task assignment'}
+                  : 'Idle, ready for a task'}
               </div>
-              <div className="tb-pct">
-                {agentStatus === 'completed' ? '100%' : agentStatus === 'working' ? '78%' : '0%'}
-              </div>
+              <StatusBadge status={agentStatus} size="sm" />
             </div>
 
             <div className="log-console">

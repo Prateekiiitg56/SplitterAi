@@ -165,8 +165,11 @@ export default function NeuralMotes() {
     /* ── Animation loop ───────────────────────────────────────── */
     let startTime = performance.now();
 
+    // Reduced motion: draw a single still frame instead of a continuous loop.
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     function animate() {
-      rafRef.current = requestAnimationFrame(animate);
+      if (!reduceMotion) rafRef.current = requestAnimationFrame(animate);
 
       const elapsed = (performance.now() - startTime) * 0.001;
       pointsMat.uniforms.uTime.value = elapsed;
@@ -257,6 +260,7 @@ export default function NeuralMotes() {
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      if (reduceMotion) renderer.render(scene, camera);
     }
     window.addEventListener('resize', onResize);
 

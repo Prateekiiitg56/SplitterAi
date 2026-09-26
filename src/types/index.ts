@@ -9,6 +9,7 @@
 export type AgentRole = 'planner' | 'coder' | 'auditor' | 'tester' | 'unassigned'
 export type SubtaskStatus = 'pending' | 'running' | 'success' | 'error' | 'queued' | 'working' | 'completed' | 'failed' | 'stopped'
 export type RunStatus = 'idle' | 'planning' | 'executing' | 'done' | 'error'
+export type ConnectionStatus = 'connecting' | 'open' | 'closed'
 export type AgentStatus = 'idle' | 'queued' | 'working' | 'paused' | 'completed' | 'failed' | 'stopped'
 
 /* ── Core Domain Entities ───────────────────────────────────────── */
@@ -74,6 +75,8 @@ export interface Project {
   task: string
   status: RunStatus
   createdAt: string
+  /** ISO timestamp from the backend's epoch `updated_at`; createdAt is a display string. */
+  updatedAt?: string
   subtaskCount: number
   color?: string
   progress?: number

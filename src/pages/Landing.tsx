@@ -139,7 +139,7 @@ export default function Landing() {
             MIT License
           </a>
           <span aria-hidden="true" className="w-px h-3 bg-[var(--border)]" />
-          <span>Uses free AI model limits — no paid plan needed.</span>
+          <span>Uses free AI model limits, no paid plan needed.</span>
         </div>
       </section>
     </div>

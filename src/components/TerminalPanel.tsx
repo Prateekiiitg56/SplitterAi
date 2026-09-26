@@ -216,7 +216,7 @@ export default function TerminalPanel({ logs, filter }: TerminalPanelProps) {
       <div className="flex-1 overflow-y-auto font-mono text-meta p-2 bg-[var(--bg-inset)] select-text">
         {filteredLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-[var(--faint)] text-micro p-4 text-center">
-            <span>Ready — type a command above or run an AI agent task.</span>
+            <span>Ready. Type a command above or run an AI agent task.</span>
           </div>
         ) : (
           filteredLogs.map((log) => {

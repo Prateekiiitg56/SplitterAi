@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState } from 'react'
 import { useSessions } from '../hooks/useSessions'
 import { useAgentRunner } from '../hooks/useAgentRunner'
 import { DEFAULT_WORKSPACE } from '../config'
-import type { Subtask, LogEntry, RunStatus, SessionEntry } from '../types'
+import type { Subtask, LogEntry, RunStatus, SessionEntry, ConnectionStatus } from '../types'
 
 interface AppContextType {
   currentWorkspace: string
@@ -11,6 +11,7 @@ interface AppContextType {
   sessionsLoading: boolean
   sessionsError: string | null
   refetchSessions: () => Promise<void>
+  connection: ConnectionStatus
   subtasks: Subtask[]
   logs: LogEntry[]
   events: LogEntry[]
@@ -49,6 +50,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { sessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions } = useSessions()
 
   const {
+    connection,
     subtasks,
     logs,
     events,
@@ -70,6 +72,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sessionsLoading,
         sessionsError,
         refetchSessions,
+        connection,
         subtasks,
         logs,
         events,

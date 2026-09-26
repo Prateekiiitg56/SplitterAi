@@ -22,11 +22,19 @@ interface LogStreamProps {
   onClearFilter?: () => void
 }
 
-const TYPE_TO_ROLE: Record<string, string> = {
-  planner: 'planner',
-  coder: 'coder',
-  auditor: 'auditor',
-  tester: 'tester',
+const ROLES = new Set(['planner', 'coder', 'auditor', 'tester'])
+
+/** Short, whole-word labels for event types (slicing to 6 chars gave "TOOL_C", "MODEL_"). */
+const TYPE_LABEL: Record<string, string> = {
+  model_request: 'model',
+  model_response: 'reply',
+  model_fallback: 'fallback',
+  tool_call: 'tool',
+  tool_result: 'result',
+  plan_generated: 'plan',
+  group_start: 'group',
+  group_end: 'group',
+  sandbox_block: 'blocked',
 }
 
 function ToolCallDetails({ toolName, details }: { toolName: string; details?: string }) {
@@ -108,7 +116,8 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
   // Filter logs by search query and role
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
-      if (roleFilter && log.type !== roleFilter && TYPE_TO_ROLE[log.type] !== roleFilter) {
+      // Events carry the agent in `role`; `type` is the event kind (tool_call, model_request, ...).
+      if (roleFilter && log.role !== roleFilter) {
         return false
       }
       if (searchQuery.trim()) {
@@ -149,7 +158,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
               <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-[var(--accent-edge)] bg-[var(--accent-quiet)] text-[var(--accent)] text-micro font-semibold">
                 <Filter size={10} />
                 <span>{filter}</span>
-                <button onClick={onClearFilter} className="cursor-pointer hover:opacity-70">
+                <button type="button" onClick={onClearFilter} aria-label="Clear filter" className="cursor-pointer hover:opacity-70">
                   <X size={10} />
                 </button>
               </div>
@@ -161,6 +170,10 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
                 return (
                   <button
                     key={role}
+                    type="button"
+                    aria-pressed={active}
+                    aria-label={`Show only ${role} logs`}
+                    title={`Show only ${role} logs`}
                     onClick={() => setRoleFilter(active ? null : role)}
                     className={`px-1.5 py-0.5 text-micro font-semibold rounded uppercase transition-colors cursor-pointer ${
                       active
@@ -178,6 +191,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
               <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--faint)]" />
               <input
                 type="text"
+                aria-label="Filter logs"
                 placeholder="Filter logs..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
@@ -233,7 +247,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
               const isError = log.type === 'error' || log.type === 'sandbox_block'
               const isWarn = log.type === 'model_fallback'
               const isTool = log.type === 'tool_call'
-              const role = TYPE_TO_ROLE[log.type]
+              const role = log.role && ROLES.has(log.role) ? log.role : undefined
 
               return (
                 <div
@@ -253,13 +267,11 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
                     </span>
 
                     {/* Role / Tag */}
-                    {role ? (
-                      <RoleBadge role={role} compact size="sm" className="mt-0.5 flex-shrink-0" />
-                    ) : (
-                      <span className="text-micro font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50 flex-shrink-0">
-                        {log.type.slice(0, 6)}
-                      </span>
-                    )}
+                    {/* Who (agent) and what (event kind) are both needed to scan a run. */}
+                    {role && <RoleBadge role={role} compact size="sm" className="mt-0.5 flex-shrink-0" />}
+                    <span className="w-[62px] text-center text-micro font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/50 flex-shrink-0">
+                      {TYPE_LABEL[log.type] ?? log.type.replace(/_/g, ' ')}
+                    </span>
 
                     {/* Message Body */}
                     <div className="flex-1 min-w-0 break-words">
@@ -271,7 +283,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
                       {isTool && (
                         <ToolCallDetails
                           toolName={log.message.replace(/^tool_call:\s*/i, '')}
-                          details={log.message}
+                          details={log.detail}
                         />
                       )}
                     </div>

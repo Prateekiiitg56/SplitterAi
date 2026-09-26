@@ -3,14 +3,15 @@ import { FolderSimple, Cpu, Stack } from '@phosphor-icons/react'
 import { cx } from '../../lib/cx'
 import { useApp } from '../../context/AppContext'
 import { useUI } from '../../context/UIContext'
+import type { RunStatus } from '../../types'
 
-function ItemShell({ children, tone }: { children: ReactNode; tone?: 'live' }) {
+function ItemShell({ children, tone }: { children: ReactNode; tone?: 'live' | 'warn' }) {
   return (
     <div
       className={cx(
         'flex items-center gap-[5px] h-full px-1.5',
         'transition-colors duration-[var(--d-quick)] hover:bg-[var(--ide-hover)]',
-        tone === 'live' ? 'text-[var(--ide-good)]' : undefined,
+        tone === 'live' ? 'text-[var(--ide-good)]' : tone === 'warn' ? 'text-[var(--ide-warn)]' : undefined,
       )}
     >
       {children}
@@ -18,8 +19,16 @@ function ItemShell({ children, tone }: { children: ReactNode; tone?: 'live' }) {
   )
 }
 
+const RUN_LABEL: Record<RunStatus, string> = {
+  idle: 'Ready',
+  planning: 'Planning',
+  executing: 'Running',
+  done: 'Last run completed',
+  error: 'Last run failed',
+}
+
 export function StatusBar() {
-  const { sessions, currentWorkspace, runStatus } = useApp()
+  const { sessions, currentWorkspace, runStatus, connection } = useApp()
   const { selectedModel } = useUI()
 
   const liveCount = sessions.filter((s) => s.status === 'executing' || s.status === 'planning').length
@@ -52,12 +61,29 @@ export function StatusBar() {
         ) : (
           <ItemShell>
             <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-[var(--ide-text-faint)]" />
-            <span>{runStatus === 'idle' ? 'Ready' : runStatus}</span>
+            <span className="whitespace-nowrap">{RUN_LABEL[runStatus]}</span>
           </ItemShell>
         )}
       </div>
 
       <div className="flex items-center gap-3.5 h-full">
+        {/* Real WebSocket state, announced politely when it changes. */}
+        <div role="status" className="h-full">
+          <ItemShell tone={connection === 'open' ? undefined : 'warn'}>
+            <span
+              aria-hidden="true"
+              className={cx(
+                'w-1.5 h-1.5 rounded-full',
+                connection === 'open' ? 'bg-[var(--ide-good)]' : 'bg-[var(--ide-warn)]',
+              )}
+            />
+            <span className="whitespace-nowrap" title="Real-time event stream (WebSocket)">
+              {connection === 'open' ? 'Stream live' : connection === 'connecting' ? 'Connecting…' : 'Stream offline, retrying'}
+            </span>
+          </ItemShell>
+        </div>
+        {/* Secondary items drop on phones so the status bar never wraps or clips. */}
+        <div className="hidden sm:contents">
         <ItemShell>
           <Cpu size={12} aria-hidden="true" />
           <span className="font-mono" title={selectedModel.label}>
@@ -70,6 +96,7 @@ export function StatusBar() {
             {sessions.length} {sessions.length === 1 ? 'project' : 'projects'}
           </span>
         </ItemShell>
+        </div>
       </div>
     </div>
   )

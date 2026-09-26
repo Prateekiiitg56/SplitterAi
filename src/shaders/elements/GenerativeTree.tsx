@@ -116,7 +116,8 @@ export function GenerativeTree({
   const [hasLoaded, setHasLoaded] = useState(false);
   const [documentVisible, setDocumentVisible] = useState(() => typeof document === "undefined" || !document.hidden);
   const safeSpeed = clamp(speed, 0, 3);
-  const paused = !hostVisible || !documentVisible || safeSpeed === 0;
+  const [reducedMotion] = useState(() => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const paused = !hostVisible || !documentVisible || safeSpeed === 0 || reducedMotion;
   const source = useMemo(() => buildFocusedDocument(size, particleAmount), [particleAmount, size]);
 
   const postControls = useCallback(() => {

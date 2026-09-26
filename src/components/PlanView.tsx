@@ -82,9 +82,9 @@ export default function PlanView({
               <span className="text-[var(--faint)]">·</span>
               <StatusBadge status={runStatus} />
             </div>
-            <h1 className="text-strong md:text-title font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
+            <h2 className="text-strong md:text-title font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
               {task || 'No active task run'}
-            </h1>
+            </h2>
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0 self-start md:self-auto">
@@ -119,14 +119,14 @@ export default function PlanView({
 
         {/* Dark Grid Canvas Container */}
         <div
-          className="relative min-h-[260px] p-6 rounded-control border border-[var(--border)] bg-[var(--bg-inset)] overflow-hidden transition-all shadow-inner"
+          className="relative min-h-[260px] p-6 rounded-control border border-[var(--border)] bg-[var(--bg-inset)] overflow-x-auto transition-all shadow-inner"
           style={{
             backgroundImage: 'radial-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px)',
             backgroundSize: '24px 24px',
           }}
         >
           <div
-            className="flex items-center justify-start md:justify-center gap-8 py-6 overflow-x-auto min-w-max"
+            className="flex items-center justify-start md:justify-center gap-8 py-6 min-w-max"
             style={{
               transform: `scale(${zoomLevel / 100})`,
               transformOrigin: 'center left',
@@ -219,7 +219,7 @@ export default function PlanView({
               <EmptyState
                 icon={<Layers size={28} />}
                 title="No active execution graph"
-                detail="Submit a task from the Home prompt to decompose subtasks."
+                detail="Describe a task in the Workspace and confirm its plan to see subtasks here."
               />
             )}
           </div>

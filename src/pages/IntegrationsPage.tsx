@@ -25,6 +25,7 @@ import { Button } from '../components/primitives/Button'
 import { PageHeader } from '../components/PageHeader'
 import { TextField, SearchField } from '../components/primitives/Field'
 import { Modal } from '../components/primitives/Modal'
+import { API_BASE } from '../config'
 
 /* ── Catalog data ──────────────────────────────────────────────────── */
 
@@ -72,12 +73,15 @@ const CATALOG = [
 ]
 
 export default function IntegrationsPage() {
-  const { integrations, loading, error, health, connect, disconnect } = useIntegrations()
+  const { integrations, loading, error, health, connect, disconnect, refetch } = useIntegrations()
 
   const [showConnectGithubModal, setShowConnectGithubModal] = useState(false)
   const [showConnectMcpModal, setShowConnectMcpModal] = useState(false)
   const [showConnectSupabaseModal, setShowConnectSupabaseModal] = useState(false)
   const [reconfigureTarget, setReconfigureTarget] = useState<Integration | null>(null)
+  const [disconnectTarget, setDisconnectTarget] = useState<Integration | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [disconnectError, setDisconnectError] = useState<string | null>(null)
   const [errorDismissed, setErrorDismissed] = useState(false)
   const [catalogSearch, setCatalogSearch] = useState('')
 
@@ -211,12 +215,12 @@ export default function IntegrationsPage() {
                 <div className="min-w-0">
                   <div className="font-semibold text-[var(--bad)]">Can't reach the backend server</div>
                   <div className="text-micro text-[var(--dim)] mt-0.5">
-                    Unable to connect to <code className="font-mono text-[var(--text)]">http://localhost:8000</code>. Is it running?
+                    Unable to connect to <code className="font-mono text-[var(--text)]">{API_BASE}</code>. Is it running?
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" icon={<RefreshCw size={12} />} onClick={() => window.location.reload()}>
+                <Button variant="ghost" size="sm" icon={<RefreshCw size={12} />} onClick={() => { setErrorDismissed(false); refetch() }}>
                   Retry
                 </Button>
                 <Button variant="quiet" size="sm" icon={<X size={14} />} label="Dismiss" onClick={() => setErrorDismissed(true)} />
@@ -243,7 +247,7 @@ export default function IntegrationsPage() {
           )}
 
           {/* Connected Integrations Section */}
-          <div className="section-label">Tools You've Connected</div>
+          <h2 className="int-section-label">Tools You've Connected</h2>
           {loading ? (
             <div className="p-6 flex items-center gap-2 text-[var(--dim)] font-mono text-meta">
               <Loader2 size={16} className="animate-spin text-[var(--accent)]" />
@@ -309,7 +313,7 @@ export default function IntegrationsPage() {
                     <Button
                       variant="quiet"
                       size="sm"
-                      onClick={() => disconnect(item.id)}
+                      onClick={() => { setDisconnectError(null); setDisconnectTarget(item) }}
                     >
                       Disconnect
                     </Button>
@@ -320,7 +324,7 @@ export default function IntegrationsPage() {
           )}
 
           {/* Available Integration Catalog Section */}
-          <div className="section-label">Add a Tool</div>
+          <h2 className="int-section-label">Add a Tool</h2>
           <div className="mb-4">
             <SearchField
               label="Search catalog"
@@ -531,7 +535,7 @@ export default function IntegrationsPage() {
           ) : (
             <div className="flex items-center gap-2 text-[var(--bad)] text-[11.5px]">
               <AlertTriangle size={14} />
-              <span>Supabase client not detected — check SUPABASE_URL & SUPABASE_KEY in .env</span>
+              <span>Supabase client not detected. Check SUPABASE_URL and SUPABASE_KEY in .env</span>
             </div>
           )}
 
@@ -543,6 +547,46 @@ export default function IntegrationsPage() {
             hint="The bucket name configured in your Supabase project"
           />
         </div>
+      </Modal>
+
+      {/* Disconnect confirmation (destructive) */}
+      <Modal
+        open={!!disconnectTarget}
+        onClose={() => !disconnecting && setDisconnectTarget(null)}
+        title="Disconnect tool?"
+        description={disconnectTarget ? <>Agents will lose access to <strong>{disconnectTarget.name}</strong>.</> : undefined}
+        width={420}
+        footer={
+          <>
+            <Button variant="ghost" size="md" disabled={disconnecting} onClick={() => setDisconnectTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={disconnecting}
+              onClick={async () => {
+                if (!disconnectTarget) return
+                setDisconnecting(true)
+                setDisconnectError(null)
+                try {
+                  await disconnect(disconnectTarget.id)
+                  setDisconnectTarget(null)
+                } catch (err: any) {
+                  setDisconnectError(err?.message || 'Could not disconnect. Please try again.')
+                } finally {
+                  setDisconnecting(false)
+                }
+              }}
+            >
+              Disconnect
+            </Button>
+          </>
+        }
+      >
+        {disconnectError && (
+          <p role="alert" className="text-meta text-[var(--bad)]">{disconnectError}</p>
+        )}
       </Modal>
 
       {/* Reconfigure Modal */}

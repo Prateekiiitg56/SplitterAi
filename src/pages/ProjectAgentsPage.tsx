@@ -169,6 +169,7 @@ export default function ProjectAgentsPage() {
               type="text"
               value={masterTitle}
               onChange={(e) => setMasterTitle(e.target.value)}
+              aria-label="Master task title"
               placeholder="e.g. Build REST API & test suite"
               className="w-full bg-[var(--bg-inset)] border border-[var(--border)] rounded-control px-3 py-1.5 text-ui text-[var(--text)] font-medium outline-none focus:border-[var(--accent)]"
             />
@@ -183,6 +184,7 @@ export default function ProjectAgentsPage() {
                 <div key={agent.id} className="draft-row">
                   <div>
                     <select
+                      aria-label={`Role for ${agent.label}`}
                       value={agent.role}
                       onChange={(e) =>
                         setDrafts((prev) =>
@@ -200,6 +202,7 @@ export default function ProjectAgentsPage() {
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       type="text"
+                      aria-label={`Instruction for ${agent.label}`}
                       value={agent.instruction}
                       onChange={(e) =>
                         setDrafts((prev) =>
@@ -211,6 +214,7 @@ export default function ProjectAgentsPage() {
 
                     {precedingAgents.length > 0 && (
                       <select
+                        aria-label={`Dependency for ${agent.label}`}
                         style={{ width: '130px', flexShrink: 0 }}
                         value={agent.runsAfter || ''}
                         onChange={(e) =>
@@ -255,9 +259,11 @@ export default function ProjectAgentsPage() {
                         </button>
                       </div>
                     ) : (
-                      <span
+                      <button
+                        type="button"
                         className="role-pill cursor-pointer hover:border-[var(--accent)]"
                         title="Click to rename agent"
+                        aria-label={`Rename ${agent.label}`}
                         onClick={() => handleStartRename(agent)}
                         style={{
                           background: 'var(--panel-2)',
@@ -267,8 +273,8 @@ export default function ProjectAgentsPage() {
                       >
                         <AgentIcon role={agent.role} size={12} />
                         <span>{agent.label}</span>
-                        <Edit2 size={10} className="ml-1 opacity-50 hover:opacity-100" />
-                      </span>
+                        <Edit2 size={10} className="ml-1 opacity-50 hover:opacity-100" aria-hidden="true" />
+                      </button>
                     )}
 
                     <button

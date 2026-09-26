@@ -12,7 +12,7 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
   const { projectId = 'default' } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentWorkspace, taskTitle } = useApp()
+  const { currentWorkspace, taskTitle, sessions } = useApp()
 
   const tabs = [
     { id: `/projects/${projectId}`, label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -27,7 +27,8 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
     t.exact ? location.pathname === t.id : location.pathname.startsWith(t.id)
   )
 
-  const displayTitle = title ?? (taskTitle ? taskTitle : projectId === 'default' ? 'auth-service' : projectId)
+  const sessionTask = sessions.find((s) => s.id === projectId)?.task
+  const displayTitle = title ?? (taskTitle || sessionTask || 'Current run')
   const displayPath = currentWorkspace ? `~/workspace/${currentWorkspace.split(/[/\\]/).pop()}` : `~/workspace/${projectId}`
 
   return (

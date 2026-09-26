@@ -9,6 +9,9 @@ import { AVAILABLE_MODELS } from '../data'
 import type { AgentRole, Subtask } from '../types'
 import { StatusBadge } from '../components/Badges'
 import { Cpu, ExternalLink, Play, Loader2, Zap } from 'lucide-react'
+import { API_BASE } from '../config'
+
+const RUN_LABEL = { idle: 'Ready', planning: 'Planning…', executing: 'Running', done: 'Completed', error: 'Failed' } as const
 
 export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId?: string }>()
@@ -36,11 +39,12 @@ export default function ProjectOverviewPage() {
 
   const groupNumbers = Object.keys(groupedSubtasks).map(Number).sort((a, b) => a - b)
 
+  const isBusy = runStatus === 'planning' || runStatus === 'executing'
+
   const completedCount = subtasks.filter((st) => {
     const s = (st.status as string) || ''
     return s === 'completed' || s === 'success' || s === 'done'
   }).length
-  const totalSubtasks = subtasks.length || 5
 
   return (
     <ProjectTabShell>
@@ -49,11 +53,12 @@ export default function ProjectOverviewPage() {
         <div className="ov-bar">
           <div className="lead">
             <Cpu size={15} />
-            <span className="t">{taskTitle || 'JWT Authentication Service'}</span>
+            <span className="t">{taskTitle || (subtasks.length ? 'Current run' : 'No task started')}</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <select
+              aria-label="Model"
               value={selectedModel.id}
               onChange={(e) => {
                 const next = AVAILABLE_MODELS.find((m) => m.id === e.target.value)
@@ -89,7 +94,7 @@ export default function ProjectOverviewPage() {
               variant={runStatus === 'done' ? 'primary' : 'ghost'}
               size="sm"
               icon={<ExternalLink size={12} />}
-              onClick={() => window.open('http://localhost:8000/preview', '_blank')}
+              onClick={() => window.open(`${API_BASE}/preview`, '_blank')}
             >
               {runStatus === 'done' ? 'Run & preview (localhost)' : 'Preview'}
             </Button>
@@ -110,23 +115,26 @@ export default function ProjectOverviewPage() {
           </div>
           <div className="stat-cell">
             <div className="label">Active Agents</div>
-            <div className="value accent">{new Set(subtasks.map((st) => st.role)).size || 4}</div>
+            <div className="value accent">{new Set(subtasks.map((st) => st.role)).size}</div>
           </div>
           <div className="stat-cell">
             <div className="label">Status</div>
-            <div className="value" style={{ fontSize: '14px', marginTop: '4px' }}>
-              {runStatus === 'planning' ? 'Planning...' : runStatus === 'executing' ? 'Running' : 'Ready'}
+            <div
+              className={`value ${runStatus === 'done' ? 'good' : ''}`}
+              style={{ fontSize: '14px', marginTop: '4px', color: runStatus === 'error' ? 'var(--bad)' : undefined }}
+            >
+              {RUN_LABEL[runStatus]}
             </div>
           </div>
         </div>
 
         {/* Execution Error Banner */}
         {errorMessage && (
-          <div className="mx-5 mt-3 p-3 rounded-panel border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
+          <div role="alert" className="mx-5 mt-3 p-3 rounded-panel border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
             <span>
               <strong>Execution Error:</strong> {errorMessage}
             </span>
-            <button onClick={clearError} className="font-bold ml-4 hover:underline">
+            <button type="button" onClick={clearError} aria-label="Dismiss error" className="font-bold ml-4 hover:underline">
               ✕
             </button>
           </div>
@@ -145,10 +153,10 @@ export default function ProjectOverviewPage() {
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={runStatus === 'planning' || runStatus === 'executing'}
+                  disabled={isBusy || !(taskInput.trim() || taskTitle.trim())}
                   onClick={() => {
-                    const taskToRun = taskInput.trim() || taskTitle.trim() || 'build jwt authentication endpoints'
-                    executeTask(taskToRun, currentWorkspace, selectedModel.id)
+                    const taskToRun = taskInput.trim() || taskTitle.trim()
+                    if (taskToRun) executeTask(taskToRun, currentWorkspace, selectedModel.id)
                   }}
                   icon={runStatus === 'planning' || runStatus === 'executing' ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} fill="currentColor" />}
                 >
@@ -160,10 +168,11 @@ export default function ProjectOverviewPage() {
                 value={taskInput}
                 onChange={(e) => setTaskInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && taskInput.trim()) {
+                  if (e.key === 'Enter' && taskInput.trim() && !isBusy) {
                     executeTask(taskInput.trim(), currentWorkspace, selectedModel.id)
                   }
                 }}
+                aria-label="Task goal"
                 placeholder="Type a task prompt here (e.g. create auth API endpoints)..."
                 className="w-full h-8 px-3 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-meta text-[var(--text)] placeholder:text-[var(--faint)] outline-none focus:border-[var(--accent)]"
               />
@@ -176,22 +185,11 @@ export default function ProjectOverviewPage() {
               </h3>
 
               {groupNumbers.length === 0 ? (
-                /* Fallback layout if no subtasks yet */
                 <div className="group-col">
-                  <div className="group-label">STEP 1 (RUNNING IN PARALLEL)</div>
-                  <div className="task-card">
-                    <div className="tc-top">
-                      <span className="tc-id">T1</span>
-                      <StatusBadge status="completed" />
-                    </div>
-                    <div className="tc-instr">Break down the task and assign work to agents</div>
-                  </div>
-                  <div className="task-card">
-                    <div className="tc-top">
-                      <span className="tc-id">T2</span>
-                      <StatusBadge status={runStatus === 'executing' ? 'working' : 'idle'} />
-                    </div>
-                    <div className="tc-instr">Build backend API and handle authentication</div>
+                  <div className="tc-instr">
+                    {runStatus === 'planning'
+                      ? 'The planner is breaking the task into steps…'
+                      : 'No steps yet. Start a task to see its plan and agents here.'}
                   </div>
                 </div>
               ) : (
@@ -226,9 +224,7 @@ export default function ProjectOverviewPage() {
               <div className="term">
                 {logs.length === 0 ? (
                   <div className="ln">
-                    <span className="ts">10:00:00</span>
-                    <span className="role planner">PLANNER</span>
-                    <span className="msg">System ready. Waiting for your task.</span>
+                    <span className="msg">No output yet. Logs stream here while a task runs.</span>
                   </div>
                 ) : (
                   logs.map((log, idx) => {

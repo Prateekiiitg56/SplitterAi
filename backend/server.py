@@ -48,8 +48,19 @@ from agentcli.db_supabase import is_supabase_enabled
 # loaded explicitly so behavior doesn't depend on the server's working directory.
 import os
 from pathlib import Path
-root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+root_env = str(PROJECT_ROOT / ".env")
 load_dotenv(root_env)
+
+
+def resolve_workspace(workspace: str) -> str:
+    """Anchor relative workspace paths at the project root, not the server's cwd.
+
+    The dashboard sends paths like './workspace_output' (relative to the repo),
+    while the documented startup runs the server from backend/.
+    """
+    path = Path(workspace)
+    return str(path if path.is_absolute() else (PROJECT_ROOT / path).resolve())
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -69,7 +80,9 @@ class ConnectionManager:
         logger.info("WebSocket client connected (%d total)", len(self.active))
 
     def disconnect(self, ws: WebSocket):
-        self.active.remove(ws)
+        # broadcast() may already have dropped a dead socket
+        if ws in self.active:
+            self.active.remove(ws)
         logger.info("WebSocket client disconnected (%d remaining)", len(self.active))
 
     async def broadcast(self, data: dict[str, Any]):
@@ -108,13 +121,6 @@ from fastapi import Header, Query, HTTPException, status
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173")
 allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 # ── Middleware: Rate Limiting & Request Size Caps ────────────────
@@ -129,7 +135,10 @@ _rate_limit_records: dict[str, list[float]] = defaultdict(list)
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path == "/health":
+        # Only budget the expensive calls (LLM planning/runs/chat, uploads, integration
+        # changes). Cheap reads like GET /sessions or /files are issued several times per
+        # dashboard page load and were tripping the limit during normal navigation.
+        if request.method in ("GET", "HEAD", "OPTIONS"):
             return await call_next(request)
 
         rate_limit = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
@@ -164,8 +173,36 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class UnhandledErrorMiddleware(BaseHTTPMiddleware):
+    """Turn uncaught exceptions into a JSON 500 inside the CORS layer.
+
+    Starlette's default 500 is produced outside CORSMiddleware, so the browser
+    reports it as a CORS failure ("backend unreachable") instead of an error.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception as e:
+            logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+            return Response(
+                content=json.dumps({"detail": f"Internal server error ({type(e).__name__}). See server logs."}),
+                status_code=500,
+                media_type="application/json",
+            )
+
+
+app.add_middleware(UnhandledErrorMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestSizeLimitMiddleware)
+# Added last so it is outermost: 429/413 responses above still carry CORS headers.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def verify_shared_secret(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
@@ -208,9 +245,9 @@ async def health():
 @app.get("/preview/{file_name:path}")
 async def preview_workspace(file_name: str = ""):
     """Serve generated website files (index.html, style.css, script.js) from workspace_output in a separate browser tab."""
-    workspace_dir = os.path.abspath("workspace_output")
+    workspace_dir = resolve_workspace("workspace_output")
     if not os.path.exists(workspace_dir):
-        workspace_dir = os.path.abspath(".")
+        workspace_dir = str(PROJECT_ROOT)
 
     target_file = file_name if file_name else "index.html"
     file_path = os.path.join(workspace_dir, target_file)
@@ -267,7 +304,10 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
 async def run_task(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Execute a task through the multi-agent pipeline."""
     verify_shared_secret(x_api_key, token)
-    sandbox = Sandbox(request.workspace)
+    try:
+        sandbox = Sandbox(resolve_workspace(request.workspace))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     config = ExecutionConfig()
     if request.model:
@@ -493,7 +533,7 @@ async def get_files(workspace: str = ".", x_api_key: str | None = Header(None, a
     """Sandboxed recursive file tree (never reads outside workspace root)."""
     verify_shared_secret(x_api_key, token)
     try:
-        sb = Sandbox(workspace)
+        sb = Sandbox(resolve_workspace(workspace))
         root_path = sb.resolve_path(".")
 
         def build_tree(path):
@@ -806,6 +846,8 @@ async def websocket_endpoint(
             if data == "ping":
                 await ws.send_text("pong")
     except WebSocketDisconnect:
+        pass
+    finally:
         manager.disconnect(ws)
 
 

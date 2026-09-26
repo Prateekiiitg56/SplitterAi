@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { Search, Plus, Trash2, Edit2, Upload, FileArchive, Loader2, Folder } from 'lucide-react'
+import { Search, Plus, EyeOff, Edit2, Upload, FileArchive, Loader2, Folder } from 'lucide-react'
 import type { SessionEntry } from '../types'
 import { StatusBadge } from '../components/Badges'
 import { Modal } from '../components/primitives/Modal'
@@ -113,7 +113,7 @@ export default function ProjectsPage() {
             >
               Import project
             </Button>
-            <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => navigate('/')}>
+            <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => navigate('/console')}>
               New project
             </Button>
           </>
@@ -185,20 +185,31 @@ export default function ProjectsPage() {
                 const isCompleted = statusStr === 'done' || statusStr === 'success' || statusStr === 'completed'
                 const isFailed = statusStr === 'error' || statusStr === 'failed'
 
+                // Sessions only report a final status and step count, so the bar shows
+                // outcome (full green/red) rather than an invented percentage.
                 const fillClass = isCompleted ? 'done' : isFailed ? 'failed' : ''
-                const progressPct = isCompleted ? 100 : isFailed ? 45 : 78
-                const subtasksTotal = s.subtaskCount || 5
-                const subtasksDone = isCompleted ? subtasksTotal : isFailed ? Math.floor(subtasksTotal / 2) : subtasksTotal - 1
+                const progressPct = isCompleted || isFailed ? 100 : 0
+                const subtasksTotal = s.subtaskCount || 0
 
-                const formattedTime = s.createdAt
-                  ? new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  : 'Recently'
+                // The backend sends a preformatted time ("01:08 AM"), not an ISO date.
+                const parsed = s.createdAt ? new Date(s.createdAt) : null
+                const formattedTime = !s.createdAt
+                  ? 'Recently'
+                  : parsed && !Number.isNaN(parsed.getTime())
+                    ? parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : s.createdAt
 
                 return (
                   <div
                     key={s.id}
                     className="project-card"
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`Open project ${projName}`}
                     onClick={() => navigate(`/projects/${s.id || 'default'}`)}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && e.key === 'Enter') navigate(`/projects/${s.id || 'default'}`)
+                    }}
                   >
                     <div className="pc-top">
                       <div>
@@ -221,10 +232,11 @@ export default function ProjectsPage() {
                         <button
                           type="button"
                           className="icon-btn"
-                          aria-label="Delete project"
+                          aria-label="Hide project from this list"
+                          title="Hide from this list (there is no server-side delete yet)"
                           onClick={(e) => handleDelete(s.id, e)}
                         >
-                          <Trash2 size={13} />
+                          <EyeOff size={13} />
                         </button>
                       </div>
                     </div>
@@ -234,7 +246,7 @@ export default function ProjectsPage() {
                         <StatusBadge status={s.status || 'working'} />
                         <span className="sep" />
                         <span>
-                          {subtasksDone} of {subtasksTotal} steps done
+                          {subtasksTotal} {subtasksTotal === 1 ? 'step' : 'steps'}
                         </span>
                       </div>
                       <div className="pc-progress-track">
@@ -243,21 +255,16 @@ export default function ProjectsPage() {
                     </div>
 
                     <div className="pc-foot">
-                      <div className="pc-agents">
-                        <span style={{ background: 'var(--accent)' }}>C</span>
-                        <span style={{ background: 'var(--good)' }}>A</span>
-                        <span style={{ background: 'var(--warn)' }}>T</span>
-                      </div>
-                      <span className="pc-path">{formattedTime}</span>
+                      <span className="pc-path ml-auto">{formattedTime}</span>
                     </div>
                   </div>
                 )
               })}
 
-              <div className="new-card" onClick={() => navigate('/')}>
-                <Plus size={20} />
+              <button type="button" className="new-card" onClick={() => navigate('/console')}>
+                <Plus size={20} aria-hidden="true" />
                 <span>New project</span>
-              </div>
+              </button>
             </div>
           )}
         </div>

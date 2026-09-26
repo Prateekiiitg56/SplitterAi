@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { AgentWebSocket, runTask } from '../lib/api'
 import { DEFAULT_WORKSPACE } from '../config'
-import type { Subtask, LogEntry, RunStatus, SubtaskResult, LogEvent } from '../types'
+import type { Subtask, LogEntry, RunStatus, SubtaskResult, LogEvent, ConnectionStatus } from '../types'
+
+/** Keep the live log bounded so a long run can't grow memory/DOM without limit. */
+const MAX_LOGS = 2000
+let logSeq = 0
+const nextLogId = (prefix: string) => `${prefix}-${Date.now()}-${++logSeq}`
+const appendLogs = (prev: LogEntry[], ...entries: LogEntry[]) => {
+  const next = [...prev, ...entries]
+  return next.length > MAX_LOGS ? next.slice(-MAX_LOGS) : next
+}
 
 export function useAgentRunner() {
+  const [connection, setConnection] = useState<ConnectionStatus>('connecting')
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [runStatus, setRunStatus] = useState<RunStatus>('idle')
@@ -12,11 +22,24 @@ export function useAgentRunner() {
 
   useEffect(() => {
     const ws = new AgentWebSocket({
+      onConnect: () => setConnection('open'),
+      onDisconnect: () => setConnection('closed'),
       onEvent: (event: LogEvent) => {
-        setLogs((prev) => [
-          ...prev,
-          {
-            id: event.id || `ws-${Date.now()}`,
+        // Worker events carry subtask_id: use them to reflect real per-subtask progress.
+        if (event.subtask_id) {
+          setSubtasks((prev) =>
+            prev.map((st) => {
+              if (st.id !== event.subtask_id) return st
+              if (event.type === 'error') return { ...st, status: 'error' }
+              if (st.status === 'pending' || st.status === 'queued') return { ...st, status: 'running' }
+              return st
+            })
+          )
+        }
+        setLogs((prev) =>
+          appendLogs(prev, {
+            // Always a local id: backend ids are not guaranteed unique and are used as React keys.
+            id: nextLogId('ws'),
             timestamp:
               event.timestamp ||
               new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -26,8 +49,8 @@ export function useAgentRunner() {
             model: event.model,
             message: event.message,
             detail: event.detail,
-          },
-        ])
+          })
+        )
       },
       onPlan: (incomingSubtasks: SubtaskResult[]) => {
         setRunStatus('executing')
@@ -76,7 +99,7 @@ export function useAgentRunner() {
       setSubtasks([])
       setErrorMessage(null)
       const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      setLogs((prev) => [...prev, { id: `l-${Date.now()}`, timestamp: ts, type: 'info', message: `Task: "${newTask}"` }])
+      setLogs((prev) => appendLogs(prev, { id: nextLogId('l'), timestamp: ts, type: 'info', message: `Task: "${newTask}"` }))
 
       try {
         const result = await runTask({ task: newTask, workspace, model })
@@ -100,16 +123,14 @@ export function useAgentRunner() {
         setRunStatus('error')
         const errMsg = err?.message || 'Failed to connect to backend runner'
         setErrorMessage(errMsg)
-        setLogs((prev) => [
-          ...prev,
-          {
-            id: `l-err-${Date.now()}`,
+        setLogs((prev) =>
+          appendLogs(prev, {
+            id: nextLogId('l-err'),
             timestamp: ts,
             type: 'error',
             message: `Task execution failed: ${errMsg}`,
-            detail: 'Ensure backend server is running on http://localhost:8000',
-          },
-        ])
+          })
+        )
       }
     },
     []
@@ -119,13 +140,13 @@ export function useAgentRunner() {
     async (newTask: string, initialSubtasks: Subtask[], workspace: string = DEFAULT_WORKSPACE, model?: string) => {
       setTaskTitle(newTask)
       setRunStatus('executing')
-      setSubtasks(initialSubtasks.map((st) => ({ ...st, status: 'working' })))
+      // Nothing runs until the backend says so; later groups wait on earlier ones.
+      setSubtasks(initialSubtasks.map((st) => ({ ...st, status: 'pending' })))
       setErrorMessage(null)
       const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      setLogs((prev) => [
-        ...prev,
-        { id: `l-${Date.now()}`, timestamp: ts, type: 'info', message: `Launching execution for confirmed task: "${newTask}" (${initialSubtasks.length} subtasks)` },
-      ])
+      setLogs((prev) =>
+        appendLogs(prev, { id: nextLogId('l'), timestamp: ts, type: 'info', message: `Launching execution for confirmed task: "${newTask}" (${initialSubtasks.length} subtasks)` })
+      )
 
       try {
         const result = await runTask({
@@ -155,24 +176,19 @@ export function useAgentRunner() {
               steps: st.steps || 0,
             }))
           )
-        } else {
-          // Keep confirmed subtasks marked complete
-          setSubtasks(initialSubtasks.map((st) => ({ ...st, status: 'completed' })))
         }
       } catch (err: any) {
         setRunStatus('error')
         const errMsg = err?.message || 'Failed to connect to backend runner'
         setErrorMessage(errMsg)
-        setLogs((prev) => [
-          ...prev,
-          {
-            id: `l-err-${Date.now()}`,
+        setLogs((prev) =>
+          appendLogs(prev, {
+            id: nextLogId('l-err'),
             timestamp: ts,
             type: 'error',
             message: `Task execution failed: ${errMsg}`,
-            detail: 'Ensure backend server is running on http://localhost:8000',
-          },
-        ])
+          })
+        )
       }
     },
     []
@@ -181,7 +197,7 @@ export function useAgentRunner() {
   const addEvent = useCallback((event: Partial<LogEntry>) => {
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
     const newEntry: LogEntry = {
-      id: event.id || `evt-${Date.now()}`,
+      id: event.id || nextLogId('evt'),
       timestamp: event.timestamp || ts,
       type: (event.type as any) || 'info',
       role: event.role,
@@ -190,10 +206,11 @@ export function useAgentRunner() {
       message: event.message || 'System Activity Event',
       detail: event.detail,
     }
-    setLogs((prev) => [...prev, newEntry])
+    setLogs((prev) => appendLogs(prev, newEntry))
   }, [])
 
   return {
+    connection,
     subtasks,
     logs,
     events: logs, // Canonical alias
