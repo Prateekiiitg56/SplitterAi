@@ -1,6 +1,6 @@
 """Orchestrator — grouped parallel execution of subtask plans.
 
-FR-12: Same-group subtasks run concurrently; groups run in sequence.
+FR-12: Subtasks run as soon as their dependencies finish (DAG order).
 FR-13: Isolated message history per subtask (by construction — each AgentWorker is independent).
 FR-14: Collect outputs into combined RunResult.
 FR-15: Semaphore limits max concurrent agents.
@@ -15,6 +15,7 @@ import time
 from typing import Callable, Optional
 
 from .config import ExecutionConfig
+from .dag import resolve_deps
 from .sandbox import Sandbox
 from .schemas import (
     AgentRole,
@@ -39,8 +40,10 @@ class Orchestrator:
         config: ExecutionConfig,
         sandbox: Sandbox,
         on_event: Optional[Callable[[LogEntry], None]] = None,
+        context: Optional[str] = None,
     ):
         self.config = config
+        self.context = context
         self.sandbox = sandbox
         self.on_event = on_event
         self._semaphore = asyncio.Semaphore(config.max_concurrent_agents)
@@ -57,94 +60,63 @@ class Orchestrator:
                 config=self.config,
                 sandbox=self.sandbox,
                 on_event=self.on_event,
+                context=self.context,
             )
             return await worker.run(subtask)
 
     async def execute(self, plan: Plan) -> RunResult:
-        """Execute the full plan.
+        """Execute the plan as a dependency graph.
 
-        Groups are sorted ascending by group number.
-        Within each group, all subtasks run concurrently (up to max_concurrent_agents).
-        Group N+1 doesn't start until group N is fully complete.
+        A subtask starts as soon as all of its dependencies finish (see dag.resolve_deps;
+        plans without depends_on fall back to group ordering). The semaphore caps how
+        many run at once — that cap is the strategy's agent count.
         """
         start_time = time.time()
-
-        # Group subtasks by group number
-        groups: dict[int, list[Subtask]] = {}
-        for st in plan.subtasks:
-            groups.setdefault(st.group, []).append(st)
-        group_nums = sorted(groups.keys())
+        deps = resolve_deps(plan.subtasks)
+        by_id = {st.id: st for st in plan.subtasks}
+        done: dict[str, asyncio.Event] = {sid: asyncio.Event() for sid in by_id}
+        abort_on_error = getattr(self.config, "abort_on_group_error", False)
 
         self._emit(LogEntry(
             type=LogType.info,
-            message=f"Executing plan: {len(plan.subtasks)} subtasks in {len(group_nums)} groups",
+            message=f"Executing plan: {len(plan.subtasks)} subtasks, up to "
+                    f"{self.config.max_concurrent_agents} concurrent agent(s)",
         ))
 
         all_completed: list[Subtask] = []
         results: dict[str, str] = {}
-        abort_on_error = getattr(self.config, "abort_on_group_error", False)
-        group_failed = False
 
-        for group_num in group_nums:
-            group_subtasks = groups[group_num]
-            is_parallel = len(group_subtasks) > 1
-
-            if group_failed and abort_on_error:
-                for st in group_subtasks:
+        async def run_node(st: Subtask) -> None:
+            for d in deps[st.id]:
+                await done[d].wait()
+            try:
+                if abort_on_error and any(by_id[d].status == SubtaskStatus.error for d in deps[st.id]):
                     st.status = SubtaskStatus.error
                     st.error = "Cancelled due to prerequisite group failure"
                     st.finished_at = time.time()
-                    all_completed.append(st)
                     results[st.id] = f"CANCELLED: {st.error}"
-                self._emit(LogEntry(
-                    type=LogType.info,
-                    message=f"Group {group_num} skipped due to abort_on_group_error policy",
-                ))
-                continue
-
-            self._emit(LogEntry(
-                type=LogType.group_start,
-                message=f"Group {group_num}: {len(group_subtasks)} subtask(s)" + (
-                    " (parallel)" if is_parallel else " (sequential)"
-                ),
-            ))
-
-            # FR-12: Run all subtasks in this group concurrently
-            # FR-16: return_exceptions=True so one failure doesn't kill siblings
-            tasks = [self._run_subtask(st) for st in group_subtasks]
-            completed = await asyncio.gather(*tasks, return_exceptions=True)
-
-            # Process results
-            for i, result in enumerate(completed):
-                if isinstance(result, Exception):
-                    # FR-16: Capture exception as subtask error
-                    group_failed = True
-                    st = group_subtasks[i]
+                    all_completed.append(st)
+                    return
+                try:
+                    result = await self._run_subtask(st)
+                except Exception as e:  # FR-16: one failure never kills siblings
                     st.status = SubtaskStatus.error
-                    st.error = str(result)[:500]
+                    st.error = str(e)[:500]
                     st.finished_at = time.time()
                     if st.started_at:
                         st.duration_ms = (st.finished_at - st.started_at) * 1000
-                    all_completed.append(st)
-                    results[st.id] = f"ERROR: {st.error}"
-
                     self._emit(LogEntry(
-                        type=LogType.error,
-                        role=st.role,
-                        subtask_id=st.id,
-                        message=f"Subtask {st.id} failed: {str(result)[:200]}",
+                        type=LogType.error, role=st.role, subtask_id=st.id,
+                        message=f"Subtask {st.id} failed: {str(e)[:200]}",
                     ))
-                else:
-                    if result.status == SubtaskStatus.error:
-                        group_failed = True
-                    all_completed.append(result)
-                    results[result.id] = result.output or result.error or ""
+                    result = st
+                by_id[st.id] = result
+                all_completed.append(result)
+                results[result.id] = result.output or result.error or ""
+            finally:
+                done[st.id].set()
 
-            self._emit(LogEntry(
-                type=LogType.group_end,
-                message=f"Group {group_num} complete",
-            ))
-
+        await asyncio.gather(*(run_node(st) for st in plan.subtasks))
 
         # Build final result
         total_duration = (time.time() - start_time) * 1000

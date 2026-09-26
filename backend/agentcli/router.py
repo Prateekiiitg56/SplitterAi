@@ -14,6 +14,10 @@ from typing import Any, Callable, Optional
 
 import litellm
 
+import time
+
+from . import telemetry
+
 from .schemas import AgentRole, LogEntry, LogType
 from .config import ExecutionConfig
 
@@ -159,7 +163,7 @@ async def call_model(
                 kwargs: dict[str, Any] = {
                     "model": target_model,
                     "messages": messages,
-                    "timeout": 30,
+                    "timeout": config.model_timeout,
                 }
                 if api_key:
                     kwargs["api_key"] = api_key
@@ -167,7 +171,9 @@ async def call_model(
                     kwargs["tools"] = tools
                     kwargs["tool_choice"] = "auto"
 
+                call_started = time.monotonic()
                 response = await litellm.acompletion(**kwargs)
+                latency_s = time.monotonic() - call_started
                 choice = response.choices[0]
                 message = choice.message
 
@@ -208,6 +214,8 @@ async def call_model(
                     "completion_tokens": completion_tokens,
                     "total_tokens": total_tokens,
                 })
+                telemetry.record_call(model, role.value, prompt_tokens, completion_tokens, latency_s, True)
+                result["usage"] = {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
 
                 if cache_key:
                     PLANNER_CACHE[cache_key] = result
@@ -236,6 +244,7 @@ async def call_model(
                     continue
 
                 attempts.append({"model": model, "error": error_str})
+                telemetry.record_call(model, role.value, 0, 0, 0.0, False)
                 logger.warning("Model %s failed: %s", model, error_str)
 
                 if on_event and i < len(model_chain) - 1:

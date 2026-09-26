@@ -27,6 +27,9 @@ export interface Subtask {
   finishedAt?: string
   durationMs?: number
   steps?: number
+  dependsOn?: string[]
+  capability?: string
+  size?: string
 }
 
 export interface LogEntry {

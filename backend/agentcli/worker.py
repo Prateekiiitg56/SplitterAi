@@ -24,6 +24,12 @@ from .tools import TOOL_DEFINITIONS, execute_tool
 
 logger = logging.getLogger(__name__)
 
+MAX_WRITE_NUDGES = 2
+WRITE_NUDGE = (
+    "You have not written any files, so nothing exists in the workspace yet. Code shown in chat is "
+    "not saved. Call write_file for every file your assignment requires, then reply with a short summary."
+)
+
 
 class AgentWorker:
     """A single agent worker that executes a subtask via the ReAct loop.
@@ -41,8 +47,15 @@ class AgentWorker:
         config: ExecutionConfig,
         sandbox: Sandbox,
         on_event: Optional[Callable[[LogEntry], None]] = None,
+        system_prompt: Optional[str] = None,
+        use_tools: Optional[bool] = None,
+        context: Optional[str] = None,
     ):
         self.role = role
+        self.context = context  # shared task contract shown ahead of the subtask's own instruction
+        self.system_prompt = system_prompt or get_system_prompt(role.value)
+        # Planner-role calls (planning, synthesis) produce text only unless told otherwise.
+        self.use_tools = use_tools if use_tools is not None else role != AgentRole.planner
         self.config = config
         self.sandbox = sandbox
         self.on_event = on_event
@@ -63,37 +76,42 @@ class AgentWorker:
         subtask.status = SubtaskStatus.running
         subtask.started_at = time.time()
         subtask.steps = 0
+        model_chain = subtask.model_chain or self.model_chain
 
         self._emit(LogEntry(
             type=LogType.subtask_start,
             role=self.role,
             subtask_id=subtask.id,
-            model=self.model_chain[0] if self.model_chain else None,
+            model=model_chain[0] if model_chain else None,
             message=f"Starting: {subtask.instruction[:100]}",
         ))
 
         # Build initial message history
-        system_prompt = get_system_prompt(self.role.value)
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": subtask.instruction},
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": (
+                f"{self.context}\n\nYOUR ASSIGNMENT [{subtask.id}]:\n{subtask.instruction}"
+                if self.context else subtask.instruction
+            )},
         ]
-
-        # Planner doesn't use tools — just generates text/JSON
-        use_tools = self.role != AgentRole.planner
-        tools = TOOL_DEFINITIONS if use_tools else None
+        tools = TOOL_DEFINITIONS if self.use_tools else None
+        # Coders deliver files. Some models answer with code as chat text instead of calling
+        # write_file; push them back a bounded number of times instead of reporting success.
+        must_write = self.use_tools and self.role == AgentRole.coder
+        wrote_files = False
+        write_nudges = 0
 
         try:
             for step in range(self.max_steps):
                 subtask.steps = step + 1
 
                 # Call model with step-level timeout
-                step_timeout = getattr(self.config, "step_timeout", 60)
+                step_timeout = self.config.step_timeout
                 try:
                     response = await asyncio.wait_for(
                         call_model(
                             messages=messages,
-                            model_chain=self.model_chain,
+                            model_chain=model_chain,
                             role=self.role,
                             config=self.config,
                             tools=tools,
@@ -112,6 +130,9 @@ class AgentWorker:
 
 
                 subtask.model = response.get("model")
+                usage = response.get("usage") or {}
+                subtask.tokens_in += usage.get("prompt_tokens", 0)
+                subtask.tokens_out += usage.get("completion_tokens", 0)
 
                 # If the model returned tool calls, execute them
                 if response.get("tool_calls"):
@@ -168,6 +189,9 @@ class AgentWorker:
                             message=f"{tool_name} → {result_preview}",
                         ))
 
+                        if tool_name == "write_file" and result.startswith("Successfully wrote"):
+                            wrote_files = True
+
                         # Append tool result to messages
                         messages.append({
                             "role": "tool",
@@ -175,11 +199,25 @@ class AgentWorker:
                             "content": result,
                         })
 
+                elif must_write and not wrote_files and write_nudges < MAX_WRITE_NUDGES:
+                    write_nudges += 1
+                    messages.append({"role": "assistant", "content": response.get("content", "")})
+                    messages.append({"role": "user", "content": WRITE_NUDGE})
+                    self._emit(LogEntry(
+                        type=LogType.info,
+                        role=self.role,
+                        subtask_id=subtask.id,
+                        message="Finished without writing any file; asking the agent to save its work with write_file",
+                    ))
+
                 else:
                     # Model returned final text — we're done
                     final_output = response.get("content", "")
                     subtask.output = final_output
                     subtask.status = SubtaskStatus.success
+                    if must_write and not wrote_files:
+                        subtask.status = SubtaskStatus.error
+                        subtask.error = "Finished without writing any file"
                     subtask.finished_at = time.time()
                     subtask.duration_ms = (subtask.finished_at - subtask.started_at) * 1000
 

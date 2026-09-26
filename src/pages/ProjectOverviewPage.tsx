@@ -3,6 +3,8 @@ import { useParams, useLocation } from 'react-router-dom'
 import FileExplorer from '../components/FileExplorer'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
+import { fmtTime, fmtTokens, range } from '../components/StrategyPanel'
+import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { useUI } from '../context/UIContext'
 import { Button } from '../components/primitives/Button'
 import { AVAILABLE_MODELS } from '../data'
@@ -17,7 +19,7 @@ export default function ProjectOverviewPage() {
   const { projectId } = useParams<{ projectId?: string }>()
   const location = useLocation()
 
-  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask } = useApp()
+  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, runReport, runOutcome } = useApp()
   const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
 
   const [selectedAgentRole, setSelectedAgentRole] = useState<AgentRole>('coder')
@@ -127,6 +129,68 @@ export default function ProjectOverviewPage() {
             </div>
           </div>
         </div>
+
+        {/* Estimated vs actual for the last strategy run */}
+        {runReport && (
+          <div className="stat-row" aria-label="Execution summary">
+            <div className="stat-cell">
+              <div className="label">Agents · {runReport.strategy}</div>
+              <div className="value">{runReport.agents}</div>
+              <div className="font-mono text-micro text-[var(--faint)] truncate" title={runReport.models_used.join(', ')}>
+                {runReport.models_used.length} model{runReport.models_used.length === 1 ? '' : 's'} used
+              </div>
+            </div>
+            <div className="stat-cell">
+              <div className="label">Time</div>
+              <div className="value">{fmtTime(runReport.actual.time_s)}</div>
+              <div className="font-mono text-micro text-[var(--faint)]">est. {range(runReport.estimated.time_s, fmtTime)}</div>
+            </div>
+            <div className="stat-cell">
+              <div className="label">Tokens</div>
+              <div className="value">{fmtTokens(runReport.actual.tokens)}</div>
+              <div className="font-mono text-micro text-[var(--faint)]">est. {range(runReport.estimated.tokens, fmtTokens)}</div>
+            </div>
+            <div className="stat-cell">
+              <div className="label">Parallel efficiency</div>
+              <div className="value">
+                {runReport.parallel_efficiency === null ? '-' : `${Math.round(runReport.parallel_efficiency * 100)}%`}
+              </div>
+              <div className="font-mono text-micro text-[var(--faint)]">
+                {runReport.failed_subtasks ? `${runReport.failed_subtasks} failed` : 'all subtasks ok'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Final synthesis + verification from the execution graph */}
+        {runOutcome && (runOutcome.synthesis || runOutcome.verification) && (
+          <div className="mx-5 mt-3 p-3 rounded-panel border border-[var(--border-soft)] bg-[var(--panel)] space-y-2 flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-micro text-[var(--faint)] uppercase font-bold tracking-wider">Result</span>
+              {runOutcome.verification && (
+                <span
+                  className="font-mono text-micro uppercase"
+                  style={{
+                    color: runOutcome.verification.verdict === 'pass' ? 'var(--good)'
+                      : runOutcome.verification.verdict === 'fail' ? 'var(--bad)' : 'var(--faint)',
+                  }}
+                >
+                  {runOutcome.verification.verdict === 'unknown' ? 'not verified' : `verification ${runOutcome.verification.verdict}`}
+                  {runOutcome.verification.repair_rounds > 0 &&
+                    ` · ${runOutcome.verification.repair_rounds} repair round${runOutcome.verification.repair_rounds === 1 ? '' : 's'}`}
+                </span>
+              )}
+            </div>
+            {runOutcome.synthesis && (
+              <div className="text-meta text-[var(--text-2)] max-h-48 overflow-y-auto">
+                <MarkdownRenderer content={runOutcome.synthesis} />
+              </div>
+            )}
+            {runOutcome.verification?.verdict === 'fail' && runOutcome.verification.issues && (
+              <pre className="text-micro text-[var(--bad)] whitespace-pre-wrap font-mono">{runOutcome.verification.issues}</pre>
+            )}
+          </div>
+        )}
 
         {/* Execution Error Banner */}
         {errorMessage && (

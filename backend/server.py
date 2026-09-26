@@ -22,6 +22,10 @@ from fastapi.responses import HTMLResponse, FileResponse
 from agentcli.config import ExecutionConfig
 from agentcli.graph import run_graph
 from agentcli.planner import generate_plan, load_manual_plan
+from agentcli.analysis import run_analysis
+from agentcli.allocation import MAX_AGENTS, PRESETS, build_strategy, estimate as estimate_strategy
+from agentcli.telemetry import record_run, record_subtask
+from agentcli.models import select_chain
 from agentcli.sandbox import Sandbox
 from agentcli.schemas import (
     AgentRole,
@@ -281,22 +285,47 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
         raise HTTPException(status_code=400, detail="Task is required")
 
     config = ExecutionConfig()
-    req_model = payload.get("model")
-    if req_model:
-        config.set_model_chain(AgentRole.planner, [req_model] + config.get_model_chain(AgentRole.planner))
+    # Decomposition quality drives everything downstream: plan with the strongest reliable reasoning
+    # models from the registry, the user's selected model first.
+    config.set_model_chain(AgentRole.planner, select_chain("reasoning", "quality", pinned=payload.get("model")))
 
     on_event = make_event_emitter()
 
-    plan = await generate_plan(
-        task=task,
-        config=config,
-        on_event=on_event,
-        history=history,
-    )
+    plan, analysis = await run_analysis(task, config, history=history, on_event=on_event)
 
     return {
         "task": task,
         "subtasks": [st.model_dump() for st in plan.subtasks],
+        "analysis": analysis,
+    }
+
+
+def execution_report(result: RunResult, strategy: str, agents: int, estimate: dict) -> dict:
+    """Estimated vs actual for one run; also feeds execution history for future estimates."""
+    wall_s = (result.total_duration_ms or 0) / 1000
+    busy_s = sum((st.duration_ms or 0) for st in result.subtasks) / 1000
+    tokens = sum(st.tokens_in + st.tokens_out for st in result.subtasks)
+    for st in result.subtasks:
+        record_subtask(st.role.value, st.capability, st.size, st.model, st.tokens_in + st.tokens_out,
+                       (st.duration_ms or 0) / 1000, st.steps, st.status.value == "success")
+    record_run({
+        "strategy": strategy, "agent_count": agents, "subtask_count": len(result.subtasks),
+        "estimated_time_s": estimate["point_time_s"], "estimated_tokens": estimate["point_tokens"],
+        "actual_time_s": round(wall_s, 1), "actual_tokens": tokens, "status": result.status.value,
+        "verdict": (result.verification or {}).get("verdict"),
+        "worker_models": sorted({st.model for st in result.subtasks if st.model and st.role.value == "coder"
+                                 and not st.id.startswith("repair")}),
+    })
+    return {
+        "strategy": strategy,
+        "agents": agents,
+        "models_used": sorted({st.model for st in result.subtasks if st.model}),
+        "estimated": {"time_s": estimate["time_s"], "tokens": estimate["tokens"], "confidence": estimate["confidence"]},
+        "actual": {"time_s": round(wall_s, 1), "tokens": tokens},
+        "failed_subtasks": sum(1 for st in result.subtasks if st.status.value == "error"),
+        "verification": result.verification,
+        # Share of agent-time spent working: 100% means every agent was busy for the whole run.
+        "parallel_efficiency": round(min(1.0, busy_s / (wall_s * agents)), 2) if wall_s else None,
     }
 
 
@@ -312,7 +341,7 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
     config = ExecutionConfig()
     if request.model:
         for r in AgentRole:
-            config.set_model_chain(r, [request.model] + config.get_model_chain(r))
+            config.set_model_chain(r, [request.model] + [m for m in config.get_model_chain(r) if m != request.model])
 
     # Build event emitter for real-time WebSocket streaming
     on_event = make_event_emitter()
@@ -328,6 +357,9 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
                 role=AgentRole(item.get("role", "coder")),
                 group=int(item.get("group", 1)),
                 instruction=str(item.get("instruction", "")),
+                depends_on=[str(d) for d in item.get("depends_on") or []],
+                capability=item.get("capability"),
+                size=item.get("size"),
             ))
         plan = Plan(subtasks=confirmed_subtasks)
         on_event(LogEntry(
@@ -349,20 +381,30 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
             on_event=on_event,
         )
 
+    estimate = None
+    if request.strategy:
+        if request.strategy not in PRESETS:
+            raise HTTPException(status_code=400, detail=f"Unknown strategy '{request.strategy}'")
+        agents = max(1, min(request.agent_count or 1, MAX_AGENTS))
+        config.max_concurrent_agents = agents
+        plan = Plan(subtasks=build_strategy(plan.subtasks, request.strategy))
+        estimate = estimate_strategy(plan.subtasks, agents, request.strategy)
+        on_event(LogEntry(
+            type="info",
+            role=AgentRole.planner,
+            message=f"Strategy {request.strategy}: {agents} concurrent agent(s), {len(plan.subtasks)} subtasks",
+        ))
+
     # Broadcast plan to WebSocket clients
     await manager.broadcast({
         "type": "plan",
         "subtasks": [st.model_dump() for st in plan.subtasks],
     })
 
-    # Step 2: Execute plan via Orchestrator (parallel grouped execution)
-    from agentcli.orchestrator import Orchestrator
-    orchestrator = Orchestrator(
-        config=config,
-        sandbox=sandbox,
-        on_event=on_event,
-    )
-    result = await orchestrator.execute(plan)
+    # Step 2: Execute through the LangGraph workflow (workers -> synthesis -> verification -> repair)
+    result = await run_graph(request.task, plan, config, sandbox, on_event, preset=request.strategy or "balanced")
+    if estimate:
+        result.report = execution_report(result, request.strategy, config.max_concurrent_agents, estimate)
 
     # Step 3: Persist session
     save_run_result(request.workspace, request.task, result)

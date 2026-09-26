@@ -10,7 +10,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
+import hashlib
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -73,11 +76,22 @@ def list_directory(sandbox: Sandbox, path: str = ".") -> str:
 
 
 # Dangerous host/cloud probes blocked at command level
+# Package managers resolve the project root by walking up to the nearest package.json. Without
+# one in the workspace, an install lands in whatever project contains the workspace.
+_NODE_INSTALL = re.compile(r"(npm|pnpm|yarn)\s+(install|i|add|ci)")
+
 BLOCKED_PROBE_PATTERNS = [
     "169.254.169.254",
     "metadata.google.internal",
     "instance-data/latest",
 ]
+
+
+def _shell_scratch_dir(sandbox: Sandbox) -> str:
+    digest = hashlib.sha1(str(sandbox.workspace).encode("utf-8")).hexdigest()[:12]
+    path = Path(tempfile.gettempdir()) / "splitterai-shell" / digest
+    path.mkdir(parents=True, exist_ok=True)
+    return str(path)
 
 
 def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int = 10240) -> str:
@@ -90,12 +104,24 @@ def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int
         if pattern in command:
             raise SandboxEscapeError(command, str(sandbox.workspace))
 
-    # 2. Build sanitized environment (strip host secrets & keys)
+    if _NODE_INSTALL.search(command) and not (sandbox.workspace / "package.json").exists():
+        return (
+            "Refused: the workspace has no package.json, so this install would modify a project outside "
+            "the workspace. Run `npm init -y` first if the task really needs packages."
+        )
+
+    # 2. Build sanitized environment (strip host secrets & keys).
+    # Home/temp/app-data point at a per-workspace scratch dir outside the workspace, so tool
+    # caches (npm, jest, pip) neither pollute the deliverable nor touch the host profile.
+    scratch = _shell_scratch_dir(sandbox)
     safe_env = {
         "PATH": os.environ.get("PATH", ""),
-        "HOME": str(sandbox.workspace),
-        "TMP": str(sandbox.workspace),
-        "TEMP": str(sandbox.workspace),
+        "HOME": scratch,
+        "USERPROFILE": scratch,
+        "APPDATA": scratch,
+        "LOCALAPPDATA": scratch,
+        "TMP": scratch,
+        "TEMP": scratch,
         "USER": os.environ.get("USER", "agent"),
         "LANG": os.environ.get("LANG", "en_US.UTF-8"),
         "SHELL": os.environ.get("SHELL", "powershell.exe" if os.name == "nt" else "/bin/sh"),
@@ -114,6 +140,8 @@ def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             env=safe_env,
         )
 
@@ -212,6 +240,9 @@ def execute_tool(
             return f"Error: Unknown tool '{tool_name}'"
     except SandboxEscapeError as e:
         return f"BLOCKED: {e}"
+    except KeyError as e:
+        # Malformed call: tell the model so it can retry instead of crashing the subtask.
+        return f"Error: {tool_name} is missing required argument {e}"
 
 
 # ── Tool Definitions (OpenAI function-calling schema) ─────────────

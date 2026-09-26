@@ -3,9 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello World</title>
+    <title>Book Library</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Hello World</h1>
+    <header>
+        <div class="logo">
+            <h1>Book Haven</h1>
+        </div>
+        <nav>
+            <ul>
+                <li><a href="#">Home</a></li>
+                <li><a href="#">Categories</a></li>
+                <li><a href="#">About</a></li>
+                <li><a href="#">Contact</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h2>Discover Your Next Favorite Book</h2>
+            <p>Explore a curated collection of timeless classics and modern masterpieces.</p>
+            <a href="#" class="cta-button">Browse Collection</a>
+        </section>
+
+        <section class="featured-books">
+            <h2>Featured Books</h2>
+            <div id="featured-books" class="books-grid"></div>
+            <button id="load-more" class="load-more-btn">Load More</button>
+        </section>
+
+        <section class="about">
+            <h2>About Book Haven</h2>
+            <p>Welcome to Book Haven, your sanctuary for literary exploration. We believe that every book holds a universe waiting to be discovered. Our mission is to connect readers with stories that inspire, educate, and entertain.</p>
+            <p>Whether you're seeking adventure, knowledge, or solace, our carefully curated collection spans genres and generations to satisfy every reader's palate.</p>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <p>&copy; 2024 Book Haven. All rights reserved.</p>
+            <nav>
+                <ul>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                </ul>
+            </nav>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
 </body>
 </html>

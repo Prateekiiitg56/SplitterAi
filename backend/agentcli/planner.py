@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from .config import ExecutionConfig
+from .dag import levels, resolve_deps
+from .models import CAPABILITIES
 from .prompts import get_system_prompt
 from .router import AllModelsFailedError, call_model
 from .schemas import AgentRole, LogEntry, LogType, Plan, Subtask, SubtaskStatus
@@ -70,8 +72,8 @@ def _parse_plan_json(raw: str, task: str) -> Plan:
             role_str = "coder"
 
         subtask_id = item.get("id", f"t{i + 1}")
-        group = int(item.get("group", i + 1))
         instruction = str(item.get("instruction", ""))
+        depends_on = item.get("depends_on") or []
 
         if not instruction:
             continue
@@ -79,13 +81,22 @@ def _parse_plan_json(raw: str, task: str) -> Plan:
         subtasks.append(Subtask(
             id=str(subtask_id),
             role=AgentRole(role_str),
-            group=group,
+            group=int(item.get("group", 1)),
             instruction=instruction,
+            depends_on=[str(d) for d in depends_on] if isinstance(depends_on, list) else [],
+            capability=item.get("capability") if item.get("capability") in CAPABILITIES else None,
+            size=item.get("size") if item.get("size") in ("s", "m", "l") else None,
         ))
 
     if not subtasks:
         logger.warning("Planner produced no valid subtasks, using fallback plan")
         return _fallback_plan(task)
+
+    # Groups are derived from the dependency graph so group-based consumers (UI, persistence) stay accurate.
+    if any(st.depends_on for st in subtasks) or all("group" not in item for item in data if isinstance(item, dict)):
+        depth = levels(resolve_deps(subtasks))
+        for st in subtasks:
+            st.group = depth[st.id]
 
     return Plan(subtasks=subtasks)
 

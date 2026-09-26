@@ -21,6 +21,8 @@ import { useApp } from '../context/AppContext'
 import { useUI } from '../context/UIContext'
 import type { AgentRole, Subtask } from '../types'
 import { sendChatMessage, planTask, uploadWorkspace, importN8nWorkflow } from '../lib/api'
+import type { PlanAnalysis, PlanResult } from '../lib/api'
+import { StrategyPanel, recommendedSelection, type StrategySelection } from '../components/StrategyPanel'
 import { AgentIcon } from '../components/Badges'
 import { DEFAULT_WORKSPACE } from '../config'
 import { Modal } from '../components/primitives/Modal'
@@ -58,7 +60,22 @@ interface DraftPlan {
   goalLabel: string   // human-friendly goal shown in the proposal header
   sourceTask: string  // raw prompt used to (re)generate the plan
   subtasks: Subtask[]
+  analysis?: PlanAnalysis
+  analysisStale?: boolean  // roster was edited after the estimates were computed
 }
+
+const fromPlanResult = (planResult: PlanResult): Subtask[] =>
+  planResult.subtasks.map((st, idx) => ({
+    id: st.id || `st-${idx + 1}`,
+    role: st.role as AgentRole,
+    group: st.group,
+    instruction: st.instruction,
+    status: 'pending' as const,
+    steps: 0,
+    dependsOn: st.depends_on,
+    capability: st.capability,
+    size: st.size,
+  }))
 
 const nextGroup = (subtasks: Subtask[]): number =>
   subtasks.reduce((max, s) => Math.max(max, s.group || 1), 0) + 1
@@ -116,6 +133,7 @@ export default function ConsolePage() {
 
   const [isPlanning, setIsPlanning] = useState(false)
   const [draftPlan, setDraftPlan] = useState<DraftPlan | null>(null)
+  const [strategy, setStrategy] = useState<StrategySelection | null>(null)
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
 
   const hasMessages = chatMessages.length > 0
@@ -198,20 +216,14 @@ export default function ConsolePage() {
         const goalLabel = priorUserMsg ? priorUserMsg.text : textToSubmit
         const effectiveTaskTitle = priorUserMsg ? `${priorUserMsg.text} (${textToSubmit})` : textToSubmit
 
-        const generatedSubtasks: Subtask[] = planResult.subtasks.map((st, idx) => ({
-          id: st.id || `st-${idx + 1}`,
-          role: st.role as AgentRole,
-          group: st.group,
-          instruction: st.instruction,
-          status: 'pending' as const,
-          steps: 0,
-        }))
         setDraftPlan({
           taskTitle: effectiveTaskTitle,
           goalLabel,
           sourceTask: textToSubmit,
-          subtasks: withRosterRoles(generatedSubtasks, sessionAgents),
+          subtasks: withRosterRoles(fromPlanResult(planResult), sessionAgents),
+          analysis: planResult.analysis,
         })
+        setStrategy(planResult.analysis ? recommendedSelection(planResult.analysis) : null)
       } catch (err: any) {
         const errorMsg: ChatMessage = {
           id: `agent-err-${Date.now()}`, sender: 'agent', role: 'planner',
@@ -244,7 +256,9 @@ export default function ConsolePage() {
     if (!WORKER_ROLES.includes(role)) return
     setDraftPlan((prev) => {
       if (!prev || prev.subtasks.some((s) => s.role === role)) return prev
-      return { ...prev, subtasks: [...prev.subtasks, makeSubtaskForRole(role, nextGroup(prev.subtasks))] }
+      // Roster-added roles review or test the existing work, so they run after all of it.
+      const added = { ...makeSubtaskForRole(role, nextGroup(prev.subtasks)), dependsOn: prev.subtasks.map((s) => s.id) }
+      return { ...prev, subtasks: [...prev.subtasks, added], analysisStale: true }
     })
   }, [])
 
@@ -252,7 +266,7 @@ export default function ConsolePage() {
     setDraftPlan((prev) => {
       if (!prev) return prev
       const remaining = prev.subtasks.filter((s) => s.role !== role)
-      return remaining.length ? { ...prev, subtasks: remaining } : prev
+      return remaining.length ? { ...prev, subtasks: remaining, analysisStale: true } : prev
     })
   }, [])
 
@@ -276,15 +290,13 @@ export default function ConsolePage() {
     try {
       const historyPayload = chatMessages.map((m) => ({ sender: m.sender, text: m.text }))
       const planResult = await planTask(draftPlan.sourceTask, DEFAULT_WORKSPACE, selectedModel.id, historyPayload)
-      const regenerated: Subtask[] = planResult.subtasks.map((st, idx) => ({
-        id: st.id || `st-${idx + 1}`,
-        role: st.role as AgentRole,
-        group: st.group,
-        instruction: st.instruction,
-        status: 'pending' as const,
-        steps: 0,
-      }))
-      setDraftPlan((prev) => (prev ? { ...prev, subtasks: withRosterRoles(regenerated, sessionAgents) } : prev))
+      setDraftPlan((prev) => (prev ? {
+        ...prev,
+        subtasks: withRosterRoles(fromPlanResult(planResult), sessionAgents),
+        analysis: planResult.analysis,
+        analysisStale: false,
+      } : prev))
+      setStrategy(planResult.analysis ? recommendedSelection(planResult.analysis) : null)
     } catch (err: any) {
       const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       setChatMessages((prev) => [...prev, {
@@ -299,7 +311,13 @@ export default function ConsolePage() {
     const planToExecute = draftPlan
     setDraftPlan(null)
     navigate('/projects/default')
-    await executeTaskWithPlan(planToExecute.taskTitle, planToExecute.subtasks, DEFAULT_WORKSPACE, selectedModel.id)
+    await executeTaskWithPlan(
+      planToExecute.taskTitle,
+      planToExecute.subtasks,
+      DEFAULT_WORKSPACE,
+      selectedModel.id,
+      planToExecute.analysis && strategy ? { id: strategy.id, agents: strategy.agents } : undefined,
+    )
   }
 
   const handleStartFromScratch = useCallback(() => {
@@ -542,7 +560,7 @@ export default function ConsolePage() {
             <p className="mt-1 text-[12.5px] leading-relaxed text-white/45">
               Breaking <span className="text-white/85 font-medium">{draftPlan.goalLabel}</span> into{' '}
               <span className="text-white/85 font-medium">{draftPlan.subtasks.length} subtask{draftPlan.subtasks.length === 1 ? '' : 's'}</span>{' '}
-              across {rosterRoles.length} agent{rosterRoles.length === 1 ? '' : 's'}. Steps in the same group run in parallel.
+              for {rosterRoles.length} agent role{rosterRoles.length === 1 ? '' : 's'}. Steps in the same group run in parallel.
             </p>
           </div>
 
@@ -571,6 +589,15 @@ export default function ConsolePage() {
               </div>
             ))}
           </div>
+
+          {draftPlan.analysis && strategy && (
+            <StrategyPanel
+              analysis={draftPlan.analysis}
+              selection={strategy}
+              onSelect={setStrategy}
+              stale={!!draftPlan.analysisStale}
+            />
+          )}
 
           {/* Roster editor — add/remove actually changes the plan */}
           <div className="px-4 py-2.5 border-t border-white/[0.06] flex items-center gap-1.5 flex-wrap">
