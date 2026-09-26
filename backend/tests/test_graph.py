@@ -175,3 +175,52 @@ def test_node_install_without_workspace_package_json_is_refused(tmp_path):
     assert run_shell(sandbox, "npm i -D puppeteer && npm test").startswith("Refused")
     (tmp_path / "package.json").write_text("{}")
     assert not run_shell(sandbox, "npm install --dry-run --offline left-pad").startswith("Refused")
+
+
+def _write(path, content, cid="c1"):
+    import json as _json
+    return {"content": "", "model": "m", "tool_calls": [{"id": cid, "type": "function", "function": {
+        "name": "write_file", "arguments": _json.dumps({"path": path, "content": content})}}]}
+
+
+def _read(path, cid="r1"):
+    import json as _json
+    return {"content": "", "model": "m", "tool_calls": [{"id": cid, "type": "function", "function": {
+        "name": "read_file", "arguments": _json.dumps({"path": path})}}]}
+
+
+@pytest.mark.asyncio
+async def test_unread_existing_file_is_not_overwritten(tmp_path):
+    from unittest.mock import AsyncMock
+    (tmp_path / "styles.css").write_text("body { color: red; } .grid { display: grid; }")
+    replies = [_write("styles.css", ".contact { padding: 1rem; }"), _read("styles.css"),
+               _write("styles.css", "body { color: red; } .grid { display: grid; } .contact { padding: 1rem; }", "c2"),
+               {"content": "styled contact", "model": "m"}]
+    call = AsyncMock(side_effect=replies)
+    with patch("agentcli.worker.call_model", call):
+        st = await AgentWorker(AgentRole.coder, ExecutionConfig(), Sandbox(tmp_path)).run(
+            Subtask(id="t1", role=AgentRole.coder, group=1, instruction="style #contact"))
+    tool_results = [m["content"] for m in call.call_args.kwargs["messages"] if m["role"] == "tool"]
+    assert tool_results[0].startswith("Refused: styles.css already exists")
+    assert ".grid { display: grid; }" in (tmp_path / "styles.css").read_text()
+    assert ".contact" in (tmp_path / "styles.css").read_text()
+    assert st.status == SubtaskStatus.success
+
+
+@pytest.mark.asyncio
+async def test_new_files_can_be_written_and_rewritten(tmp_path):
+    from unittest.mock import AsyncMock
+    replies = [_write("app.js", "v1"), _write("app.js", "v2", "c2"), {"content": "done", "model": "m"}]
+    with patch("agentcli.worker.call_model", AsyncMock(side_effect=replies)):
+        await AgentWorker(AgentRole.coder, ExecutionConfig(), Sandbox(tmp_path)).run(
+            Subtask(id="t1", role=AgentRole.coder, group=1, instruction="write app.js"))
+    assert (tmp_path / "app.js").read_text() == "v2"
+
+
+def test_run_python_runs_multiline_scripts_without_touching_workspace(tmp_path):
+    from agentcli.tools import execute_tool
+    (tmp_path / "books.json").write_text('[{"t": "a"}, {"t": "b"}]')
+    code = "import json\nfor b in json.load(open('books.json')):\n    print(b['t'])\n"
+    out = execute_tool(Sandbox(tmp_path), "run_python", {"code": code})
+    assert out.startswith("Exit code: 0") and "a" in out and "b" in out
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["books.json"]
