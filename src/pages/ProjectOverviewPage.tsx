@@ -10,8 +10,9 @@ import { Button } from '../components/primitives/Button'
 import { AVAILABLE_MODELS } from '../data'
 import type { Subtask } from '../types'
 import { StatusBadge, RoleBadge } from '../components/Badges'
-import { ExternalLink, Play, Loader2 } from 'lucide-react'
-import { API_BASE } from '../config'
+import { ExternalLink, Play, Loader2, Download } from 'lucide-react'
+import { API_BASE, DEFAULT_WORKSPACE } from '../config'
+import { workspaceExportUrl } from '../lib/api'
 
 const RUN_LABEL = { idle: 'Ready', planning: 'Planning', executing: 'Running', done: 'Completed', error: 'Failed' } as const
 const DONE = new Set(['completed', 'success', 'done'])
@@ -110,6 +111,16 @@ export default function ProjectOverviewPage() {
               onClick={() => folder && window.open(`${API_BASE}/preview/${encodeURIComponent(folder)}/`, '_blank')}
             >
               Preview
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Download size={12} />}
+              disabled={currentWorkspace === DEFAULT_WORKSPACE || isBusy}
+              title={currentWorkspace === DEFAULT_WORKSPACE ? 'Export is available once the project has its own folder' : 'Download the project as a .zip'}
+              onClick={() => { window.location.href = workspaceExportUrl(currentWorkspace) }}
+            >
+              Export .zip
             </Button>
           </div>
         </div>
