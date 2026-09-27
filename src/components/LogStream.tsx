@@ -22,7 +22,7 @@ interface LogStreamProps {
   onClearFilter?: () => void
 }
 
-const ROLES = new Set(['planner', 'coder', 'auditor', 'tester'])
+const ROLES = new Set(['planner', 'designer', 'coder', 'auditor', 'tester'])
 
 /** Short, whole-word labels for event types (slicing to 6 chars gave "TOOL_C", "MODEL_"). */
 const TYPE_LABEL: Record<string, string> = {
@@ -224,7 +224,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--dim)] hover:text-[var(--text)] text-micro cursor-pointer transition-colors"
               title="Copy visible logs"
             >
-              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              {copied ? <Check size={12} className="text-[var(--good)]" /> : <Copy size={12} />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
@@ -234,7 +234,7 @@ export default function LogStream({ logs, filter, onClearFilter }: LogStreamProp
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto min-h-0 bg-[#040810] divide-y divide-[rgba(255,255,255,0.03)]"
+          className="flex-1 overflow-y-auto min-h-0 bg-[var(--bg-inset)] divide-y divide-[rgba(255,255,255,0.03)]"
         >
           {filteredLogs.length === 0 ? (
             <EmptyState

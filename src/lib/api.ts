@@ -30,7 +30,11 @@ export interface RunRequest {
   }>
   strategy?: StrategyId
   agent_count?: number
+  stack?: StackId
 }
+
+/** Web stack; 'auto' lets the backend pick from the task text (Tailwind by default). */
+export type StackId = 'auto' | 'tailwind' | 'plain' | 'react'
 
 export type StrategyId = 'cost' | 'balanced' | 'fastest' | 'quality'
 export type Confidence = 'low' | 'medium' | 'high'
@@ -87,6 +91,7 @@ export interface PlanResult {
   task: string
   subtasks: SubtaskResult[]
   analysis?: PlanAnalysis
+  stack?: StackId
 }
 
 export interface SubtaskResult {
@@ -117,6 +122,8 @@ export interface RunResult {
   report?: RunReport | null
   synthesis?: string | null
   verification?: Verification | null
+  /** Where the run wrote its files; a new folder when the run started a new project. */
+  workspace?: string | null
 }
 
 export interface LogEvent {
@@ -133,6 +140,7 @@ export interface LogEvent {
 export interface SessionInfo {
   workspace: string
   task: string
+  name?: string
   status: string
   subtask_count: number
   created_at: string
@@ -173,12 +181,13 @@ export async function planTask(
   task: string,
   workspace: string,
   model?: string,
-  history?: Array<{ sender: 'user' | 'agent'; text: string }>
+  history?: Array<{ sender: 'user' | 'agent'; text: string }>,
+  stack?: StackId,
 ): Promise<PlanResult> {
   const res = await fetchWithTimeout(`${API_BASE}/plan`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ task, workspace, model, history }),
+    body: JSON.stringify({ task, workspace, model, history, stack: stack === 'auto' ? undefined : stack }),
   }, 120000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Plan generation failed: ${res.status} ${res.statusText}` }))
@@ -191,7 +200,7 @@ export async function runTask(request: RunRequest): Promise<RunResult> {
   const res = await fetchWithTimeout(`${API_BASE}/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
+    body: JSON.stringify({ ...request, stack: request.stack === 'auto' ? undefined : request.stack }),
   }, 900000) // multi-agent runs routinely exceed a few minutes
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Run failed: ${res.status} ${res.statusText}` }))
@@ -208,6 +217,25 @@ export async function getSessions(): Promise<SessionInfo[]> {
 }
 
 export const fetchSessions = getSessions
+
+async function sessionError(res: Response, fallback: string): Promise<Error> {
+  const err = await res.json().catch(() => ({}))
+  return new Error(err.detail || `${fallback} (HTTP ${res.status})`)
+}
+
+export async function renameSession(workspace: string, name: string): Promise<void> {
+  const res = await fetchWithTimeout(`${API_BASE}/sessions`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace, name }),
+  }, 10000)
+  if (!res.ok) throw await sessionError(res, 'Could not rename project')
+}
+
+export async function deleteSession(workspace: string): Promise<void> {
+  const res = await fetchWithTimeout(`${API_BASE}/sessions?workspace=${encodeURIComponent(workspace)}`, { method: 'DELETE' }, 10000)
+  if (!res.ok) throw await sessionError(res, 'Could not delete project')
+}
 
 export async function fetchAgents(): Promise<Array<{ role: string; model_chain: string[]; status: string }>> {
   try {
@@ -353,7 +381,7 @@ export async function healthCheck(): Promise<boolean> {
 // ── WebSocket Client ───────────────────────────────────────────
 
 export type EventHandler = (event: LogEvent) => void
-export type PlanHandler = (subtasks: SubtaskResult[]) => void
+export type PlanHandler = (subtasks: SubtaskResult[], workspace?: string) => void
 export type CompleteHandler = (result: RunResult) => void
 
 interface WebSocketHandlers {
@@ -391,7 +419,7 @@ export class AgentWebSocket {
           const data = JSON.parse(event.data)
 
           if (data.type === 'plan' && data.subtasks) {
-            this.handlers.onPlan?.(data.subtasks)
+            this.handlers.onPlan?.(data.subtasks, data.workspace)
           } else if (data.type === 'complete' && data.result) {
             this.handlers.onComplete?.(data.result)
           } else {

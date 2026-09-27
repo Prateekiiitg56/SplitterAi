@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AgentWebSocket, runTask } from '../lib/api'
-import type { RunReport, StrategyId, Verification } from '../lib/api'
+import type { RunReport, StackId, StrategyId, Verification } from '../lib/api'
 import { DEFAULT_WORKSPACE } from '../config'
 import type { Subtask, LogEntry, RunStatus, SubtaskResult, LogEvent, ConnectionStatus } from '../types'
 
@@ -13,7 +13,10 @@ const appendLogs = (prev: LogEntry[], ...entries: LogEntry[]) => {
   return next.length > MAX_LOGS ? next.slice(-MAX_LOGS) : next
 }
 
-export function useAgentRunner() {
+/** `onWorkspace` receives the folder a run actually used (new projects get their own). */
+export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
+  const onWorkspaceRef = useRef(onWorkspace)
+  onWorkspaceRef.current = onWorkspace
   const [connection, setConnection] = useState<ConnectionStatus>('connecting')
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -55,7 +58,9 @@ export function useAgentRunner() {
           })
         )
       },
-      onPlan: (incomingSubtasks: SubtaskResult[]) => {
+      onPlan: (incomingSubtasks: SubtaskResult[], workspace?: string) => {
+        // The backend picks a new project's folder before running; point the UI at it right away.
+        if (workspace) onWorkspaceRef.current?.(workspace)
         setRunStatus('executing')
         setSubtasks(
           incomingSubtasks.map((st) => ({
@@ -95,17 +100,39 @@ export function useAgentRunner() {
     return () => ws.disconnect()
   }, [])
 
+  /** Forget the current run so another project's state never bleeds into the next one. */
+  const resetRun = useCallback(() => {
+    setSubtasks([])
+    setLogs([])
+    setRunStatus('idle')
+    setTaskTitle('')
+    setErrorMessage(null)
+    setRunReport(null)
+    setRunOutcome(null)
+  }, [])
+
+  /** A run on the projects root starts a brand-new project: drop the previous one's state. */
+  const startFresh = (workspace: string) => {
+    if (workspace !== DEFAULT_WORKSPACE) return
+    setLogs([])
+    onWorkspaceRef.current?.(DEFAULT_WORKSPACE)
+  }
+
   const executeTask = useCallback(
     async (newTask: string, workspace: string = DEFAULT_WORKSPACE, model?: string) => {
+      startFresh(workspace)
       setTaskTitle(newTask)
       setRunStatus('planning')
       setSubtasks([])
       setErrorMessage(null)
+      setRunReport(null)
+      setRunOutcome(null)
       const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
       setLogs((prev) => appendLogs(prev, { id: nextLogId('l'), timestamp: ts, type: 'info', message: `Task: "${newTask}"` }))
 
       try {
         const result = await runTask({ task: newTask, workspace, model })
+        if (result.workspace) onWorkspaceRef.current?.(result.workspace)
         setRunStatus(result.status === 'error' ? 'error' : 'done')
         setRunReport(null)
         setRunOutcome({ synthesis: result.synthesis ?? null, verification: result.verification ?? null })
@@ -148,7 +175,9 @@ export function useAgentRunner() {
       workspace: string = DEFAULT_WORKSPACE,
       model?: string,
       strategy?: { id: StrategyId; agents: number },
+      stack?: StackId,
     ) => {
+      startFresh(workspace)
       setTaskTitle(newTask)
       setRunReport(null)
       setRunOutcome(null)
@@ -178,7 +207,9 @@ export function useAgentRunner() {
           })),
           strategy: strategy?.id,
           agent_count: strategy?.agents,
+          stack,
         })
+        if (result.workspace) onWorkspaceRef.current?.(result.workspace)
         setRunReport(result.report ?? null)
         setRunOutcome({ synthesis: result.synthesis ?? null, verification: result.verification ?? null })
         setRunStatus(result.status === 'error' ? 'error' : 'done')
@@ -242,6 +273,7 @@ export function useAgentRunner() {
     executeTask,
     executeTaskWithPlan,
     addEvent,
+    resetRun,
     clearError: () => setErrorMessage(null),
   }
 }

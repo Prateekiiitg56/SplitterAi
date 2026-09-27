@@ -1,5 +1,5 @@
 import React from 'react'
-import { Kanban, Code, ShieldCheck, Flask, Stack } from '@phosphor-icons/react'
+import { Kanban, Code, ShieldCheck, Flask, Stack, PaintBrush } from '@phosphor-icons/react'
 import type { AgentRole, AgentStatus, SubtaskStatus } from '../types'
 
 export type BadgeSize = 'sm' | 'md'
@@ -14,6 +14,8 @@ export function AgentIcon({ role, size = 16, className = "" }: { role: AgentRole
       return <ShieldCheck size={size} className={className} weight="duotone" />
     case 'tester':
       return <Flask size={size} className={className} weight="duotone" />
+    case 'designer':
+      return <PaintBrush size={size} className={className} weight="duotone" />
     default:
       return <Stack size={size} className={className} />
   }
@@ -112,6 +114,7 @@ export function RoleBadge({ role, compact = false, size = 'md', className = '' }
     coder: 'CO',
     auditor: 'AU',
     tester: 'TE',
+    designer: 'DE',
     unassigned: 'UA'
   }
   const labels: Record<string, string> = {
@@ -119,16 +122,18 @@ export function RoleBadge({ role, compact = false, size = 'md', className = '' }
     coder: 'Coder',
     auditor: 'Auditor',
     tester: 'Tester',
+    designer: 'Designer',
     unassigned: 'Unassigned'
   }
   const tag = tags[r] ?? r.slice(0, 2).toUpperCase()
   const label = labels[r] ?? role
 
   const roleStyles: Record<string, string> = {
-    planner: 'bg-[rgba(56,189,248,0.12)] text-[#38bdf8] border-[rgba(56,189,248,0.25)]',
-    coder: 'bg-[rgba(59,130,246,0.12)] text-[#60a5fa] border-[rgba(59,130,246,0.25)]',
-    auditor: 'bg-[rgba(245,158,11,0.12)] text-[#fbbf24] border-[rgba(245,158,11,0.25)]',
-    tester: 'bg-[rgba(168,85,247,0.12)] text-[#c084fc] border-[rgba(168,85,247,0.25)]',
+    planner: 'bg-[rgba(127,176,168,0.12)] text-[#7FB0A8] border-[rgba(127,176,168,0.28)]',
+    coder: 'bg-[rgba(216,166,87,0.12)] text-[#D8A657] border-[rgba(216,166,87,0.28)]',
+    auditor: 'bg-[rgba(156,194,138,0.12)] text-[#9CC28A] border-[rgba(156,194,138,0.28)]',
+    tester: 'bg-[rgba(222,142,82,0.12)] text-[#DE8E52] border-[rgba(222,142,82,0.28)]',
+    designer: 'bg-[rgba(214,138,150,0.12)] text-[#D68A96] border-[rgba(214,138,150,0.28)]',
   }
   const colorClass = roleStyles[r] ?? 'bg-[var(--panel-2)] text-[var(--text)] border-[var(--border)]'
   const iconSize = size === 'sm' ? 12 : 14

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useParams, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import FileExplorer from '../components/FileExplorer'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
@@ -8,22 +8,30 @@ import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { useUI } from '../context/UIContext'
 import { Button } from '../components/primitives/Button'
 import { AVAILABLE_MODELS } from '../data'
-import type { AgentRole, Subtask } from '../types'
-import { StatusBadge } from '../components/Badges'
-import { Cpu, ExternalLink, Play, Loader2, Zap } from 'lucide-react'
+import type { Subtask } from '../types'
+import { StatusBadge, RoleBadge } from '../components/Badges'
+import { ExternalLink, Play, Loader2 } from 'lucide-react'
 import { API_BASE } from '../config'
 
-const RUN_LABEL = { idle: 'Ready', planning: 'Planning…', executing: 'Running', done: 'Completed', error: 'Failed' } as const
+const RUN_LABEL = { idle: 'Ready', planning: 'Planning', executing: 'Running', done: 'Completed', error: 'Failed' } as const
+const DONE = new Set(['completed', 'success', 'done'])
+const FAILED = new Set(['error', 'failed'])
+
+const segState = (st: Subtask) => {
+  const s = String(st.status || '')
+  if (DONE.has(s)) return 'done'
+  if (FAILED.has(s)) return 'error'
+  return s === 'running' ? 'running' : ''
+}
 
 export default function ProjectOverviewPage() {
-  const { projectId } = useParams<{ projectId?: string }>()
   const location = useLocation()
 
   const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, runReport, runOutcome } = useApp()
   const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
 
-  const [selectedAgentRole, setSelectedAgentRole] = useState<AgentRole>('coder')
   const [taskInput, setTaskInput] = useState('')
+  const termRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const passedTask = location.state?.task
@@ -32,33 +40,42 @@ export default function ProjectOverviewPage() {
     }
   }, [location.state, taskTitle, runStatus, executeTask, currentWorkspace, selectedModel.id])
 
+  // Follow the newest log line while a run streams.
+  useEffect(() => {
+    const el = termRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [logs.length])
+
   const groupedSubtasks = subtasks.reduce((acc, st) => {
     const groupNum = st.group || 1
     if (!acc[groupNum]) acc[groupNum] = []
     acc[groupNum].push(st)
     return acc
   }, {} as Record<number, Subtask[]>)
-
   const groupNumbers = Object.keys(groupedSubtasks).map(Number).sort((a, b) => a - b)
 
   const isBusy = runStatus === 'planning' || runStatus === 'executing'
+  const completedCount = subtasks.filter((st) => DONE.has(String(st.status || ''))).length
+  const agentCount = new Set(subtasks.map((st) => st.role)).size
 
-  const completedCount = subtasks.filter((st) => {
-    const s = (st.status as string) || ''
-    return s === 'completed' || s === 'success' || s === 'done'
-  }).length
+  // Projects live in workspace_output/<folder>; the bare root means no project yet, so nothing to preview.
+  const folder = currentWorkspace.split('\\').join('/').split('workspace_output/')[1]?.replace(/\/+$/, '')
+
+  const run = () => {
+    const taskToRun = taskInput.trim() || taskTitle.trim()
+    if (taskToRun && !isBusy) executeTask(taskToRun, currentWorkspace, selectedModel.id)
+  }
 
   return (
     <ProjectTabShell>
-      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent select-none overflow-hidden">
-        {/* Top Overview Bar */}
+      <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent overflow-hidden">
         <div className="ov-bar">
-          <div className="lead">
-            <Cpu size={15} />
-            <span className="t">{taskTitle || (subtasks.length ? 'Current run' : 'No task started')}</span>
-          </div>
+          <span className={`run-pill ${isBusy ? 'busy' : runStatus}`} role="status">
+            <span className="dot" aria-hidden="true" />
+            {RUN_LABEL[runStatus]}
+          </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="tools">
             <select
               aria-label="Model"
               value={selectedModel.id}
@@ -75,20 +92,12 @@ export default function ProjectOverviewPage() {
               ))}
             </select>
 
-            <div className="mode-toggle">
-              <button
-                type="button"
-                onClick={() => setMultiMode(true)}
-                className={multiMode ? 'active' : ''}
-              >
-                Team Mode
+            <div className="mode-toggle" role="group" aria-label="Agent mode">
+              <button type="button" aria-pressed={multiMode} onClick={() => setMultiMode(true)} className={multiMode ? 'active' : ''}>
+                Team
               </button>
-              <button
-                type="button"
-                onClick={() => setMultiMode(false)}
-                className={!multiMode ? 'active' : ''}
-              >
-                Solo Mode
+              <button type="button" aria-pressed={!multiMode} onClick={() => setMultiMode(false)} className={!multiMode ? 'active' : ''}>
+                Solo
               </button>
             </div>
 
@@ -96,218 +105,214 @@ export default function ProjectOverviewPage() {
               variant={runStatus === 'done' ? 'primary' : 'ghost'}
               size="sm"
               icon={<ExternalLink size={12} />}
-              onClick={() => window.open(`${API_BASE}/preview`, '_blank')}
+              disabled={!folder}
+              title={folder ? `Open ${folder} in a new tab` : 'Preview is available once the project has its own folder'}
+              onClick={() => folder && window.open(`${API_BASE}/preview/${encodeURIComponent(folder)}/`, '_blank')}
             >
-              {runStatus === 'done' ? 'Run & preview (localhost)' : 'Preview'}
+              Preview
             </Button>
           </div>
         </div>
 
-        {/* 4-Column Stat Summary Row */}
-        <div className="stat-row">
-          <div className="stat-cell">
-            <div className="label">Total Tasks</div>
-            <div className="value">{subtasks.length}</div>
-          </div>
-          <div className="stat-cell">
-            <div className="label">Completed</div>
-            <div className="value good">
-              {completedCount} of {subtasks.length}
-            </div>
-          </div>
-          <div className="stat-cell">
-            <div className="label">Active Agents</div>
-            <div className="value accent">{new Set(subtasks.map((st) => st.role)).size}</div>
-          </div>
-          <div className="stat-cell">
-            <div className="label">Status</div>
-            <div
-              className={`value ${runStatus === 'done' ? 'good' : ''}`}
-              style={{ fontSize: '14px', marginTop: '4px', color: runStatus === 'error' ? 'var(--bad)' : undefined }}
-            >
-              {RUN_LABEL[runStatus]}
-            </div>
-          </div>
-        </div>
-
-        {/* Estimated vs actual for the last strategy run */}
-        {runReport && (
-          <div className="stat-row" aria-label="Execution summary">
-            <div className="stat-cell">
-              <div className="label">Agents · {runReport.strategy}</div>
-              <div className="value">{runReport.agents}</div>
-              <div className="font-mono text-micro text-[var(--faint)] truncate" title={runReport.models_used.join(', ')}>
-                {runReport.models_used.length} model{runReport.models_used.length === 1 ? '' : 's'} used
-              </div>
-            </div>
-            <div className="stat-cell">
-              <div className="label">Time</div>
-              <div className="value">{fmtTime(runReport.actual.time_s)}</div>
-              <div className="font-mono text-micro text-[var(--faint)]">est. {range(runReport.estimated.time_s, fmtTime)}</div>
-            </div>
-            <div className="stat-cell">
-              <div className="label">Tokens</div>
-              <div className="value">{fmtTokens(runReport.actual.tokens)}</div>
-              <div className="font-mono text-micro text-[var(--faint)]">est. {range(runReport.estimated.tokens, fmtTokens)}</div>
-            </div>
-            <div className="stat-cell">
-              <div className="label">Parallel efficiency</div>
-              <div className="value">
-                {runReport.parallel_efficiency === null ? '-' : `${Math.round(runReport.parallel_efficiency * 100)}%`}
-              </div>
-              <div className="font-mono text-micro text-[var(--faint)]">
-                {runReport.failed_subtasks ? `${runReport.failed_subtasks} failed` : 'all subtasks ok'}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Final synthesis + verification from the execution graph */}
-        {runOutcome && (runOutcome.synthesis || runOutcome.verification) && (
-          <div className="mx-5 mt-3 p-3 rounded-panel border border-[var(--border-soft)] bg-[var(--panel)] space-y-2 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-micro text-[var(--faint)] uppercase font-bold tracking-wider">Result</span>
-              {runOutcome.verification && (
-                <span
-                  className="font-mono text-micro uppercase"
-                  style={{
-                    color: runOutcome.verification.verdict === 'pass' ? 'var(--good)'
-                      : runOutcome.verification.verdict === 'fail' ? 'var(--bad)' : 'var(--faint)',
-                  }}
-                >
-                  {runOutcome.verification.verdict === 'unknown' ? 'not verified' : `verification ${runOutcome.verification.verdict}`}
-                  {runOutcome.verification.repair_rounds > 0 &&
-                    ` · ${runOutcome.verification.repair_rounds} repair round${runOutcome.verification.repair_rounds === 1 ? '' : 's'}`}
-                </span>
-              )}
-            </div>
-            {runOutcome.synthesis && (
-              <div className="text-meta text-[var(--text-2)] max-h-48 overflow-y-auto">
-                <MarkdownRenderer content={runOutcome.synthesis} />
-              </div>
-            )}
-            {runOutcome.verification?.verdict === 'fail' && runOutcome.verification.issues && (
-              <pre className="text-micro text-[var(--bad)] whitespace-pre-wrap font-mono">{runOutcome.verification.issues}</pre>
-            )}
-          </div>
-        )}
-
-        {/* Execution Error Banner */}
         {errorMessage && (
-          <div role="alert" className="mx-5 mt-3 p-3 rounded-panel border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between flex-shrink-0">
+          <div role="alert" className="mx-6 mt-4 px-4 py-3 rounded-[10px] border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between gap-4 flex-shrink-0">
             <span>
-              <strong>Execution Error:</strong> {errorMessage}
+              <strong>Run failed.</strong> {errorMessage}
             </span>
-            <button type="button" onClick={clearError} aria-label="Dismiss error" className="font-bold ml-4 hover:underline">
-              ✕
+            <button type="button" onClick={clearError} className="font-semibold hover:underline flex-shrink-0">
+              Dismiss
             </button>
           </div>
         )}
 
-        {/* Overview Split Grid */}
-        <div className="ov-split flex-1 min-h-0">
-          {/* Left Pane: Active Tasks & Terminal */}
-          <div className="ov-pane flex flex-col gap-4">
-            {/* Task Prompt Launcher Box */}
-            <div className="p-3 border border-[var(--border-soft)] rounded-panel bg-[var(--panel)] space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-micro text-[var(--faint)] uppercase font-bold tracking-wider">
-                  TASK GOAL
+        <div className="ov-split">
+          <div className="ov-pane">
+            <div className="ov-composer">
+              <label htmlFor="ov-task">{subtasks.length ? 'Next instruction for this project' : 'What should the agents build?'}</label>
+              <textarea
+                id="ov-task"
+                rows={2}
+                value={taskInput}
+                onChange={(e) => setTaskInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    run()
+                  }
+                }}
+                placeholder={taskTitle || 'e.g. Build a recipe site with search and a favourites list'}
+              />
+              <div className="foot">
+                <span className="hint">
+                  <kbd>Enter</kbd> to run, <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line
                 </span>
                 <Button
                   variant="primary"
                   size="sm"
                   disabled={isBusy || !(taskInput.trim() || taskTitle.trim())}
-                  onClick={() => {
-                    const taskToRun = taskInput.trim() || taskTitle.trim()
-                    if (taskToRun) executeTask(taskToRun, currentWorkspace, selectedModel.id)
-                  }}
-                  icon={runStatus === 'planning' || runStatus === 'executing' ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} fill="currentColor" />}
+                  onClick={run}
+                  icon={isBusy ? <Loader2 size={13} className="animate-spin" /> : <Play size={12} fill="currentColor" />}
                 >
-                  {runStatus === 'planning' || runStatus === 'executing' ? 'Running…' : 'Start Project'}
+                  {isBusy ? 'Running' : 'Run'}
                 </Button>
               </div>
-              <input
-                type="text"
-                value={taskInput}
-                onChange={(e) => setTaskInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && taskInput.trim() && !isBusy) {
-                    executeTask(taskInput.trim(), currentWorkspace, selectedModel.id)
-                  }
-                }}
-                aria-label="Task goal"
-                placeholder="Type a task prompt here (e.g. create auth API endpoints)..."
-                className="w-full h-8 px-3 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-meta text-[var(--text)] placeholder:text-[var(--faint)] outline-none focus:border-[var(--accent)]"
-              />
             </div>
 
-            {/* Active Subtasks Group Column */}
-            <div>
-              <h3>
-                <Zap size={13} /> Active Steps & Running Agents
-              </h3>
-
-              {groupNumbers.length === 0 ? (
-                <div className="group-col">
-                  <div className="tc-instr">
-                    {runStatus === 'planning'
-                      ? 'The planner is breaking the task into steps…'
-                      : 'No steps yet. Start a task to see its plan and agents here.'}
-                  </div>
+            {subtasks.length > 0 && (
+              <section className="ov-progress" aria-label="Progress">
+                <div className="head">
+                  <span className="big">
+                    {completedCount}
+                    <small>/{subtasks.length}</small>
+                  </span>
+                  <span className="cap">steps complete</span>
                 </div>
-              ) : (
-                groupNumbers.map((gNum) => {
-                  const groupSubtasks = groupedSubtasks[gNum]
-                  return (
-                    <div key={gNum} className="group-col">
-                      <div className="group-label">
-                        STEP {gNum} ({groupSubtasks.length} AGENTS WORKING TOGETHER)
-                      </div>
-                      {groupSubtasks.map((st) => (
-                        <div key={st.id} className="task-card" onClick={() => setSelectedAgentRole(st.role)}>
-                          <div className="tc-top">
-                            <span className="tc-id">{st.id}</span>
-                            <StatusBadge status={st.status || 'pending'} />
-                            <span className="font-mono text-micro text-[var(--faint)] ml-auto uppercase">{st.role}</span>
-                          </div>
-                          <div className="tc-instr">{st.instruction}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })
-              )}
-            </div>
+                <div className="seg-bar" aria-hidden="true">
+                  {subtasks.map((st) => (
+                    <span key={st.id} className={segState(st)} />
+                  ))}
+                </div>
+                <div className="meta-row">
+                  <span>
+                    Agents<b>{runReport?.agents ?? agentCount}</b>
+                  </span>
+                  {runReport && (
+                    <>
+                      <span>
+                        Time<b>{fmtTime(runReport.actual.time_s)}</b>
+                        <span className="est">est. {range(runReport.estimated.time_s, fmtTime)}</span>
+                      </span>
+                      <span>
+                        Tokens<b>{fmtTokens(runReport.actual.tokens)}</b>
+                        <span className="est">est. {range(runReport.estimated.tokens, fmtTokens)}</span>
+                      </span>
+                      {runReport.parallel_efficiency !== null && (
+                        <span>
+                          Parallel<b>{Math.round(runReport.parallel_efficiency * 100)}%</b>
+                        </span>
+                      )}
+                      {runReport.failed_subtasks > 0 && <span className="text-[var(--bad)]">{runReport.failed_subtasks} failed</span>}
+                    </>
+                  )}
+                </div>
+              </section>
+            )}
 
-            {/* Live Terminal Output Box */}
-            <div className="flex-1 min-h-[180px]">
-              <h3 className="mb-2">
-                <Cpu size={13} /> Live Output
-              </h3>
-              <div className="term">
-                {logs.length === 0 ? (
-                  <div className="ln">
-                    <span className="msg">No output yet. Logs stream here while a task runs.</span>
-                  </div>
-                ) : (
-                  logs.map((log, idx) => {
-                    const roleClass = (log.role || 'coder').toLowerCase()
-                    return (
-                      <div key={log.id || idx} className="ln">
-                        <span className="ts">{log.timestamp}</span>
-                        <span className={`role ${roleClass}`}>{(log.role || 'system').toUpperCase()}</span>
-                        <span className="msg">{log.message}</span>
-                      </div>
-                    )
-                  })
+            {runOutcome && (runOutcome.synthesis || runOutcome.verification) && (
+              <section>
+                <div className="ov-section-title">
+                  <h3>Result</h3>
+                  {runOutcome.verification && (
+                    <span
+                      className="aside"
+                      style={{
+                        color: runOutcome.verification.verdict === 'pass' ? 'var(--good)'
+                          : runOutcome.verification.verdict === 'fail' ? 'var(--bad)' : undefined,
+                      }}
+                    >
+                      {runOutcome.verification.verdict === 'unknown' ? 'not verified' : `verification ${runOutcome.verification.verdict}`}
+                      {runOutcome.verification.repair_rounds > 0 &&
+                        `, ${runOutcome.verification.repair_rounds} repair round${runOutcome.verification.repair_rounds === 1 ? '' : 's'}`}
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 rounded-[10px] border border-[var(--border-soft)] bg-[var(--panel)] space-y-2">
+                  {runOutcome.synthesis && (
+                    <div className="text-meta text-[var(--text-2)] max-h-56 overflow-y-auto">
+                      <MarkdownRenderer content={runOutcome.synthesis} />
+                    </div>
+                  )}
+                  {runOutcome.verification?.verdict === 'fail' && runOutcome.verification.issues && (
+                    <pre className="text-micro text-[var(--bad)] whitespace-pre-wrap font-mono">{runOutcome.verification.issues}</pre>
+                  )}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <div className="ov-section-title">
+                <h3>Plan</h3>
+                {groupNumbers.length > 0 && (
+                  <span className="aside">
+                    {groupNumbers.length} step{groupNumbers.length === 1 ? '' : 's'}
+                  </span>
                 )}
               </div>
-            </div>
+              {groupNumbers.length === 0 ? (
+                <div className="ov-empty">
+                  {runStatus === 'planning' ? (
+                    <>
+                      <strong>Planning</strong>The planner is splitting the task into steps.
+                    </>
+                  ) : (
+                    <>
+                      <strong>No plan yet</strong>Describe what you want above. The plan and the agents working on it show up here.
+                    </>
+                  )}
+                </div>
+              ) : (
+                <ol className="plan-steps">
+                  {groupNumbers.map((gNum) => {
+                    const group = groupedSubtasks[gNum]
+                    const complete = group.every((st) => DONE.has(String(st.status || '')))
+                    const active = !complete && group.some((st) => st.status === 'running')
+                    return (
+                      <li key={gNum} className={`plan-step ${complete ? 'complete' : active ? 'active' : ''}`}>
+                        <span className="num" aria-hidden="true">
+                          {gNum}
+                        </span>
+                        <div className="body">
+                          <div className="step-label">
+                            <b>Step {gNum}</b>
+                            {group.length > 1 && `, ${group.length} agents in parallel`}
+                          </div>
+                          {group.map((st) => (
+                            <div key={st.id} className="task-row">
+                              <RoleBadge role={st.role} size="sm" />
+                              <div className="tr-main">
+                                <div className="tr-instr">{st.instruction}</div>
+                                <div className="tr-meta">
+                                  {st.id}
+                                  {st.model ? ` / ${st.model}` : ''}
+                                </div>
+                              </div>
+                              <StatusBadge status={st.status || 'pending'} size="sm" />
+                            </div>
+                          ))}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ol>
+              )}
+            </section>
+
+            <section>
+              <div className="ov-section-title">
+                <h3>Live output</h3>
+                <span className="aside">
+                  {logs.length} line{logs.length === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="term" ref={termRef} role="log" aria-live="polite">
+                {logs.length === 0 ? (
+                  <div className="ln">
+                    <span className="msg">Logs stream here while a run is in progress.</span>
+                  </div>
+                ) : (
+                  logs.map((log, idx) => (
+                    <div key={log.id || idx} className={`ln ${log.type === 'error' ? 'error' : ''}`}>
+                      <span className="ts">{log.timestamp}</span>
+                      <span className={`role ${(log.role || 'system').toLowerCase()}`}>{log.role || 'system'}</span>
+                      <span className="msg">{log.message}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
           </div>
 
-          {/* Right Pane: Workspace File Tree Explorer */}
-          <div className="ov-pane flex flex-col min-h-0 p-0 border-l border-[var(--border-soft)]">
+          <div className="ov-pane !p-0 !gap-0 min-h-0">
             <FileExplorer workspace={currentWorkspace} />
           </div>
         </div>

@@ -21,8 +21,8 @@ export const range = (r: [number, number], f: (n: number) => string) => `${f(r[0
 
 const CONFIDENCE_STYLE: Record<Confidence, string> = {
   low: 'text-amber-300/80 bg-amber-300/[0.08]',
-  medium: 'text-sky-300/80 bg-sky-300/[0.08]',
-  high: 'text-emerald-300/80 bg-emerald-300/[0.08]',
+  medium: 'text-[#7FB0A8] bg-[#7FB0A8]/[0.08]',
+  high: 'text-[#9CC28A] bg-[#9CC28A]/[0.08]',
 }
 
 /** Options only go up to the useful agent count; beyond it the estimate stops improving. */
@@ -89,16 +89,16 @@ export function StrategyPanel({ analysis, selection, onSelect, stale }: Props) {
               onClick={() => onSelect({ id: s.id, agents: s.agents, custom: false })}
               className={cx(
                 'w-full grid grid-cols-[1fr_52px_96px_84px] gap-2 items-center px-3 py-2 text-left border-t border-white/[0.04] transition-colors',
-                active ? 'bg-[#1488fc]/[0.12]' : 'hover:bg-white/[0.03]',
+                active ? 'bg-[#D8A657]/[0.12]' : 'hover:bg-white/[0.03]',
               )}
             >
               <span className="flex items-center gap-1.5 min-w-0">
-                <span className={cx('w-3.5 h-3.5 shrink-0 rounded-full border flex items-center justify-center', active ? 'border-[#1488fc] bg-[#1488fc]' : 'border-white/20')}>
+                <span className={cx('w-3.5 h-3.5 shrink-0 rounded-full border flex items-center justify-center', active ? 'border-[#D8A657] bg-[#D8A657]' : 'border-white/20')}>
                   {active && <Check size={9} className="text-white" strokeWidth={3} />}
                 </span>
                 <span className="text-[12.5px] text-white/85 truncate">{s.label}</span>
                 {s.id === analysis.recommended && (
-                  <span className="text-[9.5px] px-1.5 rounded-full bg-[#1488fc]/20 text-[#7cc0ff]">recommended</span>
+                  <span className="text-[9.5px] px-1.5 rounded-full bg-[#D8A657]/20 text-[#E6BE7A]">recommended</span>
                 )}
                 <span className="text-[9.5px] text-white/35">
                   {s.repairs ? `up to ${s.repairs} repair${s.repairs === 1 ? '' : 's'}` : 'no repair'}
@@ -113,7 +113,7 @@ export function StrategyPanel({ analysis, selection, onSelect, stale }: Props) {
         <div
           className={cx(
             'grid grid-cols-[1fr_52px_96px_84px] gap-2 items-center px-3 py-2 border-t border-white/[0.04]',
-            selection.custom && 'bg-[#1488fc]/[0.12]',
+            selection.custom && 'bg-[#D8A657]/[0.12]',
           )}
         >
           <span className="flex items-center gap-1.5">
@@ -124,7 +124,7 @@ export function StrategyPanel({ analysis, selection, onSelect, stale }: Props) {
               onClick={() => setCustomAgents(selection.agents)}
               className="flex items-center gap-1.5"
             >
-              <span className={cx('w-3.5 h-3.5 rounded-full border flex items-center justify-center', selection.custom ? 'border-[#1488fc] bg-[#1488fc]' : 'border-white/20')}>
+              <span className={cx('w-3.5 h-3.5 rounded-full border flex items-center justify-center', selection.custom ? 'border-[#D8A657] bg-[#D8A657]' : 'border-white/20')}>
                 {selection.custom && <Check size={9} className="text-white" strokeWidth={3} />}
               </span>
               <span className="text-[12.5px] text-white/85">Custom</span>

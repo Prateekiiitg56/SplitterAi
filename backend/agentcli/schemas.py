@@ -17,6 +17,7 @@ class AgentRole(str, Enum):
     coder = "coder"
     auditor = "auditor"
     tester = "tester"
+    designer = "designer"
     unassigned = "unassigned"
 
 
@@ -89,6 +90,7 @@ class RunResult(BaseModel):
     report: Optional[dict] = None
     synthesis: Optional[str] = None
     verification: Optional[dict] = None  # {"verdict": pass|fail|unknown, "issues": str, "repair_rounds": int}
+    workspace: Optional[str] = None  # where the run wrote its files (a new project folder for new projects)
 
 
 class LogEntry(BaseModel):
@@ -111,6 +113,7 @@ class SessionEntry(BaseModel):
     """A saved workspace session."""
     workspace: str
     task: str
+    name: str = ""  # user-set project name; empty means show the task
     status: RunStatus = RunStatus.idle
     created_at: str = Field(
         default_factory=lambda: time.strftime("%I:%M %p")
@@ -131,6 +134,7 @@ class RunRequest(BaseModel):
     subtasks: Optional[list[dict]] = None  # User-confirmed subtasks from plan review UI
     agent_count: Optional[int] = None  # Concurrent agents chosen from the strategy table
     strategy: Optional[str] = None  # cost | balanced | fastest | quality; None keeps the legacy single-chain run
+    stack: Optional[str] = None  # tailwind | plain | react; None picks from the task text
 
 
 class HealthResponse(BaseModel):

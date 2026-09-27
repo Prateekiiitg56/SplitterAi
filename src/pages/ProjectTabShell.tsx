@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, CheckSquare, Users, FolderTree, Terminal, GitBranch } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { DEFAULT_WORKSPACE } from '../config'
 
 interface ProjectTabShellProps {
   children: ReactNode
@@ -12,7 +13,13 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
   const { projectId = 'default' } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentWorkspace, taskTitle, sessions } = useApp()
+  const { currentWorkspace, taskTitle, sessions, openProject } = useApp()
+  const session = sessions.find((s) => s.id === projectId)
+
+  // The URL decides which project is open, so a refresh or deep link never shows another project's files.
+  useEffect(() => {
+    if (session) openProject(session.workspace)
+  }, [session?.workspace]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const tabs = [
     { id: `/projects/${projectId}`, label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -27,9 +34,10 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
     t.exact ? location.pathname === t.id : location.pathname.startsWith(t.id)
   )
 
-  const sessionTask = sessions.find((s) => s.id === projectId)?.task
-  const displayTitle = title ?? (taskTitle || sessionTask || 'Current run')
-  const displayPath = currentWorkspace ? `~/workspace/${currentWorkspace.split(/[/\\]/).pop()}` : `~/workspace/${projectId}`
+  const sessionTask = session?.task
+  const isNew = currentWorkspace === DEFAULT_WORKSPACE
+  const displayTitle = title ?? (taskTitle || sessionTask || (isNew ? 'New project' : 'Current run'))
+  const displayPath = isNew ? 'folder is created on first run' : `~/workspace/${currentWorkspace.split(/[/\\]/).pop()}`
 
   return (
     <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent relative z-10 font-sans text-[var(--text)] select-none">

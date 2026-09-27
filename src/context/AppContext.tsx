@@ -3,11 +3,13 @@ import { useSessions } from '../hooks/useSessions'
 import { useAgentRunner } from '../hooks/useAgentRunner'
 import { DEFAULT_WORKSPACE } from '../config'
 import type { Subtask, LogEntry, RunStatus, SessionEntry, ConnectionStatus } from '../types'
-import type { RunReport, StrategyId, Verification } from '../lib/api'
+import type { RunReport, StackId, StrategyId, Verification } from '../lib/api'
 
 interface AppContextType {
   currentWorkspace: string
   setCurrentWorkspace: (workspace: string) => void
+  /** Switch to another project (or DEFAULT_WORKSPACE for a new one), clearing the previous run. */
+  openProject: (workspace: string) => void
   sessions: SessionEntry[]
   sessionsLoading: boolean
   sessionsError: string | null
@@ -28,6 +30,7 @@ interface AppContextType {
     workspace?: string,
     model?: string,
     strategy?: { id: StrategyId; agents: number },
+    stack?: StackId,
   ) => Promise<void>
   addEvent: (event: Partial<LogEntry>) => void
   clearError: () => void
@@ -71,14 +74,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     executeTask,
     executeTaskWithPlan,
     addEvent,
+    resetRun,
     clearError,
-  } = useAgentRunner()
+  } = useAgentRunner(setCurrentWorkspace)
+
+  const openProject = (workspace: string) => {
+    if (workspace === currentWorkspace) return
+    if (runStatus !== 'planning' && runStatus !== 'executing') resetRun()
+    setCurrentWorkspace(workspace)
+  }
 
   return (
     <AppContext.Provider
       value={{
         currentWorkspace,
         setCurrentWorkspace,
+        openProject,
         sessions,
         sessionsLoading,
         sessionsError,

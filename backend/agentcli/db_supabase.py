@@ -148,6 +148,23 @@ def supabase_reset_session(workspace: str) -> bool:
         return False
 
 
+def supabase_rename_session(workspace: str, name: str) -> bool:
+    """Set the display name in Supabase. Needs a `name text` column on the sessions table."""
+    client = get_supabase_client()
+    if not client:
+        return False
+
+    try:
+        response = client.table("sessions").update({"name": name}).eq("workspace", workspace).execute()
+        return bool(response.data)
+    except Exception as exc:
+        logger.warning(
+            "Supabase could not rename session %s (%s). Run: alter table sessions add column name text default '';",
+            workspace, exc,
+        )
+        return False
+
+
 def supabase_list_sessions(limit: int = 20) -> Optional[list[dict]]:
     """List recent sessions from Supabase, ordered by updated_at descending."""
     client = get_supabase_client()
@@ -157,7 +174,7 @@ def supabase_list_sessions(limit: int = 20) -> Optional[list[dict]]:
     try:
         response = (
             client.table("sessions")
-            .select("workspace, task, status, subtask_count, created_at, updated_at")
+            .select("*")
             .order("updated_at", desc=True)
             .limit(limit)
             .execute()

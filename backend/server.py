@@ -38,7 +38,10 @@ from agentcli.schemas import (
     Subtask,
     SubtaskStatus,
 )
-from agentcli.session import list_sessions, save_run_result
+from pydantic import BaseModel, Field
+
+from agentcli.web import apply_template, design_context, detect_stack, is_web_task, new_project_dir, planning_guidance
+from agentcli.session import list_sessions, rename_session, reset_session, save_run_result
 from agentcli.integrations_store import (
     load_all_integrations,
     save_integration,
@@ -51,6 +54,7 @@ from agentcli.db_supabase import is_supabase_enabled
 # Load .env — single source of truth is the project-root .env (see .env.example),
 # loaded explicitly so behavior doesn't depend on the server's working directory.
 import os
+import shutil
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 root_env = str(PROJECT_ROOT / ".env")
@@ -65,6 +69,11 @@ def resolve_workspace(workspace: str) -> str:
     """
     path = Path(workspace)
     return str(path if path.is_absolute() else (PROJECT_ROOT / path).resolve())
+
+
+# New projects each get a folder here; the dashboard sends this root to mean "new project".
+PROJECTS_ROOT = (PROJECT_ROOT / "workspace_output").resolve()
+PROJECTS_ROOT.mkdir(exist_ok=True)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -238,6 +247,12 @@ def make_event_emitter():
 
 # ── Routes ────────────────────────────────────────────────────────
 
+@app.get("/", include_in_schema=False)
+async def root():
+    """Redirect root to the interactive API docs."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/docs")
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     """Health check endpoint."""
@@ -248,27 +263,31 @@ async def health():
 @app.get("/preview")
 @app.get("/preview/{file_name:path}")
 async def preview_workspace(file_name: str = ""):
-    """Serve generated website files (index.html, style.css, script.js) from workspace_output in a separate browser tab."""
-    workspace_dir = resolve_workspace("workspace_output")
-    if not os.path.exists(workspace_dir):
-        workspace_dir = str(PROJECT_ROOT)
-
-    target_file = file_name if file_name else "index.html"
-    file_path = os.path.join(workspace_dir, target_file)
-
-    resolved_file = Path(file_path).resolve()
-    resolved_ws = Path(workspace_dir).resolve()
+    """Serve generated website files from workspace_output; /preview/<project>/ serves one project."""
+    resolved_ws = PROJECTS_ROOT
+    resolved_file = (resolved_ws / file_name).resolve()
     try:
         resolved_file.relative_to(resolved_ws)
     except ValueError:
         raise HTTPException(status_code=403, detail="Forbidden: path escapes workspace")
+    if resolved_file == resolved_ws or (resolved_file.parent == resolved_ws and resolved_file.is_file()):
+        # The root is not a project; loose files there are leftovers from old runs.
+        resolved_file = resolved_ws / "__no_project__" / "index.html"
+    elif resolved_file.is_dir():
+        if file_name and not file_name.endswith("/"):
+            # Relative links (styles.css, app.js) only resolve inside the project with a trailing slash.
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=f"/preview/{file_name}/")
+        # A Vite project previews its build output.
+        built = resolved_file / "dist" / "index.html"
+        resolved_file = built if built.exists() else resolved_file / "index.html"
 
     if not resolved_file.exists():
-        if not file_name or file_name == "index.html":
+        if resolved_file.name == "index.html":
             return HTMLResponse("""<!DOCTYPE html>
 <html>
 <head><title>Workspace Preview</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0b0f19;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;} .box{background:#1e293b;padding:30px;border-radius:12px;text-align:center;max-width:500px;} h2{color:#60a5fa;}</style></head>
-<body><div class="box"><h2>🌐 Live Workspace Preview</h2><p>No <code>index.html</code> generated yet. Type a task prompt on SplitterAI and click <b>Start Project</b> to generate your web app.</p></div></body>
+<body><div class="box"><h2>Nothing to preview yet</h2><p>This project has no <code>index.html</code> yet. If a run is in progress, refresh once the agents finish writing files.</p></div></body>
 </html>""")
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -291,12 +310,15 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
 
     on_event = make_event_emitter()
 
-    plan, analysis = await run_analysis(task, config, history=history, on_event=on_event)
+    stack = detect_stack(task, payload.get("stack"))
+    plan, analysis = await run_analysis(task, config, history=history, on_event=on_event,
+                                        guidance=planning_guidance(stack))
 
     return {
         "task": task,
         "subtasks": [st.model_dump() for st in plan.subtasks],
         "analysis": analysis,
+        "stack": stack,
     }
 
 
@@ -333,10 +355,16 @@ def execution_report(result: RunResult, strategy: str, agents: int, estimate: di
 async def run_task(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Execute a task through the multi-agent pipeline."""
     verify_shared_secret(x_api_key, token)
+    workspace = request.workspace
+    # The shared projects root means "new project": give it its own folder so projects never mix files.
+    if Path(resolve_workspace(workspace)) == PROJECTS_ROOT:
+        folder = new_project_dir(PROJECTS_ROOT, request.task)
+        workspace = f"./workspace_output/{folder.name}"
     try:
-        sandbox = Sandbox(resolve_workspace(request.workspace))
+        sandbox = Sandbox(resolve_workspace(workspace))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    stack = detect_stack(request.task, request.stack)
 
     config = ExecutionConfig()
     if request.model:
@@ -379,6 +407,7 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
             task=request.task,
             config=config,
             on_event=on_event,
+            guidance=planning_guidance(stack),
         )
 
     estimate = None
@@ -398,16 +427,29 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
     # Broadcast plan to WebSocket clients
     await manager.broadcast({
         "type": "plan",
+        "workspace": workspace,
         "subtasks": [st.model_dump() for st in plan.subtasks],
     })
 
+    design = ""
+    if is_web_task(request.task, plan):
+        starter = apply_template(stack, sandbox.workspace)
+        design = design_context(stack, starter)
+        on_event(LogEntry(
+            type="info",
+            role=AgentRole.planner,
+            message=f"Web project: {stack} stack" + (f", starter files {', '.join(starter)}" if starter else ""),
+        ))
+
     # Step 2: Execute through the LangGraph workflow (workers -> synthesis -> verification -> repair)
-    result = await run_graph(request.task, plan, config, sandbox, on_event, preset=request.strategy or "balanced")
+    result = await run_graph(request.task, plan, config, sandbox, on_event,
+                             preset=request.strategy or "balanced", design=design)
+    result.workspace = workspace
     if estimate:
         result.report = execution_report(result, request.strategy, config.max_concurrent_agents, estimate)
 
     # Step 3: Persist session
-    save_run_result(request.workspace, request.task, result)
+    save_run_result(workspace, request.task, result)
 
     # Broadcast completion
     await manager.broadcast({
@@ -502,6 +544,39 @@ async def get_sessions(x_api_key: str | None = Header(None, alias="X-API-Key"), 
     return [s.model_dump() for s in sessions]
 
 
+class RenameSessionRequest(BaseModel):
+    workspace: str
+    name: str = Field(min_length=1, max_length=120)
+
+
+@app.patch("/sessions")
+async def patch_session(req: RenameSessionRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Rename a project. The name survives later runs in the same workspace."""
+    verify_shared_secret(x_api_key, token)
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Project name cannot be empty.")
+    if not rename_session(req.workspace, name):
+        raise HTTPException(status_code=404, detail="Project not found.")
+    return {"workspace": req.workspace, "name": name}
+
+
+@app.delete("/sessions")
+async def delete_session(workspace: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Delete a project's record, run history and its generated folder under workspace_output."""
+    verify_shared_secret(x_api_key, token)
+    found = reset_session(workspace)
+    folder = Path(resolve_workspace(workspace))
+    # Only project folders inside the projects root are ours to remove; never the root or user paths.
+    owned = folder != PROJECTS_ROOT and PROJECTS_ROOT in folder.parents
+    if owned and folder.is_dir():
+        shutil.rmtree(folder, ignore_errors=True)
+        found = True
+    if not found:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    return {"deleted": workspace}
+
+
 @app.get("/agents")
 async def get_agents(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Get agent role configurations."""
@@ -519,27 +594,11 @@ async def get_agents(x_api_key: str | None = Header(None, alias="X-API-Key"), to
 
 @app.get("/agents/quota")
 async def get_agent_quotas(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Per-role/provider usage against free-tier limits sourced from router call logs."""
+    """Per-model usage in the current daily quota window and when that window resets."""
     verify_shared_secret(x_api_key, token)
-    from agentcli.router import get_usage_metrics
-    metrics = get_usage_metrics()
-
-    provider_data = metrics["providers"]
-    quotas = []
-    for key, data in provider_data.items():
-        used = data["calls"]
-        limit = data["limit_requests"]
-        pct = min(100, int((used / limit) * 100)) if limit > 0 else 0
-        quotas.append({
-            "provider": data["provider"],
-            "modelKey": key,
-            "requestsUsed": used,
-            "requestsLimit": limit,
-            "usedPercentage": pct,
-            "resetTime": "Resets daily at 00:00 UTC",
-            "status": "healthy" if pct < 85 else "warning",
-        })
-    return quotas
+    from agentcli import telemetry
+    from agentcli.models import all_models
+    return await asyncio.to_thread(telemetry.usage, all_models())
 
 
 @app.get("/agents/{role}")
@@ -632,6 +691,51 @@ async def upload_workspace(
     except Exception as err:
         logger.error(f"Workspace upload failed: {err}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to import workspace: {str(err)}")
+
+
+# Regenerable or private folders stay out of exports.
+EXPORT_SKIP_DIRS = {"node_modules", ".git", "__pycache__", "venv", ".venv", ".splitter"}
+
+
+def build_workspace_zip(root: Path) -> bytes:
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in EXPORT_SKIP_DIRS]
+            for name in filenames:
+                path = Path(dirpath) / name
+                if path.is_symlink():
+                    continue
+                zf.write(path, Path(root.name) / path.relative_to(root))
+    return buf.getvalue()
+
+
+@app.get("/workspaces/export")
+async def export_workspace(
+    workspace: str,
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    token: str | None = Query(None),
+):
+    """Download a project folder as a .zip."""
+    verify_shared_secret(x_api_key, token)
+    from fastapi.responses import Response
+    from agentcli.workspace_import import DEFAULT_WORKSPACES_ROOT
+
+    root = Path(resolve_workspace(workspace)).resolve()
+    # Only project folders the app created or imported, never the roots themselves or anything else on disk.
+    allowed = (PROJECTS_ROOT, DEFAULT_WORKSPACES_ROOT.resolve())
+    if not root.is_dir() or not any(root != base and root.is_relative_to(base) for base in allowed):
+        raise HTTPException(status_code=400, detail="Only a project folder can be exported.")
+
+    data = await asyncio.to_thread(build_workspace_zip, root)
+    return Response(
+        content=data,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{root.name}.zip"'},
+    )
 
 
 @app.delete("/workspaces/cleanup")

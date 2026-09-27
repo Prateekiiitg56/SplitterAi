@@ -1,26 +1,27 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
-import { Search, Plus, EyeOff, Edit2, Upload, FileArchive, Loader2, Folder } from 'lucide-react'
+import { Plus, Trash2, Edit2, Upload, FileArchive, Loader2, Folder } from 'lucide-react'
 import type { SessionEntry } from '../types'
 import { StatusBadge } from '../components/Badges'
 import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
 import { TextField, SearchField } from '../components/primitives/Field'
-import { uploadWorkspace } from '../lib/api'
+import { deleteSession, renameSession, uploadWorkspace } from '../lib/api'
+import { DEFAULT_WORKSPACE } from '../config'
 import { PageHeader } from '../components/PageHeader'
 
 export default function ProjectsPage() {
   const navigate = useNavigate()
-  const { setCurrentWorkspace, sessions: initialSessions, sessionsLoading, sessionsError, refetchSessions } = useApp()
-
-  const [localSessions, setLocalSessions] = useState<SessionEntry[] | null>(null)
-  const sessions = localSessions !== null ? localSessions : initialSessions
+  const { currentWorkspace, openProject, sessions, sessionsLoading, sessionsError, refetchSessions } = useApp()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [editingSession, setEditingSession] = useState<SessionEntry | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [deletingSession, setDeletingSession] = useState<SessionEntry | null>(null)
+  const [actionBusy, setActionBusy] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // Import Modal State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
@@ -50,19 +51,37 @@ export default function ProjectsPage() {
     return matchesSearch && matchesStatus
   })
 
-  const saveRename = () => {
-    if (!editingSession || !renameValue.trim()) return
-    const updated = sessions.map((s) =>
-      s.id === editingSession.id ? { ...s, task: renameValue.trim() } : s
-    )
-    setLocalSessions(updated)
-    setEditingSession(null)
+  const runAction = async (action: () => Promise<void>, close: () => void) => {
+    setActionBusy(true)
+    setActionError(null)
+    try {
+      await action()
+      await refetchSessions()
+      close()
+    } catch (err: any) {
+      setActionError(err.message || 'Request failed')
+    } finally {
+      setActionBusy(false)
+    }
   }
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    const updated = sessions.filter((s) => s.id !== id)
-    setLocalSessions(updated)
+  const saveRename = () => {
+    if (!editingSession || !renameValue.trim() || actionBusy) return
+    runAction(() => renameSession(editingSession.workspace, renameValue.trim()), () => setEditingSession(null))
+  }
+
+  const startNewProject = () => {
+    openProject(DEFAULT_WORKSPACE)
+    navigate('/console')
+  }
+
+  const confirmDelete = () => {
+    if (!deletingSession || actionBusy) return
+    const { workspace } = deletingSession
+    runAction(() => deleteSession(workspace), () => {
+      setDeletingSession(null)
+      if (workspace === currentWorkspace) openProject(DEFAULT_WORKSPACE)
+    })
   }
 
   const handleFileSelect = (file: File | undefined) => {
@@ -81,7 +100,7 @@ export default function ProjectsPage() {
     setUploadError(null)
     try {
       const result = await uploadWorkspace(selectedZipFile)
-      setCurrentWorkspace(result.workspace)
+      openProject(result.workspace)
       await refetchSessions()
       setIsImportModalOpen(false)
       setSelectedZipFile(null)
@@ -113,7 +132,7 @@ export default function ProjectsPage() {
             >
               Import project
             </Button>
-            <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={() => navigate('/console')}>
+            <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={startNewProject}>
               New project
             </Button>
           </>
@@ -163,10 +182,19 @@ export default function ProjectsPage() {
             </div>
           ) : sessionsError ? (
             <div className="p-4 rounded-md border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between">
-              <span>⚠️ {sessionsError}</span>
+              <span>{sessionsError}</span>
               <button onClick={() => refetchSessions()} className="underline font-bold hover:text-[var(--text)] transition-colors">
                 Retry
               </button>
+            </div>
+          ) : sessions.length === 0 ? (
+            <div className="empty-state">
+              <Folder size={30} />
+              <div className="es-title">No projects yet</div>
+              <div className="es-detail">Each project gets its own folder, plan and history. Start one to see it here.</div>
+              <Button variant="primary" size="sm" icon={<Plus size={13} />} onClick={startNewProject} className="mt-3">
+                New project
+              </Button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="empty-state">
@@ -223,6 +251,7 @@ export default function ProjectsPage() {
                           aria-label="Rename project"
                           onClick={(e) => {
                             e.stopPropagation()
+                            setActionError(null)
                             setEditingSession(s)
                             setRenameValue(projName)
                           }}
@@ -232,11 +261,15 @@ export default function ProjectsPage() {
                         <button
                           type="button"
                           className="icon-btn"
-                          aria-label="Hide project from this list"
-                          title="Hide from this list (there is no server-side delete yet)"
-                          onClick={(e) => handleDelete(s.id, e)}
+                          aria-label="Delete project"
+                          title="Delete project"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActionError(null)
+                            setDeletingSession(s)
+                          }}
                         >
-                          <EyeOff size={13} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </div>
@@ -261,7 +294,7 @@ export default function ProjectsPage() {
                 )
               })}
 
-              <button type="button" className="new-card" onClick={() => navigate('/console')}>
+              <button type="button" className="new-card" onClick={startNewProject}>
                 <Plus size={20} aria-hidden="true" />
                 <span>New project</span>
               </button>
@@ -281,12 +314,17 @@ export default function ProjectsPage() {
             <Button variant="ghost" size="md" onClick={() => setEditingSession(null)}>
               Cancel
             </Button>
-            <Button variant="primary" size="md" onClick={saveRename} disabled={!renameValue.trim()}>
-              Save
+            <Button variant="primary" size="md" onClick={saveRename} disabled={!renameValue.trim() || actionBusy}>
+              {actionBusy ? 'Saving...' : 'Save'}
             </Button>
           </>
         }
       >
+        {actionError && (
+          <div className="mb-3 p-3 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta">
+            {actionError}
+          </div>
+        )}
         <TextField
           label="Project name"
           value={renameValue}
@@ -298,6 +336,34 @@ export default function ProjectsPage() {
             }
           }}
         />
+      </Modal>
+
+      {/* Delete Modal */}
+      <Modal
+        open={!!deletingSession}
+        onClose={() => !actionBusy && setDeletingSession(null)}
+        title="Delete project"
+        width={420}
+        footer={
+          <>
+            <Button variant="ghost" size="md" disabled={actionBusy} onClick={() => setDeletingSession(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" size="md" disabled={actionBusy} onClick={confirmDelete}>
+              {actionBusy ? 'Deleting...' : 'Delete'}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-meta text-[var(--dim)] leading-relaxed">
+          Delete <strong className="text-[var(--text)]">{deletingSession?.task || deletingSession?.workspace}</strong> along with
+          its run history and generated files in <code>{deletingSession?.workspace}</code>? This cannot be undone.
+        </p>
+        {actionError && (
+          <div className="mt-3 p-3 rounded border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta">
+            {actionError}
+          </div>
+        )}
       </Modal>
 
       {/* Import Project Modal */}

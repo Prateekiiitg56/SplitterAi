@@ -350,7 +350,7 @@ export default function ConsoleSidebar({
             onClick={handleNewSession}
             className={cx(
               'flex items-center justify-center gap-2 rounded-full font-semibold transition-colors cursor-pointer',
-              'bg-[#1488fc] text-white hover:brightness-110',
+              'bg-[#D8A657] text-[#1A1410] hover:brightness-110',
               showFull ? 'w-full h-9 text-[12.5px] px-4' : 'w-10 h-10 mx-auto',
             )}
             aria-label="New session"
@@ -371,7 +371,7 @@ export default function ConsoleSidebar({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search sessions…"
-                className="w-full h-8 rounded-full bg-white/[0.05] border border-white/[0.08] pl-8 pr-3 text-[12px] text-white/80 placeholder:text-white/25 outline-none focus:border-[#1488fc]/50 focus:bg-white/[0.07] transition-colors"
+                className="w-full h-8 rounded-full bg-white/[0.05] border border-white/[0.08] pl-8 pr-3 text-[12px] text-white/80 placeholder:text-white/25 outline-none focus:border-[#D8A657]/50 focus:bg-white/[0.07] transition-colors"
               />
             </div>
           </div>
@@ -478,7 +478,7 @@ export default function ConsoleSidebar({
                           style={{ willChange: 'transform, opacity' }}
                         >
                           {isActive && (
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full bg-[#1488fc]" />
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full bg-[#D8A657]" />
                           )}
                           <MessageSquare size={13} className="shrink-0 opacity-50" />
                           <span className="truncate text-[11.5px] flex-1">
@@ -558,7 +558,7 @@ export default function ConsoleSidebar({
         ref={sidebarRef}
         className={cx(
           'hidden sm:flex flex-col shrink-0 h-full',
-          'bg-[#0f0f0f]/80 backdrop-blur-xl border-r border-white/[0.08]',
+          'bg-[#12100E]/80 backdrop-blur-xl border-r border-white/[0.08]',
           'overflow-hidden',
         )}
         style={{ width: collapsed ? RAIL_W : SIDEBAR_W, willChange: 'width' }}
@@ -579,7 +579,7 @@ export default function ConsoleSidebar({
           {/* Drawer */}
           <aside
             ref={drawerRef}
-            className="fixed top-0 left-0 bottom-0 z-50 flex flex-col sm:hidden bg-[#0f0f0f] border-r border-white/[0.08] overflow-hidden"
+            className="fixed top-0 left-0 bottom-0 z-50 flex flex-col sm:hidden bg-[#12100E] border-r border-white/[0.08] overflow-hidden"
             style={{ width: SIDEBAR_W, transform: `translateX(-${SIDEBAR_W}px)` }}
           >
             {renderContent(true)}

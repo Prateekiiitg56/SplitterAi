@@ -22,6 +22,7 @@ class AnalysisState(TypedDict, total=False):
     config: ExecutionConfig
     history: list[dict[str, Any]] | None
     pinned_model: str | None
+    guidance: str
     on_event: Callable[[LogEntry], None] | None
     plan: Plan
     analysis: dict[str, Any]
@@ -32,7 +33,8 @@ async def normalize(state: AnalysisState) -> dict[str, Any]:
 
 
 async def decompose(state: AnalysisState) -> dict[str, Any]:
-    plan = await generate_plan(state["task"], state["config"], state.get("on_event"), state.get("history"))
+    plan = await generate_plan(state["task"], state["config"], state.get("on_event"), state.get("history"),
+                               guidance=state.get("guidance", ""))
     return {"plan": plan}
 
 
@@ -58,9 +60,10 @@ async def run_analysis(
     history: list[dict[str, Any]] | None = None,
     pinned_model: str | None = None,
     on_event: Callable[[LogEntry], None] | None = None,
+    guidance: str = "",
 ) -> tuple[Plan, dict[str, Any]]:
     state = await build_analysis_graph().ainvoke({
         "task": task, "config": config, "history": history,
-        "pinned_model": pinned_model, "on_event": on_event,
+        "pinned_model": pinned_model, "on_event": on_event, "guidance": guidance,
     })
     return state["plan"], state["analysis"]

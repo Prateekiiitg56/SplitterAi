@@ -34,17 +34,17 @@ function getFileIcon(filename: string) {
     case 'ts':
     case 'tsx':
     case 'jsx':
-      return <FileCode2 size={13} className="text-[#38bdf8] flex-shrink-0" />
+      return <FileCode2 size={13} className="text-[#D8A657] flex-shrink-0" />
     case 'json':
     case 'yaml':
     case 'yml':
-      return <FileJson size={13} className="text-[#fbbf24] flex-shrink-0" />
+      return <FileJson size={13} className="text-[#DE8E52] flex-shrink-0" />
     case 'md':
     case 'txt':
     case 'log':
-      return <FileText size={13} className="text-[#c084fc] flex-shrink-0" />
+      return <FileText size={13} className="text-[#7FB0A8] flex-shrink-0" />
     case 'csv':
-      return <FileSpreadsheet size={13} className="text-emerald-400 flex-shrink-0" />
+      return <FileSpreadsheet size={13} className="text-[#9CC28A] flex-shrink-0" />
     default:
       return <FileCode2 size={13} className="text-[var(--faint)] flex-shrink-0" />
   }
@@ -245,8 +245,8 @@ export default function FileExplorer({
         ) : fileTree.length === 0 ? (
           <EmptyState
             icon={<FolderSearch size={24} />}
-            title="Empty Workspace"
-            detail="Files created or modified by agent workers appear here in real time."
+            title="No files yet"
+            detail="Files the agents create for this project appear here while they work."
           />
         ) : (
           fileTree.map(node => (

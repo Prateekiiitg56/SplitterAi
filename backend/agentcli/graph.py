@@ -7,12 +7,14 @@ contract -> workers -> evidence -> synthesize -> verify --PASS--> finalize
                                                  repair
 
 Workers run the plan as a dependency graph through the Orchestrator, capped at
-the strategy's agent count. The synthesizer sees only the contract and worker
+the strategy's agent count. With more than one worker, a coordinator runs alongside
+them and bridges them live through a shared team board. The synthesizer sees only the contract and worker
 evidence, never raw conversations. The verifier inspects the workspace itself.
 """
 
 from __future__ import annotations
 
+import asyncio
 import re
 import time
 from typing import Any, Callable, TypedDict
@@ -20,7 +22,9 @@ from typing import Any, Callable, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from .allocation import REPAIR_BUDGET, stage_subtasks
+from .board import Board
 from .config import ExecutionConfig
+from .coordinator import coordinate
 from .models import select_chain
 from .orchestrator import Orchestrator
 from .prompts import SYNTHESIZER_SYSTEM, VERIFIER_SYSTEM
@@ -44,6 +48,7 @@ class ExecutionState(TypedDict, total=False):
     sandbox: Sandbox
     on_event: Callable[[LogEntry], None] | None
     preset: str
+    design: str
     started_at: float
     contract: str
     workers: list[Subtask]
@@ -69,17 +74,42 @@ async def contract(state: ExecutionState) -> dict[str, Any]:
     subtasks = state["plan"].subtasks
     lines = [f"TASK:\n{state['task']}", "", "WORK SPLIT:"]
     lines += [f"- [{st.id}] ({st.role.value}) {st.instruction}" for st in subtasks]
+    if state.get("design"):
+        # Web projects: every stage (workers, coordinator, verifier, repair) reads the same design rules.
+        lines += ["", state["design"]]
     _emit(state, f"Task contract: {len(subtasks)} worker subtask(s)")
     return {"contract": "\n".join(lines), "started_at": time.time(), "verifications": [], "repairs": []}
 
 
 async def workers(state: ExecutionState) -> dict[str, Any]:
+    subtasks = state["plan"].subtasks
+    # A lone worker has nobody to coordinate with.
+    board = Board() if len(subtasks) > 1 else None
     context = (
         f"{state['contract']}\n\nOther agents handle the other items in parallel or after you. "
         "Do only your assignment, keep to the file names and shared names the split specifies, "
         "and read files other agents already wrote before changing them."
     )
-    result = await Orchestrator(state["config"], state["sandbox"], state.get("on_event"), context=context).execute(state["plan"])
+    if board:
+        context += (
+            " A coordinator watches everyone's work while you run: its messages and other agents' notes "
+            "arrive as TEAM MESSAGES. Use post_note to announce shared names you choose (ids, classes, "
+            "function names, file paths) that another agent's files must use."
+        )
+    orchestrator = Orchestrator(state["config"], state["sandbox"], state.get("on_event"), context=context, board=board)
+    if not board:
+        return {"workers": (await orchestrator.execute(state["plan"])).subtasks}
+
+    stop = asyncio.Event()
+    coordinator = asyncio.create_task(coordinate(
+        board, state["contract"], [st.id for st in subtasks],
+        state["config"], state["sandbox"], state.get("on_event"), stop,
+    ))
+    try:
+        result = await orchestrator.execute(state["plan"])
+    finally:
+        stop.set()
+        await coordinator
     return {"workers": result.subtasks}
 
 
@@ -178,10 +208,11 @@ async def run_graph(
     sandbox: Sandbox,
     on_event: Callable[[LogEntry], None] | None = None,
     preset: str = "balanced",
+    design: str = "",
 ) -> RunResult:
     state = await build_graph().ainvoke({
         "task": task, "plan": plan, "config": config, "sandbox": sandbox,
-        "on_event": on_event, "preset": preset,
+        "on_event": on_event, "preset": preset, "design": design,
     })
     workers_done = state["workers"]
     stages = [state["synthesis"]]

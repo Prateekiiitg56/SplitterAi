@@ -9,6 +9,7 @@ FR-13: Each worker gets isolated message history.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import time
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 
+from .browser import SCREENSHOT_MARK
+from .board import COORDINATOR, EVERYONE, POST_NOTE_TOOL, Board
 from .config import ExecutionConfig
 from .prompts import get_system_prompt
 from .router import AllModelsFailedError, call_model
@@ -30,6 +33,62 @@ WRITE_NUDGE = (
     "You have not written any files, so nothing exists in the workspace yet. Code shown in chat is "
     "not saved. Call write_file for every file your assignment requires, then reply with a short summary."
 )
+
+# Every step resends the whole history, so old tool output is paid for again on each call.
+# Once it passes the budget, older output is replaced by stubs in one pass. Compacting in
+# bursts (not every step) keeps the prompt prefix stable between passes, so provider-side
+# prompt caching keeps hitting.
+HISTORY_BUDGET_CHARS = 40_000
+KEEP_RECENT_MESSAGES = 6
+STUB_MIN_CHARS = 300
+
+
+def _stub(n: int) -> str:
+    return f"[{n} chars of earlier output removed to save tokens; run the tool again if you still need it]"
+
+
+def _message_chars(msg: dict[str, Any]) -> int:
+    content = msg.get("content")
+    n = len(content) if isinstance(content, str) else (len(json.dumps(content)) if content else 0)
+    return n + sum(len(tc["function"]["arguments"]) for tc in msg.get("tool_calls") or [])
+
+
+def compact_history(messages: list[dict[str, Any]]) -> int:
+    """Stub out bulky old tool output, file bodies and screenshots. Returns chars removed.
+
+    The system prompt, the assignment and the most recent messages are never touched.
+    """
+    head, tail = 2, len(messages) - KEEP_RECENT_MESSAGES
+    if tail <= head or sum(_message_chars(m) for m in messages[head:tail]) <= HISTORY_BUDGET_CHARS:
+        return 0
+    saved = 0
+    for i in range(head, tail):
+        msg = messages[i]
+        content = msg.get("content")
+        if msg["role"] == "tool" and isinstance(content, str) and len(content) > STUB_MIN_CHARS:
+            messages[i] = {**msg, "content": _stub(len(content))}
+            saved += len(content)
+        elif msg["role"] == "user" and isinstance(content, list):
+            size = len(json.dumps(content))
+            messages[i] = {**msg, "content": "[screenshots removed to save tokens]"}
+            saved += size
+        elif msg.get("tool_calls"):
+            calls = []
+            for tc in msg["tool_calls"]:
+                args_json = tc["function"]["arguments"]
+                try:
+                    args = json.loads(args_json)
+                except json.JSONDecodeError:
+                    args = None
+                body = args.get("content") if isinstance(args, dict) else None
+                if isinstance(body, str) and len(body) > STUB_MIN_CHARS:
+                    args["content"] = _stub(len(body))
+                    new_json = json.dumps(args)
+                    saved += len(args_json) - len(new_json)
+                    tc = {**tc, "function": {**tc["function"], "arguments": new_json}}
+                calls.append(tc)
+            messages[i] = {**msg, "tool_calls": calls}
+    return saved
 
 
 class AgentWorker:
@@ -51,8 +110,10 @@ class AgentWorker:
         system_prompt: Optional[str] = None,
         use_tools: Optional[bool] = None,
         context: Optional[str] = None,
+        board: Optional[Board] = None,
     ):
         self.role = role
+        self.board = board  # live team channel; None when the worker runs alone
         self.context = context  # shared task contract shown ahead of the subtask's own instruction
         self.system_prompt = system_prompt or get_system_prompt(role.value)
         # Planner-role calls (planning, synthesis) produce text only unless told otherwise.
@@ -67,6 +128,17 @@ class AgentWorker:
         """Emit a log event if callback is registered."""
         if self.on_event:
             self.on_event(entry)
+
+    def _screenshot_message(self, paths: list[str]) -> dict[str, Any]:
+        """Screenshots go back to the model as images; tool results can only carry text."""
+        content: list[dict[str, Any]] = [{"type": "text", "text": (
+            "Screenshots from browser_check (" + ", ".join(paths) + "). Judge the visual quality "
+            "against the design guide: layout, alignment, spacing, hierarchy, contrast, polish."
+        )}]
+        for rel in paths:
+            data = base64.b64encode(self.sandbox.resolve_path(rel).read_bytes()).decode("ascii")
+            content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data}"}})
+        return {"role": "user", "content": content}
 
     async def run(self, subtask: Subtask) -> Subtask:
         """Execute a subtask through the ReAct loop.
@@ -96,9 +168,11 @@ class AgentWorker:
             )},
         ]
         tools = TOOL_DEFINITIONS if self.use_tools else None
+        if tools and self.board:
+            tools = [*tools, POST_NOTE_TOOL]
         # Coders deliver files. Some models answer with code as chat text instead of calling
         # write_file; push them back a bounded number of times instead of reporting success.
-        must_write = self.use_tools and self.role == AgentRole.coder
+        must_write = self.use_tools and self.role in (AgentRole.coder, AgentRole.designer)
         wrote_files = False
         write_nudges = 0
         # write_file replaces whole files. An agent that never read an existing file would wipe
@@ -108,6 +182,25 @@ class AgentWorker:
         try:
             for step in range(self.max_steps):
                 subtask.steps = step + 1
+                if self.board:
+                    inbox = self.board.unread(subtask.id)
+                    if inbox:
+                        messages.append({"role": "user", "content": (
+                            "TEAM MESSAGES (from the coordinator and agents working in parallel with you; "
+                            "follow them where they affect your files):\n"
+                            + "\n".join(f"- [{m.sender}] {m.text}" for m in inbox)
+                        )})
+                        self._emit(LogEntry(
+                            type=LogType.info, role=self.role, subtask_id=subtask.id,
+                            message=f"Received {len(inbox)} team message(s)",
+                        ))
+
+                saved = compact_history(messages)
+                if saved:
+                    self._emit(LogEntry(
+                        type=LogType.info, role=self.role, subtask_id=subtask.id,
+                        message=f"Compacted history: {saved:,} chars of old tool output removed",
+                    ))
 
                 # Call model with step-level timeout
                 step_timeout = self.config.step_timeout
@@ -147,6 +240,7 @@ class AgentWorker:
                         "tool_calls": response["tool_calls"],
                     })
 
+                    screenshots: list[str] = []
                     # Execute each tool call
                     for tc in response["tool_calls"]:
                         func = tc["function"]
@@ -171,7 +265,10 @@ class AgentWorker:
                             file_key = None
                             if tool_name in ("read_file", "write_file") and isinstance(args.get("path"), str):
                                 file_key = str(self.sandbox.resolve_path(args["path"]))
-                            if tool_name == "write_file" and file_key and file_key not in known_files \
+                            if tool_name == "post_note" and self.board:
+                                self.board.post(subtask.id, str(args.get("message", "")), to=str(args.get("to") or EVERYONE))
+                                result = "Note sent."
+                            elif tool_name == "write_file" and file_key and file_key not in known_files \
                                     and Path(file_key).exists():
                                 result = (
                                     f"Refused: {args['path']} already exists and you have not read it. write_file "
@@ -179,7 +276,10 @@ class AgentWorker:
                                     "updated content (existing parts included)."
                                 )
                             else:
-                                result = execute_tool(
+                                # Off the event loop: parallel workers and the coordinator keep running
+                                # while a shell command or browser check blocks.
+                                result = await asyncio.to_thread(
+                                    execute_tool,
                                     sandbox=self.sandbox,
                                     tool_name=tool_name,
                                     arguments=args,
@@ -208,6 +308,8 @@ class AgentWorker:
 
                         if tool_name == "write_file" and result.startswith("Successfully wrote"):
                             wrote_files = True
+                            if self.board:
+                                self.board.post(subtask.id, f"wrote {args['path']}", to=COORDINATOR, file=args["path"])
 
                         # Append tool result to messages
                         messages.append({
@@ -215,6 +317,11 @@ class AgentWorker:
                             "tool_call_id": tc["id"],
                             "content": result,
                         })
+                        screenshots += [line[len(SCREENSHOT_MARK):] for line in result.splitlines()
+                                        if line.startswith(SCREENSHOT_MARK)]
+
+                    if screenshots:
+                        messages.append(self._screenshot_message(screenshots))
 
                 elif must_write and not wrote_files and write_nudges < MAX_WRITE_NUDGES:
                     write_nudges += 1

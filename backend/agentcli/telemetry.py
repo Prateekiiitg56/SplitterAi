@@ -12,7 +12,9 @@ import os
 import statistics
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from typing import Any
 
 _lock = threading.Lock()
@@ -54,11 +56,12 @@ def load(kind: str) -> list[dict[str, Any]]:
         return [r for r in _cache["records"] if r.get("kind") == kind]
 
 
-def record_call(model: str, role: str, prompt_tokens: int, completion_tokens: int, latency_s: float, success: bool) -> None:
+def record_call(model: str, role: str, prompt_tokens: int, completion_tokens: int, latency_s: float, success: bool,
+                cached_tokens: int = 0, limited: bool = False) -> None:
     _append({
         "kind": "call", "model": model, "role": role,
-        "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
-        "latency_s": latency_s, "success": success,
+        "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens, "cached_tokens": cached_tokens,
+        "latency_s": latency_s, "success": success, "limited": limited,
     })
 
 
@@ -74,14 +77,62 @@ def record_run(report: dict[str, Any]) -> None:
     _append({"kind": "run", **report})
 
 
+# Outages and daily quotas are temporary: judge reliability on recent calls only,
+# so a model recovers once its provider or its keys do.
+RELIABILITY_WINDOW_S = 6 * 3600
+
+
 def model_stats(model: str) -> dict[str, Any]:
     calls = [c for c in load("call") if c.get("model") == model]
     ok = [c["latency_s"] for c in calls if c.get("success")]
+    recent = [c for c in calls if c.get("ts", 0) >= time.time() - RELIABILITY_WINDOW_S]
     return {
         "samples": len(calls),
         "median_latency_s": statistics.median(ok) if ok else None,
         "success_rate": (sum(1 for c in calls if c.get("success")) / len(calls)) if calls else None,
+        "recent_samples": len(recent),
+        "recent_success_rate": (sum(1 for c in recent if c.get("success")) / len(recent)) if recent else None,
     }
+
+
+_PACIFIC = ZoneInfo("America/Los_Angeles")
+
+
+def quota_window(model: str, now: float) -> tuple[float, float | None]:
+    """(start, reset) of the daily quota window a model's calls count against; reset None = no daily reset.
+
+    Gemini API daily quotas reset at midnight Pacific time, OpenRouter free-model limits at
+    00:00 UTC. Paid OpenRouter models draw on account credits, so they never reset.
+    """
+    tz = _PACIFIC if model.startswith("gemini/") else timezone.utc
+    start = datetime.fromtimestamp(now, tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    resets = model.startswith("gemini/") or ":free" in model
+    return start.timestamp(), (start + timedelta(days=1)).timestamp() if resets else None
+
+
+def usage(models: list[str]) -> list[dict[str, Any]]:
+    """Per-model calls and tokens in the current quota window, with when that window resets."""
+    now = time.time()
+    calls = load("call")
+    out = []
+    for model in models:
+        start, reset = quota_window(model, now)
+        window = [c for c in calls if c.get("model") == model and c.get("ts", 0) >= start]
+        last = window[-1] if window else None
+        out.append({
+            "model": model,
+            "provider": model.split("/")[0],
+            "requests": len(window),
+            "errors": sum(1 for c in window if not c.get("success")),
+            "prompt_tokens": sum(c.get("prompt_tokens", 0) for c in window),
+            "completion_tokens": sum(c.get("completion_tokens", 0) for c in window),
+            # The latest call hit a quota or key error, so the model is likely out until reset.
+            "limited": bool(last and not last.get("success") and last.get("limited")),
+            "last_used": last["ts"] if last else None,
+            "window_start": start,
+            "resets_at": reset,
+        })
+    return out
 
 
 def model_subtask_success(model: str) -> tuple[int, float | None]:

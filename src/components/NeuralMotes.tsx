@@ -90,7 +90,20 @@ export default function NeuralMotes() {
     const height = el.clientHeight;
 
     /* ── Renderer ──────────────────────────────────────────────── */
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      // Suppress Three.js internal console.error before it throws on missing WebGL
+      const _err = console.error;
+      console.error = () => {};
+      try {
+        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      } finally {
+        console.error = _err;
+      }
+    } catch {
+      // WebGL not available (hardware-acceleration disabled, sandboxed, etc.) — render nothing
+      return;
+    }
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);

@@ -18,6 +18,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .browser import TOOL_DEFINITION as BROWSER_CHECK_TOOL, browser_check
 from .sandbox import Sandbox, SandboxEscapeError
 
 
@@ -80,6 +81,8 @@ def list_directory(sandbox: Sandbox, path: str = ".") -> str:
 # Package managers resolve the project root by walking up to the nearest package.json. Without
 # one in the workspace, an install lands in whatever project contains the workspace.
 _NODE_INSTALL = re.compile(r"(?<![\w-])(npm|pnpm|yarn)\s+(install|i|add|ci)(?![\w-])")
+_NODE_BUILD = re.compile(r"(?<![\w-])(npm|pnpm|yarn)\s+(run\s+)?build(?![\w-])")
+NODE_TIMEOUT_S = 300  # installs and Vite builds routinely exceed the normal shell timeout
 
 BLOCKED_PROBE_PATTERNS = [
     "169.254.169.254",
@@ -244,11 +247,17 @@ def execute_tool(
         elif tool_name == "list_directory":
             return list_directory(sandbox, arguments.get("path", "."))
         elif tool_name == "run_shell":
-            return run_shell(sandbox, arguments["command"], timeout=shell_timeout, max_output=max_output)
+            command = arguments["command"]
+            if _NODE_INSTALL.search(command) or _NODE_BUILD.search(command):
+                shell_timeout = max(shell_timeout, NODE_TIMEOUT_S)
+            return run_shell(sandbox, command, timeout=shell_timeout, max_output=max_output)
         elif tool_name == "run_python":
             return run_python(sandbox, arguments["code"], timeout=shell_timeout, max_output=max_output)
         elif tool_name == "search_code":
             return search_code(sandbox, arguments["query"], arguments.get("path", "."))
+        elif tool_name == "browser_check":
+            return browser_check(sandbox, arguments.get("path") or "index.html", arguments.get("actions"),
+                                 bool(arguments.get("screenshot")))
         else:
             return f"Error: Unknown tool '{tool_name}'"
     except SandboxEscapeError as e:
@@ -349,4 +358,5 @@ TOOL_DEFINITIONS = [
             },
         },
     },
+    BROWSER_CHECK_TOOL,
 ]
