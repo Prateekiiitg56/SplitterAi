@@ -61,7 +61,7 @@ def _parse_plan_json(raw: str, task: str) -> Plan:
         return _fallback_plan(task)
 
     subtasks: list[Subtask] = []
-    valid_roles = {"coder", "auditor", "tester"}
+    valid_roles = {"coder", "designer", "auditor", "tester"}
 
     for i, item in enumerate(data):
         if not isinstance(item, dict):
@@ -106,6 +106,7 @@ async def generate_plan(
     config: ExecutionConfig,
     on_event: Optional[Callable[[LogEntry], None]] = None,
     history: Optional[list[dict[str, Any]]] = None,
+    guidance: str = "",
 ) -> Plan:
     """Generate an execution plan from a natural-language task.
 
@@ -121,7 +122,7 @@ async def generate_plan(
 
     system_prompt = get_system_prompt("planner")
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": f"{system_prompt}\n\n{guidance}" if guidance else system_prompt},
     ]
 
     if history:

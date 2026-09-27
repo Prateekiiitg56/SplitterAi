@@ -46,9 +46,9 @@ const VARIANT: Record<Variant, string> = {
   quiet:
     'bg-transparent text-[var(--dim)] border border-transparent hover:bg-[var(--panel-2)] hover:text-[var(--text)]',
   danger:
-    'bg-[var(--bad-quiet)] text-[var(--bad)] border border-[rgba(255,110,130,0.28)] hover:border-[var(--bad)]',
+    'bg-[var(--bad-quiet)] text-[var(--bad)] border border-[rgba(228,113,93,0.3)] hover:border-[var(--bad)]',
   warn:
-    'bg-[rgba(245,158,11,0.12)] text-[#fbbf24] border border-[rgba(245,158,11,0.3)] hover:border-[#fbbf24]',
+    'bg-[rgba(222,142,82,0.12)] text-[#DE8E52] border border-[rgba(222,142,82,0.3)] hover:border-[#DE8E52]',
 }
 
 export function Button(props: ButtonProps) {

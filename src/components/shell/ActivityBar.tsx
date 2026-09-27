@@ -72,7 +72,7 @@ export function ActivityBar({ pathname, onOpenDownload }: ActivityBarProps) {
           aria-label="Signed in as Prateek Singh"
           title="Prateek Singh · prateek@workspace.dev"
           className="w-7 h-7 mt-0.5 rounded-full flex items-center justify-center
-                     bg-[var(--ide-accent)] text-white text-[10px] font-bold shadow-[0_0_12px_rgba(124,92,252,0.3)] cursor-pointer"
+                     bg-[var(--ide-accent)] text-[#1A1410] text-[10px] font-bold shadow-[0_0_12px_rgba(216,166,87,0.3)] cursor-pointer"
         >
           PS
         </div>

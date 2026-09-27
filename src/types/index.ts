@@ -6,7 +6,7 @@
 
 /* ── Domain Role & Status Enums ────────────────────────────────── */
 
-export type AgentRole = 'planner' | 'coder' | 'auditor' | 'tester' | 'unassigned'
+export type AgentRole = 'planner' | 'coder' | 'auditor' | 'tester' | 'designer' | 'unassigned'
 export type SubtaskStatus = 'pending' | 'running' | 'success' | 'error' | 'queued' | 'working' | 'completed' | 'failed' | 'stopped'
 export type RunStatus = 'idle' | 'planning' | 'executing' | 'done' | 'error'
 export type ConnectionStatus = 'connecting' | 'open' | 'closed'
@@ -75,7 +75,9 @@ export type Event = LogEntry
 export interface Project {
   id: string
   workspace: string
+  /** Display title: the user-set project name, else the last task. */
   task: string
+  name?: string
   status: RunStatus
   createdAt: string
   /** ISO timestamp from the backend's epoch `updated_at`; createdAt is a display string. */

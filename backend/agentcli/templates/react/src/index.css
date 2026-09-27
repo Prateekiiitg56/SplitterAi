@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-bg: #0b0d12;
+  --color-surface: #141821;
+  --color-surface-2: #1c2230;
+  --color-border: #2a3142;
+  --color-fg: #eef1f7;
+  --color-muted: #9aa3b5;
+  --color-accent: #7c5cff;
+  --color-accent-fg: #ffffff;
+  --color-danger: #ff5c7a;
+  --color-success: #2fd18b;
+  --radius-card: 1.25rem;
+  --radius-control: 0.875rem;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 20px 50px -20px rgb(0 0 0 / 0.6);
+}
+
+@layer base {
+  html { color-scheme: dark; }
+  body { @apply min-h-dvh bg-bg font-sans text-fg antialiased; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-accent; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+}
+
+@layer components {
+  .card { @apply rounded-card border border-border bg-surface shadow-card; }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-control px-4 py-2.5 font-medium
+           transition duration-200 select-none active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary { @apply bg-accent text-accent-fg hover:brightness-110; }
+  .btn-ghost { @apply bg-surface-2 text-fg hover:bg-border; }
+}

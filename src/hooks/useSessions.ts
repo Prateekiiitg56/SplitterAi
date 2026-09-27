@@ -1,6 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchSessions } from '../lib/api'
+import { fetchSessions, type SessionInfo } from '../lib/api'
 import type { SessionEntry } from '../types'
+
+const toProject = (s: SessionInfo, idx: number): SessionEntry => ({
+  // Folder name: stable across re-sorts and deletes, unlike the list index.
+  id: s.workspace.split(/[/\\]/).filter(Boolean).pop() || `s${idx}`,
+  workspace: s.workspace,
+  task: s.name || s.task,
+  name: s.name || undefined,
+  status: (s.status as any) || 'done',
+  createdAt: s.created_at || 'Just now',
+  updatedAt: s.updated_at ? new Date(s.updated_at * 1000).toISOString() : undefined,
+  subtaskCount: s.subtask_count || 1,
+})
 
 export function useSessions() {
   const [sessions, setSessions] = useState<SessionEntry[]>([])
@@ -11,17 +23,7 @@ export function useSessions() {
     try {
       const data = await fetchSessions()
       if (data) {
-        setSessions(
-          data.map((s, idx) => ({
-            id: `api-s${idx}`,
-            workspace: s.workspace,
-            task: s.task,
-            status: (s.status as any) || 'done',
-            createdAt: s.created_at || 'Just now',
-            updatedAt: s.updated_at ? new Date(s.updated_at * 1000).toISOString() : undefined,
-            subtaskCount: s.subtask_count || 1,
-          }))
-        )
+        setSessions(data.map(toProject))
         setError(null)
       }
     } catch (err: any) {
@@ -41,17 +43,7 @@ export function useSessions() {
       try {
         const data = await fetchSessions()
         if (active && data) {
-          setSessions(
-            data.map((s, idx) => ({
-              id: `api-s${idx}`,
-              workspace: s.workspace,
-              task: s.task,
-              status: (s.status as any) || 'done',
-              createdAt: s.created_at || 'Just now',
-            updatedAt: s.updated_at ? new Date(s.updated_at * 1000).toISOString() : undefined,
-              subtaskCount: s.subtask_count || 1,
-            }))
-          )
+          setSessions(data.map(toProject))
           setError(null)
           setLoading(false)
         }

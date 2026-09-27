@@ -20,7 +20,7 @@ import { AVAILABLE_MODELS, ROLE_META } from '../data'
 import { useApp } from '../context/AppContext'
 import { useUI } from '../context/UIContext'
 import type { AgentRole, Subtask } from '../types'
-import { sendChatMessage, planTask, uploadWorkspace, importN8nWorkflow } from '../lib/api'
+import { sendChatMessage, planTask, uploadWorkspace, importN8nWorkflow, type StackId } from '../lib/api'
 import type { PlanAnalysis, PlanResult } from '../lib/api'
 import { StrategyPanel, recommendedSelection, type StrategySelection } from '../components/StrategyPanel'
 import { AgentIcon } from '../components/Badges'
@@ -43,15 +43,16 @@ interface ChatMessage {
   timestamp: string
 }
 
-const ROLES: AgentRole[] = ['planner', 'coder', 'auditor', 'tester']
+const ROLES: AgentRole[] = ['planner', 'designer', 'coder', 'auditor', 'tester']
 
 /* Worker roles that can own a subtask (planner orchestrates, it doesn't execute one). */
-const WORKER_ROLES: AgentRole[] = ['coder', 'auditor', 'tester']
+const WORKER_ROLES: AgentRole[] = ['designer', 'coder', 'auditor', 'tester']
 
 const ROLE_DEFAULT_INSTRUCTION: Record<string, string> = {
   coder: 'Implement an additional part of the build and run it to confirm it works.',
   auditor: 'Review the generated code for bugs, security issues, and quality.',
   tester: 'Write and run tests to verify the build behaves correctly.',
+  designer: 'Design the look and feel: tokens, layout, states, and DESIGN.md with the shared names.',
 }
 
 /** An editable plan proposal shown in-chat before the user launches it. */
@@ -118,6 +119,7 @@ export default function ConsolePage() {
   const score = useScore()
   const { sessions, sessionsLoading, refetchSessions, executeTaskWithPlan } = useApp()
   const { selectedModel, setSelectedModel } = useUI()
+  const [stack, setStack] = useState<StackId>('auto')
   const { integrations } = useIntegrations()
 
   /* Chat state */
@@ -210,7 +212,7 @@ export default function ConsolePage() {
       setIsPlanning(true)
       try {
         const historyPayload = currentHistory.map((m) => ({ sender: m.sender, text: m.text }))
-        const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE, selectedModel.id, historyPayload)
+        const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE, selectedModel.id, historyPayload, stack)
 
         const priorUserMsg = chatMessages.slice().reverse().find((m) => m.sender === 'user' && !m.text.toLowerCase().includes('do this'))
         const goalLabel = priorUserMsg ? priorUserMsg.text : textToSubmit
@@ -289,7 +291,7 @@ export default function ConsolePage() {
     setIsPlanning(true)
     try {
       const historyPayload = chatMessages.map((m) => ({ sender: m.sender, text: m.text }))
-      const planResult = await planTask(draftPlan.sourceTask, DEFAULT_WORKSPACE, selectedModel.id, historyPayload)
+      const planResult = await planTask(draftPlan.sourceTask, DEFAULT_WORKSPACE, selectedModel.id, historyPayload, stack)
       setDraftPlan((prev) => (prev ? {
         ...prev,
         subtasks: withRosterRoles(fromPlanResult(planResult), sessionAgents),
@@ -317,6 +319,7 @@ export default function ConsolePage() {
       DEFAULT_WORKSPACE,
       selectedModel.id,
       planToExecute.analysis && strategy ? { id: strategy.id, agents: strategy.agents } : undefined,
+      stack,
     )
   }
 
@@ -379,9 +382,9 @@ export default function ConsolePage() {
     return (
       <div className={cx(
         'w-full rounded-2xl border backdrop-blur-xl transition-all duration-200',
-        'bg-[#1e1e22]/90 border-white/[0.10] hover:border-white/[0.16]',
+        'bg-[#211D19]/90 border-white/[0.10] hover:border-white/[0.16]',
         'shadow-[0_16px_50px_-24px_rgba(0,0,0,0.85)]',
-        'focus-within:border-[#1488fc]/45 focus-within:shadow-[0_0_0_3px_rgba(20,136,252,0.10),0_16px_50px_-24px_rgba(0,0,0,0.85)]',
+        'focus-within:border-[#D8A657]/45 focus-within:shadow-[0_0_0_3px_rgba(216,166,87,0.10),0_16px_50px_-24px_rgba(0,0,0,0.85)]',
         hasMessages ? 'max-w-[720px]' : 'max-w-[680px]',
       )}>
         {/* Textarea */}
@@ -424,7 +427,7 @@ export default function ConsolePage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 2 }}
                     transition={score.transition.base}
-                    className="absolute left-0 bottom-full mb-2 w-[200px] rounded-xl border border-white/[0.10] bg-[#1a1a1e] shadow-lg p-1 z-50"
+                    className="absolute left-0 bottom-full mb-2 w-[200px] rounded-xl border border-white/[0.10] bg-[#1D1A16] shadow-lg p-1 z-50"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
@@ -476,7 +479,7 @@ export default function ConsolePage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 2 }}
                     transition={score.transition.base}
-                    className="absolute left-0 bottom-full mb-2 w-[260px] rounded-xl border border-white/[0.10] bg-[#1a1a1e] shadow-lg p-1 z-50"
+                    className="absolute left-0 bottom-full mb-2 w-[260px] rounded-xl border border-white/[0.10] bg-[#1D1A16] shadow-lg p-1 z-50"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {AVAILABLE_MODELS.map((m) => {
@@ -488,11 +491,11 @@ export default function ConsolePage() {
                           onClick={() => { setSelectedModel(m); setModelDropdownOpen(false) }}
                           className={cx(
                             'flex items-center justify-between w-full px-3 py-2 rounded-lg text-[12px] text-left transition-colors',
-                            isSel ? 'bg-[#1488fc]/10 text-white font-medium' : 'text-white/55 hover:bg-white/[0.06] hover:text-white',
+                            isSel ? 'bg-[#D8A657]/10 text-white font-medium' : 'text-white/55 hover:bg-white/[0.06] hover:text-white',
                           )}
                         >
                           <span className="truncate">{m.label}</span>
-                          {isSel && <Check size={13} className="text-[#1488fc] shrink-0 ml-2" />}
+                          {isSel && <Check size={13} className="text-[#D8A657] shrink-0 ml-2" />}
                         </button>
                       )
                     })}
@@ -500,6 +503,19 @@ export default function ConsolePage() {
                 )}
               </AnimatePresence>
             </div>
+            {/* Web stack for web pages and apps */}
+            <select
+              value={stack}
+              onChange={(e) => setStack(e.target.value as StackId)}
+              aria-label="Web stack"
+              title="Stack used when the task builds a web page or app"
+              className="h-8 rounded-xl bg-white/[0.04] px-2.5 border border-white/[0.08] text-[11.5px] text-white/60 hover:bg-white/[0.07] hover:text-white/80 hover:border-white/[0.14] transition-all cursor-pointer [&>option]:bg-[#1D1A16]"
+            >
+              <option value="auto">Stack: Auto</option>
+              <option value="tailwind">Tailwind</option>
+              <option value="plain">Plain HTML/CSS</option>
+              <option value="react">React + Vite</option>
+            </select>
           </div>
 
           {/* Right: send */}
@@ -512,7 +528,7 @@ export default function ConsolePage() {
             className={cx(
               'flex items-center justify-center gap-2 rounded-xl font-semibold text-[12.5px] transition-all h-9 shrink-0',
               inputValue.trim() && !isSending
-                ? 'bg-[#1488fc] text-white hover:brightness-110 shadow-md px-4'
+                ? 'bg-[#D8A657] text-[#1A1410] hover:brightness-110 shadow-md px-4'
                 : 'bg-white/[0.06] text-white/25 cursor-not-allowed w-9',
             )}
             aria-label="Send message"
@@ -553,7 +569,7 @@ export default function ConsolePage() {
           <AgentIcon role="planner" size={14} />
         </span>
 
-        <div className="w-full max-w-[88%] rounded-2xl rounded-bl-lg bg-[#1e1e22] border border-white/[0.08] overflow-hidden shadow-[0_16px_48px_-20px_rgba(0,0,0,0.75)]">
+        <div className="w-full max-w-[88%] rounded-2xl rounded-bl-lg bg-[#211D19] border border-white/[0.08] overflow-hidden shadow-[0_16px_48px_-20px_rgba(0,0,0,0.75)]">
           {/* Header — the agent's answer */}
           <div className="px-4 pt-3.5 pb-3 border-b border-white/[0.06]">
             <h3 className="text-[15px] font-semibold text-white leading-snug">Here's how I'll split this</h3>
@@ -634,7 +650,7 @@ export default function ConsolePage() {
             <button
               type="button"
               onClick={handleConfirmAndLaunch}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#1488fc] text-white font-semibold text-[12.5px] hover:brightness-110 shadow-md transition-all"
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#D8A657] text-[#1A1410] font-semibold text-[12.5px] hover:brightness-110 shadow-md transition-all"
             >
               <Play size={13} fill="currentColor" /> Launch build <ArrowRight size={14} />
             </button>
@@ -733,7 +749,7 @@ export default function ConsolePage() {
         <button
           type="button"
           onClick={() => navigate('/integrations')}
-          className="text-[11px] text-[#1488fc]/80 hover:text-[#1488fc] transition-colors font-medium"
+          className="text-[11px] text-[#D8A657]/80 hover:text-[#D8A657] transition-colors font-medium"
         >
           Manage
         </button>
@@ -765,12 +781,12 @@ export default function ConsolePage() {
                 <motion.div variants={fadeUp} className="text-center mb-6">
                   <h1 className="text-[2.5rem] sm:text-[3rem] font-bold text-white tracking-tight mb-2 leading-[1.1]">
                     What will you{' '}
-                    <span className="bg-gradient-to-b from-[#4da5fc] via-[#4da5fc] to-white bg-clip-text text-transparent italic">
+                    <span className="bg-gradient-to-b from-[#E6BE7A] via-[#E6BE7A] to-white bg-clip-text text-transparent italic">
                       split
                     </span>
                     {' '}today?
                   </h1>
-                  <p className="text-[15px] sm:text-[16px] text-[#8a8a8f] font-medium max-w-[520px] mx-auto leading-relaxed">
+                  <p className="text-[15px] sm:text-[16px] text-[#ADA395] font-medium max-w-[520px] mx-auto leading-relaxed">
                     Describe a task. SplitterAI divides it across planner, coder, auditor and tester agents.
                   </p>
                 </motion.div>
@@ -819,8 +835,8 @@ export default function ConsolePage() {
                           className={cx(
                             'px-4 py-3 rounded-2xl text-[13.5px] leading-relaxed',
                             msg.sender === 'user'
-                              ? 'max-w-[80%] bg-[#1488fc] text-white font-medium rounded-br-lg'
-                              : 'max-w-[88%] bg-[#1e1e22] text-white/90 border border-white/[0.08] rounded-bl-lg',
+                              ? 'max-w-[80%] bg-[#D8A657] text-[#1A1410] font-medium rounded-br-lg'
+                              : 'max-w-[88%] bg-[#211D19] text-white/90 border border-white/[0.08] rounded-bl-lg',
                           )}
                         >
                           {msg.sender === 'agent' ? (
@@ -834,13 +850,13 @@ export default function ConsolePage() {
 
                     {isSending && (
                       <div className="flex items-center gap-2.5 text-[12px] text-white/40">
-                        <Loader2 size={14} className="animate-spin text-[#1488fc]" />
+                        <Loader2 size={14} className="animate-spin text-[#D8A657]" />
                         <span>{activeAgentName} ({selectedModel.label}) is typing…</span>
                       </div>
                     )}
                     {isPlanning && !draftPlan && (
                       <div className="flex items-center gap-2.5 text-[12px] text-white/40">
-                        <Loader2 size={14} className="animate-spin text-[#1488fc]" />
+                        <Loader2 size={14} className="animate-spin text-[#D8A657]" />
                         <span>Planning task split across agents…</span>
                       </div>
                     )}
@@ -878,7 +894,7 @@ export default function ConsolePage() {
                   <button
                     type="button"
                     onClick={() => navigate('/integrations')}
-                    className="text-[10px] text-[#1488fc]/60 hover:text-[#1488fc] transition-colors"
+                    className="text-[10px] text-[#D8A657]/60 hover:text-[#D8A657] transition-colors"
                   >
                     Manage
                   </button>

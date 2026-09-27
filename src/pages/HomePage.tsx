@@ -49,7 +49,7 @@ const RUNNING = new Set(['executing', 'planning'])
 function projectName(session: SessionEntry): string {
   const fromWorkspace = (session.workspace || '').split(/[/\\]/).filter(Boolean).pop()
   // "." (the repo root) says nothing; fall back to the task text.
-  return (fromWorkspace && fromWorkspace !== '.' ? fromWorkspace : '') || session.task || session.id
+  return session.name || (fromWorkspace && fromWorkspace !== '.' ? fromWorkspace : '') || session.task || session.id
 }
 
 /**

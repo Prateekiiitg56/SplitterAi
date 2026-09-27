@@ -14,6 +14,7 @@ import logging
 import time
 from typing import Callable, Optional
 
+from .board import Board
 from .config import ExecutionConfig
 from .dag import resolve_deps
 from .sandbox import Sandbox
@@ -41,9 +42,11 @@ class Orchestrator:
         sandbox: Sandbox,
         on_event: Optional[Callable[[LogEntry], None]] = None,
         context: Optional[str] = None,
+        board: Optional[Board] = None,
     ):
         self.config = config
         self.context = context
+        self.board = board
         self.sandbox = sandbox
         self.on_event = on_event
         self._semaphore = asyncio.Semaphore(config.max_concurrent_agents)
@@ -61,8 +64,16 @@ class Orchestrator:
                 sandbox=self.sandbox,
                 on_event=self.on_event,
                 context=self.context,
+                board=self.board,
             )
-            return await worker.run(subtask)
+            if not self.board:
+                return await worker.run(subtask)
+            self.board.running.add(subtask.id)
+            try:
+                return await worker.run(subtask)
+            finally:
+                self.board.running.discard(subtask.id)
+                self.board.finished.add(subtask.id)
 
     async def execute(self, plan: Plan) -> RunResult:
         """Execute the plan as a dependency graph.

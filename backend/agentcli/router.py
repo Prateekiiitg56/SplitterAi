@@ -50,6 +50,7 @@ def get_usage_metrics() -> dict[str, Any]:
             "calls": 0,
             "errors": 0,
             "total_tokens": 0,
+            "cached_tokens": 0,
             "limit_requests": info["limit_requests"],
         }
         for p, info in provider_limits.items()
@@ -72,6 +73,7 @@ def get_usage_metrics() -> dict[str, Any]:
         if p in metrics:
             metrics[p]["calls"] += 1
             metrics[p]["total_tokens"] += tokens
+            metrics[p]["cached_tokens"] += log.get("cached_tokens", 0)
             if not log.get("success", False):
                 metrics[p]["errors"] += 1
 
@@ -82,6 +84,8 @@ def get_usage_metrics() -> dict[str, Any]:
         "roles": role_metrics,
         "total_calls": len(ROUTER_CALL_LOG),
         "total_tokens": total_tokens_all,
+        "cached_tokens": sum(log.get("cached_tokens", 0) for log in ROUTER_CALL_LOG),
+        "prompt_tokens": sum(log.get("prompt_tokens", 0) for log in ROUTER_CALL_LOG),
     }
 
 
@@ -96,6 +100,30 @@ class AllModelsFailedError(Exception):
             for attempt in attempts
         )
         super().__init__(f"All models failed: {models}. Details: {details}")
+
+
+def _is_account_error(error: str) -> bool:
+    """Errors tied to one account (quota, credits, auth), which another key can get past."""
+    lower = error.lower()
+    if "upstream" in lower:  # the provider behind OpenRouter is busy for every account
+        return False
+    return any(s in lower for s in ("429", "402", "401", "403", "ratelimit", "rate limit", "quota",
+                                    "credits", "exhausted", "unauthorized", "invalid api key", "api key not valid"))
+
+
+def _has_images(messages: list[dict[str, Any]]) -> bool:
+    return any(isinstance(m.get("content"), list) for m in messages)
+
+
+def _without_images(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out = []
+    for m in messages:
+        if isinstance(m.get("content"), list):
+            text = " ".join(p.get("text", "") for p in m["content"] if p.get("type") == "text")
+            m = {**m, "content": f"{text} [Screenshots omitted: this model cannot read images. "
+                                "Judge from the browser_check report instead.]"}
+        out.append(m)
+    return out
 
 
 async def call_model(
@@ -141,7 +169,10 @@ async def call_model(
     attempts: list[dict[str, Any]] = []
 
     for i, model in enumerate(model_chain):
-        api_key = config.get_api_key(role, model)
+        model_messages = messages
+        # Each model can have several accounts; a rate-limited or empty one hands over to the next.
+        api_keys = config.get_api_keys(role, model) or [None]
+        key_index = 0
 
         # Log the attempt
         if on_event:
@@ -152,9 +183,11 @@ async def call_model(
                 message=f"Calling {model}" + (f" (attempt {i + 1}/{len(model_chain)})" if i > 0 else ""),
             ))
 
-        # Single-model transient retry loop (up to 2 attempts per model)
+        # Single-model transient retry loop (up to 2 attempts per model and key)
         max_retries = 2
-        for retry in range(max_retries):
+        retry = 0
+        while retry < max_retries:
+            api_key = api_keys[key_index]
             try:
                 # Keep provider-qualified model names intact so each configured
                 # API key is sent to its intended provider.
@@ -162,7 +195,7 @@ async def call_model(
 
                 kwargs: dict[str, Any] = {
                     "model": target_model,
-                    "messages": messages,
+                    "messages": model_messages,
                     "timeout": config.model_timeout,
                 }
                 if api_key:
@@ -203,6 +236,11 @@ async def call_model(
                 prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
                 completion_tokens = getattr(usage, "completion_tokens", 0) or 0
                 total_tokens = getattr(usage, "total_tokens", 0) or (prompt_tokens + completion_tokens)
+                # Prompt tokens the provider served from its prefix cache (Gemini implicit, OpenAI automatic).
+                details = getattr(usage, "prompt_tokens_details", None)
+                cached_tokens = (details.get("cached_tokens") if isinstance(details, dict)
+                                 else getattr(details, "cached_tokens", 0))
+                cached_tokens = cached_tokens if isinstance(cached_tokens, int) else 0
 
                 provider = model.split("/")[0] if "/" in model else model
                 ROUTER_CALL_LOG.append({
@@ -213,9 +251,12 @@ async def call_model(
                     "prompt_tokens": prompt_tokens,
                     "completion_tokens": completion_tokens,
                     "total_tokens": total_tokens,
+                    "cached_tokens": cached_tokens,
                 })
-                telemetry.record_call(model, role.value, prompt_tokens, completion_tokens, latency_s, True)
-                result["usage"] = {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}
+                telemetry.record_call(model, role.value, prompt_tokens, completion_tokens, latency_s, True,
+                                      cached_tokens=cached_tokens)
+                result["usage"] = {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
+                                   "cached_tokens": cached_tokens}
 
                 if cache_key:
                     PLANNER_CACHE[cache_key] = result
@@ -235,16 +276,29 @@ async def call_model(
                 return result
 
             except Exception as e:
-                error_str = str(e)[:200]
+                error_full = str(e)
+                error_str = error_full[:200]
+                if "image" in error_full.lower() and model_messages is messages and _has_images(messages):
+                    # Text-only model: retry it without the screenshots instead of losing the whole chain.
+                    logger.warning("Model %s cannot read images; retrying without screenshots", model)
+                    model_messages = _without_images(messages)
+                    continue
+                if key_index < len(api_keys) - 1 and _is_account_error(error_full):
+                    key_index += 1
+                    retry = 0
+                    logger.warning("Model %s: key %d is limited (%s); trying key %d",
+                                   model, key_index, error_str[:80], key_index + 1)
+                    continue
                 is_transient = any(c in error_str for c in ("429", "502", "503", "504", "timeout", "RateLimit", "Overloaded"))
 
                 if is_transient and retry < max_retries - 1:
                     logger.warning("Transient error calling %s (retry %d/%d): %s", model, retry + 1, max_retries, error_str)
                     await asyncio.sleep(1.5 * (retry + 1))
+                    retry += 1
                     continue
 
                 attempts.append({"model": model, "error": error_str})
-                telemetry.record_call(model, role.value, 0, 0, 0.0, False)
+                telemetry.record_call(model, role.value, 0, 0, 0.0, False, limited=_is_account_error(error_full))
                 logger.warning("Model %s failed: %s", model, error_str)
 
                 if on_event and i < len(model_chain) - 1:

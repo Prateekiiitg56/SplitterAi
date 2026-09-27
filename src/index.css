@@ -4,55 +4,55 @@
 
 /* ═══════════════════════════════════════════════════════════════════════
    SplitterAI — design tokens
-   Inter Variable + JetBrains Mono Variable. Warm violet-blue accent.
+   Inter Variable + JetBrains Mono Variable. Warm espresso neutrals, brass accent.
    One accent instead of three palettes, a real type scale, three radii,
    and --faint raised to pass WCAG AA.
    ═══════════════════════════════════════════════════════════════════════ */
 
 :root {
   /* ── Surfaces ─────────────────────────────────────────────────────── */
-  --bg: #070A10;
-  --bg-inset: #05070C;          /* wells: log bodies, code, terminal      */
-  --panel: #0F1420;             /* default raised surface                 */
-  --panel-2: #151B29;           /* row hover, active nav, inner surface   */
-  --panel-3: #1B2233;           /* pressed / selected                     */
+  --bg: #12100E;
+  --bg-inset: #0D0B0A;          /* wells: log bodies, code, terminal      */
+  --panel: #1C1916;             /* default raised surface                 */
+  --panel-2: #24201C;           /* row hover, active nav, inner surface   */
+  --panel-3: #2C2722;           /* pressed / selected                     */
 
   /* ── Edges ────────────────────────────────────────────────────────── */
-  --border-soft: #181E2C;       /* structural dividers — barely there     */
-  --border: #232B3D;            /* default edge                           */
-  --border-strong: #2F394F;     /* hover / emphasis edge                  */
+  --border-soft: #221E1A;       /* structural dividers — barely there     */
+  --border: #312B25;            /* default edge                           */
+  --border-strong: #453D35;     /* hover / emphasis edge                  */
 
   /* ── Ink ──────────────────────────────────────────────────────────── */
-  --text: #E8ECF4;              /* primary            ~15.8:1 on panel    */
-  --text-2: #B9C2D4;            /* secondary body     ~10.2:1             */
-  --dim: #8992A6;               /* labels, meta        ~5.9:1             */
-  --faint: #778395;             /* de-emphasised text  ~4.8:1  AA ✓       */
-  --ghost: #3B4356;             /* NON-TEXT ONLY: dots, rules, grid       */
+  --text: #EDE4D6;              /* primary            ~15.8:1 on panel    */
+  --text-2: #C9BFB0;            /* secondary body     ~10.2:1             */
+  --dim: #A89E90;               /* labels, meta        ~5.9:1             */
+  --faint: #968B7D;             /* de-emphasised text  ~4.8:1  AA ✓       */
+  --ghost: #4A4239;             /* NON-TEXT ONLY: dots, rules, grid       */
 
   /* ── Accent — the only interactive colour ─────────────────────────── */
-  --accent: #48B4FF;
-  --accent-ink: #04070D;        /* text on accent fill      ~8.7:1        */
-  --accent-quiet: #12283C;      /* accent-tinted fill                     */
-  --accent-edge: #2A5C86;       /* accent-tinted edge                     */
+  --accent: #D8A657;
+  --accent-ink: #1A1410;        /* text on accent fill      ~8.7:1        */
+  --accent-quiet: #3A2E1C;      /* accent-tinted fill                     */
+  --accent-edge: #7A5E30;       /* accent-tinted edge                     */
 
   /* ── Semantic — status only, never decoration ─────────────────────── */
-  --good: #4DCFB8;
-  --good-quiet: #0F2E2A;
-  --bad: #FF6E82;
-  --bad-quiet: #331E27;
-  --wait: #8296B8;
-  --wait-quiet: #172A45;
-  --warn: #E0A661;
-  --warn-quiet: #33260F;
+  --good: #9CC28A;
+  --good-quiet: #243021;
+  --bad: #E4715D;
+  --bad-quiet: #3A211B;
+  --wait: #7FB0A8;
+  --wait-quiet: #1E2F2C;
+  --warn: #DE8E52;
+  --warn-quiet: #3A2717;
 
   /* ── Role identity ────────────────────────────────────────────────────
      Four roles, four hues, all held inside the cold band except one
      deliberate warm note. Used as a 1px rule or a glyph stroke — never
      as a filled colour chip.                                            */
-  --role-planner: #8296B8;
-  --role-coder: #48B4FF;
-  --role-reviewer: #4DCFB8;
-  --role-runner: #E0A661;
+  --role-planner: #7FB0A8;
+  --role-coder: #D8A657;
+  --role-reviewer: #9CC28A;
+  --role-runner: #DE8E52;
 
   /* ── Type scale ───────────────────────────────────────────────────────
      Dense-UI progression, ~1.12 through the working range with a wider
@@ -90,8 +90,8 @@
   --shadow-raise: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.24);
   --shadow-float: 0 20px 50px -16px rgba(0, 0, 0, 0.7),
                   0 0 0 1px rgba(255, 255, 255, 0.04),
-                  0 0 80px -20px rgba(124, 92, 252, 0.06);
-  --shadow-glow: 0 0 40px -10px rgba(124, 92, 252, 0.15);
+                  0 0 80px -20px rgba(216, 166, 87, 0.06);
+  --shadow-glow: 0 0 40px -10px rgba(216, 166, 87, 0.15);
 
   /* ── The motion score ─────────────────────────────────────────────────
      Mirrors src/lib/motion.ts. Every duration in the app is one of these
@@ -115,35 +115,35 @@
      surfaces above are untouched; these neutral grays sit only under the new
      shell. Mirrored in @theme below as --color-ide-* so both the
      bg-[var(--ide-deep)] form and the bg-ide-deep utility resolve.          */
-  --ide-editor: #1b1b1f;        /* main content / editor surface — warmed  */
-  --ide-deep: #141418;          /* titlebar, activity bar, explorer, status */
-  --ide-raised: #242429;        /* cards, inputs, inactive chips            */
-  --ide-raised-2: #2c2c32;      /* higher hover / pressed                  */
-  --ide-border: #2a2a30;        /* default IDE edge                        */
-  --ide-border-soft: #222228;   /* faint IDE divider                       */
+  --ide-editor: #1A1714;        /* main content / editor surface — warmed  */
+  --ide-deep: #13110F;          /* titlebar, activity bar, explorer, status */
+  --ide-raised: #231F1B;        /* cards, inputs, inactive chips            */
+  --ide-raised-2: #2D2823;      /* higher hover / pressed                  */
+  --ide-border: #332D27;        /* default IDE edge                        */
+  --ide-border-soft: #26221D;   /* faint IDE divider                       */
 
-  --ide-text: #d0d0d8;          /* primary IDE text        9.5:1 on raised */
-  --ide-text-hi: #f0f0f4;       /* emphasised IDE text    13.4:1           */
-  --ide-text-dim: #9d9da8;      /* secondary IDE text      6.1:1           */
-  --ide-text-faint: #8a8a96;    /* de-emphasised IDE text  4.8:1  AA ✓     */
+  --ide-text: #DDD3C4;          /* primary IDE text        9.5:1 on raised */
+  --ide-text-hi: #F3EBDF;       /* emphasised IDE text    13.4:1           */
+  --ide-text-dim: #ADA395;      /* secondary IDE text      6.1:1           */
+  --ide-text-faint: #968B7D;    /* de-emphasised IDE text  4.8:1  AA ✓     */
 
-  --ide-hover: #28282e;         /* tree-row / status-item hover            */
-  --ide-track: #32323a;         /* progress track inside the shell         */
-  --ide-edge-hover: #3c3c44;    /* card / control edge on hover            */
-  --ide-muted: #52525c;         /* NON-TEXT ONLY: separators, dim fills    */
+  --ide-hover: #29241F;         /* tree-row / status-item hover            */
+  --ide-track: #3A332C;         /* progress track inside the shell         */
+  --ide-edge-hover: #4A4239;    /* card / control edge on hover            */
+  --ide-muted: #5C5349;         /* NON-TEXT ONLY: separators, dim fills    */
 
-  /* Warm violet-blue accent. Warmer and brighter than the old Cursor blue.
+  /* Brass accent on espresso neutrals: warm, rich, not the stock AI blue/violet.
      Declared as tokens so .ide-shell rebinds --accent/* to these, and the
-     standalone Landing keeps its own #48B4FF.                               */
-  --ide-accent: #7c5cfc;
-  --ide-accent-dim: #6348d4;
-  --ide-accent-quiet: rgba(124, 92, 252, 0.12);
-  --ide-accent-edge: rgba(124, 92, 252, 0.45);
-  --ide-accent-ink: #ffffff;
+     standalone Landing keeps its own #D8A657.                               */
+  --ide-accent: #D8A657;
+  --ide-accent-dim: #B8873D;
+  --ide-accent-quiet: rgba(216, 166, 87, 0.12);
+  --ide-accent-edge: rgba(216, 166, 87, 0.45);
+  --ide-accent-ink: #1A1410;
 
-  --ide-good: #4ec9b0;
-  --ide-bad: #f14c4c;
-  --ide-warn: #cca700;
+  --ide-good: #9CC28A;
+  --ide-bad: #E4715D;
+  --ide-warn: #DE8E52;
 
   /* ── Legacy aliases ───────────────────────────────────────────────────
      Pages not yet migrated still reference these names (error banners,
@@ -157,63 +157,57 @@
 
 /* Expose the same tokens to Tailwind utilities. */
 @theme {
-  --color-bg: #070A10;
-  --color-bg-inset: #05070C;
-  --color-panel: #0F1420;
-  --color-panel-2: #151B29;
-  --color-panel-3: #1B2233;
+  --color-bg: #12100E;
+  --color-bg-inset: #0D0B0A;
+  --color-panel: #1C1916;
+  --color-panel-2: #24201C;
+  --color-panel-3: #2C2722;
 
-  --color-border-soft: #181E2C;
-  --color-border: #232B3D;
-  --color-border-strong: #2F394F;
+  --color-border-soft: #221E1A;
+  --color-border: #312B25;
+  --color-border-strong: #453D35;
 
-  --color-text: #E8ECF4;
-  --color-text-2: #B9C2D4;
-  --color-dim: #8992A6;
-  --color-faint: #778395;
-  --color-ghost: #3B4356;
+  --color-text: #EDE4D6;
+  --color-text-2: #C9BFB0;
+  --color-dim: #A89E90;
+  --color-faint: #968B7D;
+  --color-ghost: #4A4239;
 
-  --color-accent: #48B4FF;
-  --color-accent-ink: #04070D;
-  --color-accent-quiet: #12283C;
-  --color-accent-edge: #2A5C86;
+  --color-accent: #D8A657;
+  --color-accent-ink: #1A1410;
+  --color-accent-quiet: #3A2E1C;
+  --color-accent-edge: #7A5E30;
 
-  --color-good: #4DCFB8;
-  --color-bad: #FF6E82;
-  --color-wait: #8296B8;
-  --color-warn: #E0A661;
+  --color-good: #9CC28A;
+  --color-bad: #E4715D;
+  --color-wait: #7FB0A8;
+  --color-warn: #DE8E52;
 
-  /* ── IDE shell surfaces — neutral grays for the Cursor-style chrome ──────
-     Additive tokens for the redesigned app shell (title bar, activity bar,
-     explorer, editor tabs, status bar, chat panel). The app's own blue-black
-     surfaces above are left untouched; these monochrome grays sit only under
-     the new shell. The accent is unchanged here — it is rebound to the Cursor
-     blue (#3b9dff) on the shell root so reused primitives pick it up without
-     altering --accent globally, leaving the standalone Landing on #48B4FF. */
-  --color-ide-editor: #1b1b1f;
-  --color-ide-deep: #141418;
-  --color-ide-raised: #242429;
-  --color-ide-raised-2: #2c2c32;
-  --color-ide-border: #2a2a30;
-  --color-ide-border-soft: #222228;
-  --color-ide-text: #d0d0d8;
-  --color-ide-text-hi: #f0f0f4;
-  --color-ide-text-dim: #9d9da8;
-  --color-ide-text-faint: #8a8a96;
+  /* ── IDE shell surfaces — warm espresso chrome, mirrored from :root ── */
+  --color-ide-editor: #1A1714;
+  --color-ide-deep: #13110F;
+  --color-ide-raised: #231F1B;
+  --color-ide-raised-2: #2D2823;
+  --color-ide-border: #332D27;
+  --color-ide-border-soft: #26221D;
+  --color-ide-text: #DDD3C4;
+  --color-ide-text-hi: #F3EBDF;
+  --color-ide-text-dim: #ADA395;
+  --color-ide-text-faint: #968B7D;
 
-  --color-ide-hover: #28282e;
-  --color-ide-track: #32323a;
-  --color-ide-edge-hover: #3c3c44;
-  --color-ide-muted: #52525c;
+  --color-ide-hover: #29241F;
+  --color-ide-track: #3A332C;
+  --color-ide-edge-hover: #4A4239;
+  --color-ide-muted: #5C5349;
 
-  --color-ide-accent: #7c5cfc;
-  --color-ide-accent-dim: #6348d4;
-  --color-ide-accent-quiet: rgba(124, 92, 252, 0.12);
-  --color-ide-accent-ink: #ffffff;
+  --color-ide-accent: #D8A657;
+  --color-ide-accent-dim: #B8873D;
+  --color-ide-accent-quiet: rgba(216, 166, 87, 0.12);
+  --color-ide-accent-ink: #1A1410;
 
-  --color-ide-good: #4ec9b0;
-  --color-ide-bad: #f14c4c;
-  --color-ide-warn: #cca700;
+  --color-ide-good: #9CC28A;
+  --color-ide-bad: #E4715D;
+  --color-ide-warn: #DE8E52;
 
   --text-micro: 11px;
   --text-meta: 12px;
@@ -228,7 +222,7 @@
   --radius-float: 12px;
 
   --shadow-raise: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.24);
-  --shadow-float: 0 20px 50px -16px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 80px -20px rgba(124, 92, 252, 0.06);
+  --shadow-float: 0 20px 50px -16px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 80px -20px rgba(216, 166, 87, 0.06);
 
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out-strong: cubic-bezier(0.16, 1, 0.3, 1);
@@ -289,7 +283,7 @@ h1, h2, h3, h4,
 
 .app-shell {
   background:
-    radial-gradient(ellipse 900px 520px at 50% -12%, rgba(72, 180, 255, 0.08), transparent 68%),
+    radial-gradient(ellipse 900px 520px at 50% -12%, rgba(216, 166, 87, 0.08), transparent 68%),
     var(--bg);
 }
 
@@ -306,10 +300,8 @@ h1, h2, h3, h4,
    Tailwind utilities on the components in src/components/shell/.
 
    Two jobs:
-   1. Rebind the accent to the Cursor blue for the whole authenticated app.
-      Because the primitives (Button, Field, StatusDot, StatusBadge) already
-      read var(--accent), they pick the new blue up with no edits — and the
-      standalone Landing renders outside .ide-shell, so it keeps #48B4FF.
+   1. Rebind --accent and surfaces to the --ide-* tokens for the whole
+      authenticated app; primitives read var(--accent) and follow.
    2. Recolour the scrollbars to VS Code's neutral gray inside the shell.  */
 
 .ide-shell {
@@ -320,7 +312,7 @@ h1, h2, h3, h4,
 
   --good: var(--ide-good);
   --bad: var(--ide-bad);
-  --bad-quiet: rgba(241, 76, 76, 0.13);
+  --bad-quiet: rgba(228, 113, 93, 0.13);
 
   --bg: var(--ide-editor);
   --bg-inset: var(--ide-deep);
@@ -330,13 +322,13 @@ h1, h2, h3, h4,
 
   --border-soft: var(--ide-border-soft);
   --border: var(--ide-border);
-  --border-strong: #3c3c44;
+  --border-strong: #4A4239;
 
   --text: var(--ide-text-hi);
   --text-2: var(--ide-text);
-  --dim: #a6a6b0;
+  --dim: #B3A999;
   --faint: var(--ide-text-faint);
-  --ghost: #48484e;
+  --ghost: #4E463D;
 
   color: var(--ide-text);
   background: var(--ide-editor);
@@ -371,7 +363,7 @@ h1, h2, h3, h4,
 /* The failed badge hardcodes a pink border that the --bad rebinding above
    can't reach; re-state it in the IDE's red so the fill and edge agree. */
 .ide-shell .status-badge.failed,
-.ide-shell .status-badge.error { border-color: rgba(241, 76, 76, 0.3); }
+.ide-shell .status-badge.error { border-color: rgba(228, 113, 93, 0.3); }
 
 /* ── Sidebar ───────────────────────────────────────────────────────── */
 
@@ -402,10 +394,10 @@ h1, h2, h3, h4,
 .brand { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text); }
 .brand-mark {
   width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
-  background: linear-gradient(155deg, var(--accent), #1c4c73 78%);
+  background: linear-gradient(155deg, var(--accent), #7A4E24 78%);
   display: flex; align-items: center; justify-content: center;
   color: var(--accent-ink); font-weight: 600; font-size: 12px; font-family: var(--mono);
-  box-shadow: 0 0 0 1px rgba(72,180,255,0.35), 0 4px 14px -6px rgba(72,180,255,0.55);
+  box-shadow: 0 0 0 1px rgba(216,166,87,0.35), 0 4px 14px -6px rgba(216,166,87,0.55);
 }
 .brand-word { font-weight: 600; font-size: 13.5px; letter-spacing: -0.01em; white-space: nowrap; }
 
@@ -448,7 +440,7 @@ h1, h2, h3, h4,
 .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; color: rgba(255,255,255,0.5); }
 .nav-item span { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar.collapsed .nav-item span { display: none; }
-.nav-item.active { background: rgba(30,120,255,0.14); border-color: rgba(30,140,255,0.55); color: #fff; font-weight: 600; }
+.nav-item.active { background: rgba(216,166,87,0.12); border-color: rgba(216,166,87,0.5); color: #fff; font-weight: 600; }
 .nav-item.active svg { color: var(--accent); }
 
 .sidebar-foot {
@@ -458,10 +450,10 @@ h1, h2, h3, h4,
 .sidebar.collapsed .sidebar-foot { justify-content: center; }
 .avatar-ring {
   width: 26px; height: 26px; border-radius: 999px; flex-shrink: 0; padding: 2px;
-  background: linear-gradient(135deg, #fbbf24, #fb7185 55%, #a855f7);
+  background: linear-gradient(135deg, #E6BE7A, #E4715D 60%, #9C4A3A);
 }
 .avatar-ring-inner {
-  width: 100%; height: 100%; border-radius: 999px; background: #0a0e18;
+  width: 100%; height: 100%; border-radius: 999px; background: #13110F;
   display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff;
 }
 .foot-id { min-width: 0; flex: 1; }
@@ -473,7 +465,7 @@ h1, h2, h3, h4,
 /* Machine output is monospaced; prose is not. */
 code, pre, kbd, samp { font-family: var(--mono); }
 
-::selection { background: rgba(124, 92, 252, 0.35); color: var(--text); }
+::selection { background: rgba(216, 166, 87, 0.35); color: var(--text); }
 
 @layer base {
   a { color: inherit; text-decoration: none; }
@@ -498,7 +490,7 @@ code, pre, kbd, samp { font-family: var(--mono); }
   outline: 1.5px solid var(--accent);
   outline-offset: 2px;
   border-radius: var(--r-control);
-  box-shadow: 0 0 0 4px rgba(124, 92, 252, 0.12);
+  box-shadow: 0 0 0 4px rgba(216, 166, 87, 0.12);
 }
 :focus:not(:focus-visible) { outline: none; }
 
@@ -722,7 +714,7 @@ code, pre, kbd, samp { font-family: var(--mono); }
   color: var(--faint); transition: border-color var(--d-quick), color var(--d-quick), background var(--d-quick);
   cursor: pointer;
 }
-.new-card:hover { border-color: var(--accent-edge); color: var(--accent); background: rgba(72,180,255,0.04); }
+.new-card:hover { border-color: var(--accent-edge); color: var(--accent); background: rgba(216,166,87,0.04); }
 .new-card svg { width: 20px; height: 20px; }
 .new-card span { font-size: 12px; font-weight: 500; }
 
@@ -752,60 +744,131 @@ code, pre, kbd, samp { font-family: var(--mono); }
 
 /* Overview Tab */
 .ov-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 20px;
-  border-bottom: 1px solid var(--border-soft);
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 24px;
+  border-bottom: 1px solid var(--border-soft); background: var(--bg-inset);
 }
-.ov-bar .lead { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.ov-bar .lead svg { width: 15px; height: 15px; color: var(--accent); flex-shrink: 0; }
-.ov-bar .lead .t { font-size: var(--t-strong); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
-.mode-toggle { display: flex; align-items: center; border: 1px solid var(--border); border-radius: var(--r-control); overflow: hidden; }
-.mode-toggle button { height: 28px; padding: 0 12px; font-size: 11px; font-weight: 500; color: var(--dim); }
-.mode-toggle button + button { border-left: 1px solid var(--border); }
-.mode-toggle button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.model-select { height: 28px; padding: 0 10px; background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-control); font-size: 11px; color: var(--text); font-family: var(--mono); }
+.ov-bar .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.run-pill {
+  display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 11px 0 9px;
+  border-radius: 999px; border: 1px solid var(--border); font-size: 11.5px; font-weight: 500; color: var(--text-2);
+}
+.run-pill .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--ghost); }
+.run-pill.busy { border-color: var(--accent-edge); color: var(--accent); }
+.run-pill.busy .dot { background: var(--accent); animation: ov-pulse 1.4s var(--e-standard) infinite; }
+.run-pill.done { border-color: rgba(156,194,138,0.35); color: var(--good); }
+.run-pill.done .dot { background: var(--good); }
+.run-pill.error { border-color: rgba(228,113,93,0.4); color: var(--bad); }
+.run-pill.error .dot { background: var(--bad); }
+@keyframes ov-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
-.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-soft); border-bottom: 1px solid var(--border-soft); }
-.stat-cell { background: var(--bg); padding: 14px 20px; }
-.stat-cell .label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin-bottom: 6px; }
-.stat-cell .value { font-size: 20px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.01em; color: var(--text); }
-.stat-cell .value.accent { color: var(--accent); }
-.stat-cell .value.good { color: var(--good); }
+.mode-toggle { display: flex; align-items: center; padding: 2px; gap: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.mode-toggle button { height: 26px; padding: 0 12px; border-radius: 6px; font-size: 11.5px; font-weight: 500; color: var(--dim); transition: color var(--d-quick), background var(--d-quick); }
+.mode-toggle button:hover { color: var(--text); }
+.mode-toggle button.active { background: var(--panel-3); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.model-select {
+  height: 32px; padding: 0 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  font-size: 11.5px; color: var(--text); font-family: var(--mono); cursor: pointer;
+}
+.model-select:hover { border-color: var(--border-strong); }
 
-.ov-split { display: grid; grid-template-columns: 1.4fr 1fr; gap: 0; min-height: calc(100% - 130px); }
+.ov-split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr); flex: 1; min-height: 0; }
 .ov-split > div + div { border-left: 1px solid var(--border-soft); }
-.ov-pane { padding: 18px 20px; overflow-y: auto; }
-.ov-pane h3 { font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 12px; display:flex; align-items:center; gap:7px; }
-.ov-pane h3 svg { width: 13px; height: 13px; color: var(--accent); }
+.ov-pane { padding: 22px 24px 28px; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; }
+
+.ov-section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.ov-section-title h3 { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.005em; }
+.ov-section-title .aside { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+
+/* Composer: the one primary action on the page */
+.ov-composer {
+  border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+  transition: border-color var(--d-quick), box-shadow var(--d-quick);
+}
+.ov-composer:focus-within { border-color: var(--accent-edge); box-shadow: 0 0 0 3px var(--accent-quiet); }
+.ov-composer label { display: block; padding: 14px 16px 0; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.ov-composer textarea {
+  display: block; width: 100%; min-height: 64px; resize: none; padding: 8px 16px 10px; background: transparent; border: 0; outline: none;
+  font: inherit; font-size: 14px; line-height: 1.55; color: var(--text);
+}
+.ov-composer textarea::placeholder { color: var(--faint); }
+.ov-composer textarea:focus-visible { box-shadow: none; outline: none; }
+.ov-composer .foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px 10px 16px;
+  border-top: 1px solid var(--border-soft);
+}
+.ov-composer .hint { font-size: 11px; color: var(--faint); }
+.ov-composer .hint kbd { font-size: 10.5px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-inset); color: var(--dim); }
+
+/* Progress: one strip instead of four boxed numbers */
+.ov-progress { display: flex; flex-direction: column; gap: 12px; }
+.ov-progress .head { display: flex; align-items: baseline; gap: 10px; }
+.ov-progress .big { font-family: var(--mono); font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); line-height: 1; }
+.ov-progress .big small { font-size: 15px; color: var(--faint); font-weight: 500; }
+.ov-progress .cap { font-size: 12px; color: var(--dim); }
+.seg-bar { display: flex; gap: 3px; height: 6px; }
+.seg-bar span { flex: 1; border-radius: 2px; background: var(--panel-3); transition: background var(--d-base); }
+.seg-bar span.running { background: var(--accent); animation: ov-pulse 1.4s var(--e-standard) infinite; }
+.seg-bar span.done { background: var(--good); }
+.seg-bar span.error { background: var(--bad); }
+.meta-row { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--dim); }
+.meta-row b { font-family: var(--mono); font-weight: 600; color: var(--text); margin-left: 5px; }
+.meta-row .est { font-family: var(--mono); font-size: 11px; color: var(--faint); margin-left: 5px; }
+
+/* Plan timeline */
+.plan-steps { display: flex; flex-direction: column; gap: 14px; }
+.plan-step { display: grid; grid-template-columns: 26px 1fr; gap: 12px; position: relative; }
+.plan-step::before { content: ''; position: absolute; left: 12px; top: 30px; bottom: -14px; width: 1px; background: var(--border); }
+.plan-step:last-child::before { display: none; }
+.plan-step .num {
+  width: 26px; height: 26px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--dim); background: var(--panel); border: 1px solid var(--border);
+}
+.plan-step.active .num { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.plan-step.complete .num { color: var(--good); border-color: rgba(156,194,138,0.45); }
+.plan-step .body { min-width: 0; }
+.plan-step .step-label { font-size: 12px; color: var(--dim); padding-top: 5px; margin-bottom: 8px; }
+.plan-step .step-label b { color: var(--text-2); font-weight: 600; }
+.task-row {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 12px; margin-bottom: 6px; border-radius: 10px; border: 1px solid var(--border-soft); background: var(--panel);
+  transition: border-color var(--d-quick), background var(--d-quick);
+}
+.task-row:hover { border-color: var(--border-strong); background: var(--panel-2); }
+.task-row .tr-main { flex: 1; min-width: 0; }
+.task-row .tr-instr { font-size: 13px; color: var(--text); line-height: 1.5; }
+.task-row .tr-meta { margin-top: 4px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+
+.ov-empty {
+  border: 1px dashed var(--border); border-radius: 12px; padding: 22px 18px; text-align: center;
+  font-size: 12.5px; color: var(--dim); line-height: 1.6;
+}
+.ov-empty strong { display: block; color: var(--text); font-size: 13px; margin-bottom: 2px; }
+
+.term { background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: 10px; padding: 12px 14px; font-family: var(--mono); font-size: 11.5px; line-height: 1.75; height: 260px; overflow-y: auto; }
+.term .ln { display: flex; gap: 10px; }
+.term .ts { color: var(--faint); flex-shrink: 0; }
+.term .role { flex-shrink: 0; width: 64px; color: var(--dim); }
+.term .role.coder { color: var(--accent); }
+.term .role.auditor, .term .role.reviewer { color: var(--good); }
+.term .role.tester, .term .role.runner { color: var(--warn); }
+.term .role.planner { color: #7FB0A8; }
+.term .role.designer { color: #D68A96; }
+.term .ln.error .msg { color: var(--bad); }
+.term .msg { color: var(--text-2); word-break: break-word; }
 
 /* Narrow screens: collapse the multi-column project/agent layouts instead of clipping them. */
 @media (max-width: 768px) {
   .proj-head { height: auto; flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
   .proj-head .tab-strip { width: 100%; }
-  .ov-bar { flex-wrap: wrap; padding: 12px 16px; }
-  .ov-bar > div:last-child { flex-wrap: wrap; }
-  .stat-row { grid-template-columns: repeat(2, 1fr); }
-  .stat-cell { padding: 12px 16px; }
+  .ov-bar { flex-wrap: wrap; padding: 10px 16px; }
   .ov-split { grid-template-columns: 1fr; align-content: start; overflow-y: auto; }
   .ov-split > div + div { border-left: 0; border-top: 1px solid var(--border-soft); min-height: 320px; }
   .ov-pane { padding: 16px; overflow: visible; }
 }
 
-.group-col { margin-bottom: 18px; }
-.group-label { font-family: var(--mono); font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
-.task-card { border: 1px solid var(--border-soft); border-radius: var(--r-panel); background: var(--panel); padding: 11px 13px; margin-bottom: 8px; }
-.task-card .tc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.task-card .tc-id { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--accent); background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
-.task-card .tc-instr { font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
-
-.term { background: var(--bg-inset); border: 1px solid var(--border-soft); border-radius: var(--r-panel); padding: 12px; font-family: var(--mono); font-size: 11px; line-height: 1.7; max-height: 320px; overflow-y: auto; }
-.term .ln { display: flex; gap: 8px; }
-.term .ts { color: var(--ghost); flex-shrink: 0; }
-.term .role { flex-shrink: 0; width: 58px; }
-.term .role.coder { color: var(--accent); }
-.term .role.auditor { color: var(--good); }
-.term .role.tester { color: var(--warn); }
-.term .role.planner { color: var(--wait); }
-.term .msg { color: var(--text-2); }
+@media (prefers-reduced-motion: reduce) {
+  .run-pill.busy .dot, .seg-bar span.running { animation: none; }
+}
 
 /* Flow Tab */
 .flow-wrap { display: grid; grid-template-columns: 1fr 300px; height: 100%; }
@@ -875,9 +938,9 @@ code, pre, kbd, samp { font-family: var(--mono); }
 .code-tab svg { width: 12px; height: 12px; color: var(--dim); }
 .code-body { flex: 1; overflow: auto; padding: 16px 20px; font-family: var(--mono); font-size: 12px; line-height: 1.8; color: var(--text-2); }
 .code-body .ln-no { color: var(--ghost); display: inline-block; width: 26px; user-select: none; }
-.code-kw { color: #8296B8; }
-.code-str { color: #4DCFB8; }
-.code-fn { color: #48B4FF; }
+.code-kw { color: #7FB0A8; }
+.code-str { color: #9CC28A; }
+.code-fn { color: #D8A657; }
 .code-com { color: var(--faint); }
 
 /* Activity Tab */
@@ -1059,35 +1122,35 @@ code, pre, kbd, samp { font-family: var(--mono); }
 
 /* ═══════════════════════════════════════════════════════════════════════
    Console Bolt — Bolt-style hero + chat page at /console
-   Intentionally uses a warmer glow and #1488fc accent that diverges from
+   Intentionally uses a warmer glow and #D8A657 accent that diverges from
    the IDE shell's neutral grays. Scoped here so other routes are unaffected.
    ═══════════════════════════════════════════════════════════════════════ */
 
 .console-bolt {
-  --bg: #0f0f0f;
+  --bg: #12100E;
   --bg-inset: #0a0a0a;
-  --panel: #1e1e22;
-  --panel-2: #1a1a1e;
+  --panel: #211D19;
+  --panel-2: #1D1A16;
   --panel-3: #252529;
 
   --border-soft: rgba(255,255,255,0.06);
   --border: rgba(255,255,255,0.10);
   --border-strong: rgba(255,255,255,0.18);
 
-  --text: #f0f0f0;
-  --text-2: #cccccc;
-  --dim: #8a8a8f;
-  --faint: #6a6a6f;
-  --ghost: #3a3a3e;
+  --text: #F3EBDF;
+  --text-2: #DDD3C4;
+  --dim: #ADA395;
+  --faint: #968B7D;
+  --ghost: #4A4239;
 
-  --accent: #1488fc;
-  --accent-ink: #ffffff;
-  --accent-quiet: rgba(20,136,252,0.12);
-  --accent-edge: rgba(20,136,252,0.4);
+  --accent: #D8A657;
+  --accent-ink: #1A1410;
+  --accent-quiet: rgba(216,166,87,0.12);
+  --accent-edge: rgba(216,166,87,0.4);
 
-  --good: #4ec9b0;
-  --bad: #f14c4c;
-  --warn: #cca700;
+  --good: #9CC28A;
+  --bad: #E4715D;
+  --warn: #DE8E52;
 
   color: var(--text);
   background: var(--bg);
@@ -1095,18 +1158,18 @@ code, pre, kbd, samp { font-family: var(--mono); }
 
 /* Portal-rendered Modals pick up the console accent when the page is mounted */
 body.console-bolt-active {
-  --accent: #1488fc;
-  --accent-ink: #ffffff;
-  --accent-quiet: rgba(20,136,252,0.12);
-  --accent-edge: rgba(20,136,252,0.4);
+  --accent: #D8A657;
+  --accent-ink: #1A1410;
+  --accent-quiet: rgba(216,166,87,0.12);
+  --accent-edge: rgba(216,166,87,0.4);
 }
 
 /* Horizon glow background */
 .console-bolt .ray-bg {
   background:
-    radial-gradient(ellipse 600px 300px at 50% 100%, rgba(20,136,252,0.14), transparent 70%),
-    radial-gradient(ellipse 1000px 500px at 50% 105%, rgba(20,136,252,0.06), transparent 80%),
-    #0f0f0f;
+    radial-gradient(ellipse 600px 300px at 50% 100%, rgba(216,166,87,0.14), transparent 70%),
+    radial-gradient(ellipse 1000px 500px at 50% 105%, rgba(216,166,87,0.06), transparent 80%),
+    #12100E;
 }
 
 /* Console sidebar scrollbar */
@@ -1229,8 +1292,8 @@ body.console-bolt-active {
   cursor: default;
 }
 .md-li input[type="checkbox"]:checked {
-  background: #1488fc;
-  border-color: #1488fc;
+  background: #D8A657;
+  border-color: #D8A657;
 }
 .md-li input[type="checkbox"]:checked::after {
   content: '✓';
@@ -1300,8 +1363,8 @@ body.console-bolt-active {
 .md-blockquote {
   margin: 10px 0;
   padding: 8px 14px;
-  border-left: 3px solid rgba(20,136,252,0.5);
-  background: rgba(20,136,252,0.05);
+  border-left: 3px solid rgba(216,166,87,0.5);
+  background: rgba(216,166,87,0.05);
   border-radius: 0 8px 8px 0;
   color: rgba(255,255,255,0.75);
 }
@@ -1355,7 +1418,7 @@ body.console-bolt-active {
 
 /* ── Links ──────────────────────────────────────────────────────────────── */
 .md-link {
-  color: #4da5fc;
+  color: #E6BE7A;
   text-decoration: none;
   font-weight: 500;
   border-bottom: 1px solid rgba(77,165,252,0.3);

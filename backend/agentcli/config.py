@@ -6,6 +6,7 @@ NFR-6: Adding a new role or model is a config change, not a code change.
 
 from __future__ import annotations
 
+import itertools
 import os
 from dataclasses import dataclass, field
 
@@ -14,93 +15,84 @@ from .schemas import AgentRole
 
 # ── Real Per-Role Model Chains for User's Active Models ─────────────
 
+GEMINI_FLASH = "gemini/gemini-3.5-flash"
+NEMOTRON_ULTRA = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+NEMOTRON_SUPER = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
+NEMOTRON_LIGHTNING = "openrouter/nvidia/nemotron-3.5-lightning:free"
+LING_FLASH = "openrouter/inclusionai/ling-3.0-flash-fin:free"
+GEMMA_31B = "openrouter/google/gemma-4-31b-it:free"
+QWEN_27B = "openrouter/qwen/qwen3.8-27b:free"
+NORTH_CODE = "openrouter/cohere/north-mini-code:free"
+LAGUNA_S = "openrouter/poolside/laguna-s-2.1:free"
+LAGUNA_XS = "openrouter/poolside/laguna-xs-2.1:free"
+GPT_4O_MINI = "openrouter/openai/gpt-4o-mini"
+LLAMA_70B = "openrouter/meta-llama/llama-3.3-70b-instruct"
+
+# Vision models first for roles that look at screenshots (designer, verifier).
 DEFAULT_MODEL_CHAINS: dict[AgentRole, list[str]] = {
-    AgentRole.planner: [
-        "gemini/gemini-3.5-flash",
-        "openrouter/meta-llama/llama-3.3-70b-instruct",
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openrouter/openai/gpt-4o-mini",
-    ],
-    AgentRole.coder: [
-        "gemini/gemini-3.5-flash",
-        "openrouter/meta-llama/llama-3.3-70b-instruct",
-        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
-        "openrouter/openai/gpt-4o-mini",
-    ],
-    AgentRole.auditor: [
-        "gemini/gemini-3.5-flash",
-        "openrouter/meta-llama/llama-3.3-70b-instruct",
-        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-        "openrouter/openai/gpt-4o-mini",
-    ],
-    AgentRole.tester: [
-        "gemini/gemini-3.5-flash",
-        "openrouter/meta-llama/llama-3.3-70b-instruct",
-        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
-        "openrouter/openai/gpt-4o-mini",
-    ],
+    AgentRole.planner: [GEMINI_FLASH, NEMOTRON_ULTRA, LING_FLASH, NEMOTRON_SUPER],
+    AgentRole.coder: [GEMINI_FLASH, NORTH_CODE, NEMOTRON_SUPER, QWEN_27B, LAGUNA_S, GPT_4O_MINI],
+    AgentRole.designer: [GEMINI_FLASH, GEMMA_31B, QWEN_27B, NORTH_CODE],
+    AgentRole.auditor: [GEMINI_FLASH, GEMMA_31B, QWEN_27B, NEMOTRON_ULTRA, LING_FLASH],
+    AgentRole.tester: [NEMOTRON_LIGHTNING, LAGUNA_XS, NORTH_CODE, GEMINI_FLASH],
 }
 
 
-
-# ── Per-Role API Key Resolution ───────────────────────────────────
+# ── API Keys ──────────────────────────────────────────────────────
+#
+# Free quotas are per account, so each model group has its own OpenRouter account and the
+# others act as fallbacks. The router moves to the next key when one is rate-limited, out of
+# credits or rejected. Gemini keys rotate so load spreads over all four projects.
 
 ROLE_API_KEY_ENVVARS: dict[AgentRole, str] = {
     AgentRole.planner: "PLANNER_API_KEY",
     AgentRole.coder: "CODER_API_KEY",
+    AgentRole.designer: "DESIGNER_API_KEY",
     AgentRole.auditor: "AUDITOR_API_KEY",
     AgentRole.tester: "TESTER_API_KEY",
 }
 
-PROVIDER_KEY_ENVVARS: dict[str, str] = {
-    "gemini": "GEMINI_API_KEY",
-    "xai": "XAI_GROK_API_KEY",
-    "grok": "XAI_GROK_API_KEY",
-    "openrouter": "OPENROUTER_SUPER_KEY",
+GEMINI_KEYS = ("GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY", "GEMINI_API_KEY_ALT")
+
+# Dedicated account first, then accounts with spare quota.
+MODEL_KEYS: dict[str, tuple[str, ...]] = {
+    NEMOTRON_ULTRA: ("OPENROUTER_KEY_BIG", "OPENROUTER_ULTRA_KEY", "OPENROUTER_KEY_REASON"),
+    LING_FLASH: ("OPENROUTER_KEY_REASON", "OPENROUTER_KEY_BIG"),
+    GEMMA_31B: ("OPENROUTER_KEY_VISION", "OPENROUTER_KEY_FAST"),
+    QWEN_27B: ("OPENROUTER_KEY_VISION", "OPENROUTER_KEY_CODE"),
+    NORTH_CODE: ("OPENROUTER_KEY_CODE", "OPENROUTER_KEY_FAST"),
+    LAGUNA_S: ("OPENROUTER_KEY_CODE", "OPENROUTER_KEY_FAST"),
+    NEMOTRON_SUPER: ("OPENROUTER_KEY_CODE", "OPENROUTER_SUPER_KEY"),
+    NEMOTRON_LIGHTNING: ("OPENROUTER_KEY_FAST", "OPENROUTER_KEY_CODE"),
+    LAGUNA_XS: ("OPENROUTER_KEY_FAST",),
+    GPT_4O_MINI: ("OPENROUTER_SUPER_KEY",),  # paid model: only the account with credits
+    LLAMA_70B: ("OPENROUTER_SUPER_KEY",),
 }
 
+PROVIDER_KEYS: dict[str, tuple[str, ...]] = {
+    "openrouter": ("OPENROUTER_SUPER_KEY", "OPENROUTER_ULTRA_KEY", "OPENROUTER_KEY_BIG", "OPENROUTER_KEY_REASON",
+                   "OPENROUTER_KEY_VISION", "OPENROUTER_KEY_CODE", "OPENROUTER_KEY_FAST", "OPENROUTER_API_KEY"),
+    "gemini": GEMINI_KEYS,
+    "xai": ("XAI_GROK_API_KEY",),
+    "grok": ("XAI_GROK_API_KEY",),
+}
 
-def resolve_api_key(role: AgentRole, model: str) -> str | None:
-    """Resolve the API key for a given role + model combination.
+_gemini_turn = itertools.count()
 
-    Priority:
-      1. Role-specific env var (e.g. CODER_API_KEY)
-      2. Model-specific / Provider-specific env var
-      3. None (let litellm figure it out from its own env defaults)
+
+def resolve_api_keys(role: AgentRole, model: str) -> list[str]:
+    """Keys to try for a role + model, in order. Empty means litellm uses its own env defaults.
+
+    A role-specific key (e.g. CODER_API_KEY) goes first when set.
     """
-    # 1. Role-specific key
-    role_key = os.environ.get(ROLE_API_KEY_ENVVARS.get(role, ""))
-    if role_key:
-        return role_key
-
-    # 2. Specific model or provider key resolution
-    lower_model = model.lower()
-    if "ultra" in lower_model:
-        key = os.environ.get("OPENROUTER_ULTRA_KEY") or os.environ.get("OPENROUTER_SUPER_KEY") or os.environ.get("OPENROUTER_API_KEY")
-        if key:
-            return key
-
-    if "openrouter" in lower_model:
-        key = os.environ.get("OPENROUTER_SUPER_KEY") or os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENROUTER_ULTRA_KEY")
-        if key:
-            return key
-
-    if "gemini" in lower_model:
-        key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY_ALT")
-        if key:
-            return key
-
-    if "xai" in lower_model or "grok" in lower_model:
-        key = os.environ.get("XAI_GROK_API_KEY")
-        if key:
-            return key
-
-    provider = model.split("/")[0] if "/" in model else model
-    provider_key = os.environ.get(PROVIDER_KEY_ENVVARS.get(provider, ""))
-    if provider_key:
-        return provider_key
-
-    return None
+    provider = model.split("/")[0]
+    names = list(MODEL_KEYS.get(model, PROVIDER_KEYS.get(provider, ())))
+    if provider == "gemini" and names:
+        turn = next(_gemini_turn) % len(names)
+        names = names[turn:] + names[:turn]
+    names.insert(0, ROLE_API_KEY_ENVVARS.get(role, ""))
+    keys = [os.environ.get(n, "").strip() for n in names if n]
+    return list(dict.fromkeys(k for k in keys if k))
 
 
 # ── Execution Limits ──────────────────────────────────────────────
@@ -140,6 +132,6 @@ class ExecutionConfig:
         """Set the model fallback chain for a role."""
         self.model_chains[role] = chain
 
-    def get_api_key(self, role: AgentRole, model: str) -> str | None:
-        """Get the API key for a role + model."""
-        return resolve_api_key(role, model)
+    def get_api_keys(self, role: AgentRole, model: str) -> list[str]:
+        """API keys to try for a role + model, in failover order."""
+        return resolve_api_keys(role, model)

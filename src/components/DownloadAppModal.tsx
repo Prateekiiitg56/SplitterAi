@@ -112,8 +112,8 @@ export default function DownloadAppModal({ isOpen, onClose }: DownloadAppModalPr
             >
               {copiedCli ? (
                 <>
-                  <Check size={12} className="text-emerald-400" />
-                  <span className="text-emerald-400">Copied</span>
+                  <Check size={12} className="text-[var(--good)]" />
+                  <span className="text-[var(--good)]">Copied</span>
                 </>
               ) : (
                 <span>Copy</span>

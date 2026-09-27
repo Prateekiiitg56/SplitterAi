@@ -19,6 +19,7 @@ from .db_supabase import (
     supabase_load_session,
     supabase_reset_session,
     supabase_list_sessions,
+    supabase_rename_session,
     is_supabase_enabled,
 )
 
@@ -44,6 +45,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         "subtask_count": "INTEGER NOT NULL DEFAULT 0",
         "created_at": "TEXT NOT NULL DEFAULT ''",
         "updated_at": "REAL NOT NULL DEFAULT 0",
+        "name": "TEXT NOT NULL DEFAULT ''",
     }
 
     for col_name, col_def in expected_columns.items():
@@ -66,7 +68,8 @@ def _get_connection() -> sqlite3.Connection:
             messages_json TEXT NOT NULL DEFAULT '[]',
             subtask_count INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT '',
-            updated_at REAL NOT NULL DEFAULT 0
+            updated_at REAL NOT NULL DEFAULT 0,
+            name TEXT NOT NULL DEFAULT ''
         )
     """)
     conn.commit()
@@ -161,11 +164,35 @@ def reset_session(workspace: str) -> bool:
         conn.close()
 
 
+def rename_session(workspace: str, name: str) -> bool:
+    """Set a project's display name. Runs never overwrite it (save_session leaves `name` alone)."""
+    conn = _get_connection()
+    try:
+        cursor = conn.execute("UPDATE sessions SET name = ? WHERE workspace = ?", (name, workspace))
+        conn.commit()
+        found = cursor.rowcount > 0
+    finally:
+        conn.close()
+    if is_supabase_enabled():
+        found = supabase_rename_session(workspace, name) or found
+    return found
+
+
+def _local_names() -> dict[str, str]:
+    conn = _get_connection()
+    try:
+        return {ws: name for ws, name in conn.execute("SELECT workspace, name FROM sessions WHERE name != ''")}
+    finally:
+        conn.close()
+
+
 def list_sessions(limit: int = 20) -> list[SessionEntry]:
     """List recent sessions, newest first."""
     if is_supabase_enabled():
         sp_list = supabase_list_sessions(limit)
         if sp_list is not None and len(sp_list) > 0:
+            # The Supabase table may predate the name column; names are always kept locally too.
+            names = _local_names()
             entries = []
             for item in sp_list:
                 st_val = item.get("status", "idle")
@@ -173,6 +200,7 @@ def list_sessions(limit: int = 20) -> list[SessionEntry]:
                     SessionEntry(
                         workspace=item.get("workspace", ""),
                         task=item.get("task", ""),
+                        name=item.get("name") or names.get(item.get("workspace", ""), ""),
                         status=RunStatus(st_val) if st_val in RunStatus.__members__ else RunStatus.idle,
                         subtask_count=item.get("subtask_count", 0),
                         created_at=item.get("created_at", ""),
@@ -184,7 +212,7 @@ def list_sessions(limit: int = 20) -> list[SessionEntry]:
     conn = _get_connection()
     try:
         rows = conn.execute(
-            "SELECT workspace, task, status, subtask_count, created_at, updated_at FROM sessions ORDER BY updated_at DESC LIMIT ?",
+            "SELECT workspace, task, status, subtask_count, created_at, updated_at, name FROM sessions ORDER BY updated_at DESC LIMIT ?",
             (limit,)
         ).fetchall()
 
@@ -196,6 +224,7 @@ def list_sessions(limit: int = 20) -> list[SessionEntry]:
                 subtask_count=row[3],
                 created_at=row[4],
                 updated_at=row[5],
+                name=row[6],
             )
             for row in rows
         ]
