@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { FolderSimple, Cpu, Stack } from '@phosphor-icons/react'
 import { cx } from '../../lib/cx'
+import { UsagePopover } from './UsagePopover'
 import { useApp } from '../../context/AppContext'
 import { useUI } from '../../context/UIContext'
 import type { RunStatus } from '../../types'
@@ -82,6 +83,7 @@ export function StatusBar() {
             </span>
           </ItemShell>
         </div>
+        <UsagePopover />
         {/* Secondary items drop on phones so the status bar never wraps or clips. */}
         <div className="hidden sm:contents">
         <ItemShell>

@@ -131,14 +131,20 @@ export type File = FileNode
 export type { SubtaskResult, LogEvent } from '../lib/api'
 
 
+/** One model's usage in its current daily quota window (GET /agents/quota). Times are unix seconds. */
 export interface QuotaInfo {
+  model: string
   provider: string
-  modelKey: string
-  requestsUsed: number
-  requestsLimit: number
-  usedPercentage: number
-  resetTime?: string
-  status: string
+  requests: number
+  errors: number
+  prompt_tokens: number
+  completion_tokens: number
+  /** The latest call hit a quota or key error; the model is likely unavailable until reset. */
+  limited: boolean
+  last_used: number | null
+  window_start: number
+  /** null for credit-based models that have no daily reset. */
+  resets_at: number | null
 }
 
 export interface MCPServer {

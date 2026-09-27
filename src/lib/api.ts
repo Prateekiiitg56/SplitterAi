@@ -10,6 +10,7 @@
  */
 
 import { API_BASE, WS_URL } from '../config'
+import type { QuotaInfo } from '../types'
 
 // ── Types matching backend schemas ─────────────────────────────
 
@@ -253,10 +254,15 @@ export async function fetchAgentDetail(role: string): Promise<any> {
   return res.json()
 }
 
-export async function fetchAgentQuotas(): Promise<any[]> {
+export async function fetchAgentQuotas(): Promise<QuotaInfo[]> {
   const res = await fetchWithTimeout(`${API_BASE}/agents/quota`, {}, 10000)
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch quotas`)
   return res.json()
+}
+
+/** Direct download URL; a plain link lets the browser stream the zip. */
+export function workspaceExportUrl(workspace: string): string {
+  return `${API_BASE}/workspaces/export?workspace=${encodeURIComponent(workspace)}`
 }
 
 export async function fetchFiles(workspace: string): Promise<any[]> {
