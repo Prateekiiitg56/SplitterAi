@@ -144,3 +144,12 @@ async def test_stream_model_falls_back_before_the_first_token():
     with patch.object(router.litellm, "acompletion", completion):
         out = [e async for e in router.stream_model([{"role": "user", "content": "x"}], ["m1", "m2"], AgentRole.planner, ExecutionConfig())]
     assert "".join(e.get("delta", "") for e in out) == "Hello" and out[-1] == {"model": "m2"}
+
+
+async def test_gemini_3_keeps_its_default_temperature():
+    completion, calls = scripted(ok())
+    with patch.object(router.litellm, "acompletion", completion):
+        await call(["gemini/gemini-3.5-flash"])
+        await call(["openrouter/x/y"])
+    assert "temperature" not in calls[0] and calls[0]["max_tokens"] == ROLE_GENERATION[AgentRole.coder]["max_tokens"]
+    assert calls[1]["temperature"] == ROLE_GENERATION[AgentRole.coder]["temperature"]

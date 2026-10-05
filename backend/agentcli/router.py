@@ -91,6 +91,15 @@ def _retry_after(error: Exception) -> float | None:
         return None
 
 
+def _generation_params(role: AgentRole, model: str) -> dict[str, Any]:
+    """Per-role max_tokens/temperature. Gemini 3 models are left at their default temperature (1.0):
+    lower values make them loop and reason worse (Google's guidance; litellm warns about it)."""
+    params = dict(ROLE_GENERATION.get(role, {}))
+    if model.startswith("gemini/gemini-3"):
+        params.pop("temperature", None)
+    return params
+
+
 def _live_chain(model_chain: list[str], role: AgentRole, on_event) -> list[str]:
     live = [m for m in model_chain if not _breaker_open(m)]
     skipped = [m for m in model_chain if m not in live]
@@ -268,7 +277,7 @@ async def call_model(
                     "model": target_model,
                     "messages": model_messages,
                     "timeout": config.model_timeout,
-                    **ROLE_GENERATION.get(role, {}),
+                    **_generation_params(role, model),
                 }
                 if api_key:
                     kwargs["api_key"] = api_key
@@ -422,7 +431,7 @@ async def stream_model(
     for model in _live_chain(model_chain, role, None):
         api_key = (config.get_api_keys(role, model) or [None])[0]
         kwargs: dict[str, Any] = {"model": model, "messages": messages, "timeout": config.model_timeout,
-                                  "stream": True, **ROLE_GENERATION.get(role, {})}
+                                  "stream": True, **_generation_params(role, model)}
         if api_key:
             kwargs["api_key"] = api_key
         sent = False
