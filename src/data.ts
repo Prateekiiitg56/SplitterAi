@@ -47,15 +47,5 @@ export const STATUS_META: Record<SubtaskStatus, { label: string; color: string; 
   stopped:   { label: 'Stopped',   color: '#7C3AED', bg: '#7C3AED14' },
 }
 
-export const AVAILABLE_MODELS: ModelOption[] = [
-  { id: 'gemini/gemini-3.5-flash', label: 'Google Gemini 3.5 Flash', provider: 'Google AI' },
-  { id: 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free', label: 'Nemotron-3 Ultra 550B (Free)', provider: 'OpenRouter' },
-  { id: 'openrouter/inclusionai/ling-3.0-flash-fin:free', label: 'Ling 3.0 Flash (Free, reasoning)', provider: 'OpenRouter' },
-  { id: 'openrouter/qwen/qwen3.8-27b:free', label: 'Qwen 3.8 27B (Free, vision)', provider: 'OpenRouter' },
-  { id: 'openrouter/google/gemma-4-31b-it:free', label: 'Gemma 4 31B (Free, vision)', provider: 'OpenRouter' },
-  { id: 'openrouter/cohere/north-mini-code:free', label: 'North Mini Code (Free)', provider: 'OpenRouter' },
-  { id: 'openrouter/nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron-3 Super 120B (Free)', provider: 'OpenRouter' },
-  { id: 'openrouter/poolside/laguna-s-2.1:free', label: 'Laguna S 2.1 (Free)', provider: 'OpenRouter' },
-  { id: 'openrouter/nvidia/nemotron-3.5-lightning:free', label: 'Nemotron 3.5 Lightning (Free, fast)', provider: 'OpenRouter' },
-  { id: 'openrouter/openai/gpt-4o-mini', label: 'OpenAI GPT-4o Mini (paid)', provider: 'OpenRouter' },
-]
+/** No pinned model: the backend picks the best chain per role. The real list comes from GET /models. */
+export const AUTO_MODEL: ModelOption = { id: '', label: 'Auto (best per role)', provider: '' }

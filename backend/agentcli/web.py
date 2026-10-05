@@ -156,4 +156,6 @@ def needs_build(root: Path) -> bool:
 
 
 def build_command(root: Path) -> str:
-    return "npm run build" if (root / "node_modules").is_dir() else "npm install --no-audit --no-fund && npm run build"
+    # The sandbox shares one npm cache across projects; --prefer-offline reuses it instead of re-downloading.
+    install = "npm install --prefer-offline --no-audit --no-fund"
+    return "npm run build" if (root / "node_modules").is_dir() else f"{install} && npm run build"

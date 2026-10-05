@@ -1,6 +1,7 @@
 import pytest
 
 import agentcli.db_supabase as db_supabase
+from agentcli import db
 
 
 @pytest.fixture(autouse=True)
@@ -12,3 +13,5 @@ def isolated_history(tmp_path, monkeypatch):
     monkeypatch.setenv("SPLITTER_SANDBOX", "none")
     monkeypatch.setattr(db_supabase, "_client_initialized", True)
     monkeypatch.setattr(db_supabase, "_supabase_client", None)
+    yield
+    db.close_all()

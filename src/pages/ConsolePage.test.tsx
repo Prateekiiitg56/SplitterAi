@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   classifyIntent: vi.fn(),
   planTask: vi.fn(),
-  sendChatMessage: vi.fn(),
+  streamChatMessage: vi.fn(),
   executeTaskWithPlan: vi.fn(),
   refetchSessions: vi.fn(),
 }))
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../lib/api', () => ({
   classifyIntent: mocks.classifyIntent,
   planTask: mocks.planTask,
-  sendChatMessage: mocks.sendChatMessage,
+  streamChatMessage: mocks.streamChatMessage,
   uploadWorkspace: vi.fn(),
   importN8nWorkflow: vi.fn(),
 }))
@@ -28,7 +28,7 @@ vi.mock('../context/AppContext', () => ({
 }))
 
 vi.mock('../context/UIContext', () => ({
-  useUI: () => ({ selectedModel: { id: 'm1', label: 'Model 1' }, setSelectedModel: vi.fn() }),
+  useUI: () => ({ models: [{ id: 'm1', label: 'Model 1' }], selectedModel: { id: 'm1', label: 'Model 1' }, setSelectedModel: vi.fn() }),
 }))
 
 vi.mock('../hooks/useIntegrations', () => ({ useIntegrations: () => ({ integrations: [] }) }))
@@ -79,7 +79,7 @@ describe('ConsolePage submit', () => {
 
     send('make a todo app with dark mode')
     expect(await screen.findByText('Build the todo app')).toBeTruthy()
-    expect(mocks.sendChatMessage).not.toHaveBeenCalled()
+    expect(mocks.streamChatMessage).not.toHaveBeenCalled()
     expect(mocks.planTask.mock.calls[0][0]).toBe('make a todo app with dark mode')
 
     fireEvent.click(screen.getByText(/Launch build/))
@@ -89,7 +89,11 @@ describe('ConsolePage submit', () => {
 
   it('answers questions in chat and offers to run them as a task', async () => {
     mocks.classifyIntent.mockResolvedValue({ intent: 'chat', confidence: 0.9 })
-    mocks.sendChatMessage.mockResolvedValue({ reply: 'let is block scoped', role: 'planner', timestamp: '10:00' })
+    mocks.streamChatMessage.mockImplementation(async (_role: string, _msg: string, onDelta: (t: string) => void) => {
+      onDelta('let is ')
+      onDelta('block scoped')
+      return { model: 'm1' }
+    })
     mocks.planTask.mockResolvedValue(plan)
     renderConsole()
 

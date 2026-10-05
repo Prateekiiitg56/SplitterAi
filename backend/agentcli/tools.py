@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -326,11 +327,47 @@ def run_python(sandbox: Sandbox, code: str, timeout: int = 30, max_output: int =
                 break
 
 
+def _ripgrep(sandbox: Sandbox, query: str, resolved: Path) -> list[str] | None:
+    """ripgrep's matches as 'path:line: text', or None when rg is not installed."""
+    rg = shutil.which("rg")
+    if not rg:
+        return None
+    proc = subprocess.run(
+        [rg, "--fixed-strings", "--ignore-case", "--line-number", "--no-heading", "--color", "never",
+         "--max-filesize", "1M", "--glob", "!node_modules", "--glob", "!__pycache__", "--glob", "!venv",
+         "--", query, str(resolved)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+    )
+    if proc.returncode not in (0, 1):  # 1 = no matches
+        return None
+    matches = []
+    for line in proc.stdout.splitlines():
+        file_part, _, rest = line.partition(":")
+        if len(file_part) == 1 and rest[:1] in ("\\", "/"):  # Windows drive letter
+            drive_rest, _, rest = rest.partition(":")
+            file_part = f"{file_part}:{drive_rest}"
+        line_no, _, text = rest.partition(":")
+        try:
+            rel = Path(file_part).resolve().relative_to(sandbox.workspace)
+        except ValueError:
+            continue
+        matches.append(f"  {rel.as_posix()}:{line_no}: {text.strip()}")
+    return matches
+
+
 def search_code(sandbox: Sandbox, query: str, path: str = ".") -> str:
-    """Search for a pattern in files within the sandbox."""
+    """Search for a pattern in files within the sandbox (ripgrep when available)."""
     resolved = sandbox.resolve_path(path)
     if not resolved.exists():
         return f"Error: Path not found: {path}"
+
+    found = _ripgrep(sandbox, query, resolved)
+    if found is not None:
+        if not found:
+            return f"No matches found for '{query}' in '{path}'."
+        if len(found) > 50:
+            found = found[:50] + ["  ... [results capped at 50 matches]"]
+        return f"Search results for '{query}' ({len(found)} matches):\n" + "\n".join(found)
 
     matches = []
     search_root = resolved if resolved.is_dir() else resolved.parent

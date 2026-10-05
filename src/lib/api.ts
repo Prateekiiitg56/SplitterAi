@@ -302,6 +302,12 @@ export async function deleteSession(workspace: string): Promise<void> {
   if (!res.ok) throw await sessionError(res, 'Could not delete project')
 }
 
+export async function fetchModels(): Promise<Array<{ id: string; label: string; provider: string }>> {
+  const res = await fetchWithTimeout(`${API_BASE}/models`, {}, 10000)
+  if (!res.ok) throw new Error(`Could not load models (HTTP ${res.status})`)
+  return res.json()
+}
+
 export async function fetchAgents(): Promise<Array<{ role: string; model_chain: string[]; status: string }>> {
   try {
     const res = await fetchWithTimeout(`${API_BASE}/agents`, {}, 10000)
@@ -414,22 +420,44 @@ export async function importN8nWorkflow(json: object): Promise<PlanResult> {
   return res.json()
 }
 
-export async function sendChatMessage(
+/** Streams a chat reply: onDelta gets text as it arrives; resolves with the model that answered. */
+export async function streamChatMessage(
   role: string,
   message: string,
+  onDelta: (text: string) => void,
   model?: string,
   history?: Array<{ sender: 'user' | 'agent'; text: string }>
-): Promise<{ reply: string; role: string; timestamp: string; model?: string }> {
-  const res = await fetchWithTimeout(`${API_BASE}/chat`, {
+): Promise<{ model?: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, message, model, history }),
-  }, 60000)
-  if (!res.ok) {
+    body: JSON.stringify({ role, message, model: model || undefined, history }),
+  }, 180000)
+  if (!res.ok || !res.body) {
     const err = await res.json().catch(() => ({ detail: 'Failed to send chat message' }))
-    throw new Error(err.detail || 'Failed to send chat message')
+    throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to send chat message')
   }
-  return res.json()
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const events = buffer.split('\n\n')
+    buffer = events.pop() || ''
+    for (const raw of events) {
+      if (!raw.startsWith('data: ')) continue
+      const event = JSON.parse(raw.slice(6))
+      if (event.delta) onDelta(event.delta)
+      if (event.error) {
+        const tried = (event.attempts || []).map((a: any) => `${a.model}: ${a.error}`).join('; ')
+        throw new Error(tried ? `${event.error} ${tried}` : event.error)
+      }
+      if (event.done) return { model: event.model }
+    }
+  }
+  return {}
 }
 
 // Throws on failure so the UI can show "backend unreachable" instead of "nothing connected".
@@ -533,6 +561,13 @@ export async function healthCheck(): Promise<boolean> {
 
 // ── WebSocket Client ───────────────────────────────────────────
 
+/**
+ * Every WebSocket message is also dispatched here as a CustomEvent named after its type
+ * (e.g. 'sessions_changed', 'file_written', 'complete'), so any hook can react to pushes
+ * without opening its own socket or polling.
+ */
+export const serverEvents = new EventTarget()
+
 export type EventHandler = (event: LogEvent) => void
 export type PlanHandler = (subtasks: SubtaskResult[], runId?: string) => void
 export type CompleteHandler = (result: RunResult, runId?: string) => void
@@ -570,6 +605,7 @@ export class AgentWebSocket {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
+          serverEvents.dispatchEvent(new CustomEvent(data.type || 'message', { detail: data }))
 
           if (data.type === 'plan' && data.subtasks) {
             this.handlers.onPlan?.(data.subtasks, data.run_id)

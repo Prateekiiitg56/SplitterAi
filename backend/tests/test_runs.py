@@ -81,8 +81,9 @@ def test_post_runs_returns_immediately_and_status_resyncs(client):
     assert {"working", "from thread"} <= {log["message"] for log in body["logs"]}
     assert all(log["run_id"] == start["run_id"] and log["workspace"] == start["workspace"] for log in body["logs"])
     # Every WebSocket message (logs, plan, complete) is tagged with the run and workspace.
-    assert {m.get("type") for m in client.sent} >= {"plan", "complete", "info"}
-    assert all(m["run_id"] == start["run_id"] and m["workspace"] == start["workspace"] for m in client.sent)
+    assert {m.get("type") for m in client.sent} >= {"plan", "complete", "info", "sessions_changed"}
+    run_messages = [m for m in client.sent if m["type"] != "sessions_changed"]
+    assert all(m["run_id"] == start["run_id"] and m["workspace"] == start["workspace"] for m in run_messages)
     # The finished result is persisted with its log.
     workspace, task, result, logs = client.saved[0]
     assert result.run_id == start["run_id"] and logs

@@ -48,9 +48,14 @@ def _stub(n: int) -> str:
     return f"[{n} chars of earlier output removed to save tokens; run the tool again if you still need it]"
 
 
+def _part_chars(part: dict[str, Any]) -> int:
+    return len(part.get("text") or "") + len((part.get("image_url") or {}).get("url") or "")
+
+
 def _message_chars(msg: dict[str, Any]) -> int:
+    # Runs for every message on every step: plain length sums, no JSON serialisation of screenshots.
     content = msg.get("content")
-    n = len(content) if isinstance(content, str) else (len(json.dumps(content)) if content else 0)
+    n = len(content) if isinstance(content, str) else sum(_part_chars(p) for p in content or [])
     return n + sum(len(tc["function"]["arguments"]) for tc in msg.get("tool_calls") or [])
 
 
@@ -70,7 +75,7 @@ def compact_history(messages: list[dict[str, Any]]) -> int:
             messages[i] = {**msg, "content": _stub(len(content))}
             saved += len(content)
         elif msg["role"] == "user" and isinstance(content, list):
-            size = len(json.dumps(content))
+            size = sum(_part_chars(p) for p in content)
             messages[i] = {**msg, "content": "[screenshots removed to save tokens]"}
             saved += size
         elif msg.get("tool_calls"):

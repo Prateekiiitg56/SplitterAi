@@ -104,3 +104,14 @@ def test_cancel_kills_running_commands(client):
             time.sleep(0.02)
     assert killed and killed[0].parent == client.generated
     assert any("stopped 2 running command" in log["message"] for log in body["logs"])
+
+
+def test_stores_share_one_connection_and_set_up_the_schema_once(monkeypatch):
+    from agentcli import db, session
+    calls = []
+    real = session._init_schema
+    monkeypatch.setattr(session, "_init_schema", lambda conn: calls.append(1) or real(conn))
+    with session._connection() as first, session._connection() as second:
+        assert first is second
+    session.list_sessions()
+    assert len(calls) == 1

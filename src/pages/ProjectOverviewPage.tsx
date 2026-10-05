@@ -9,7 +9,6 @@ import { fmtTime, fmtTokens, range } from '../components/StrategyPanel'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { useUI } from '../context/UIContext'
 import { Button } from '../components/primitives/Button'
-import { AVAILABLE_MODELS } from '../data'
 import type { Subtask } from '../types'
 import { StatusBadge, RoleBadge } from '../components/Badges'
 import { Play, Loader2, Download } from 'lucide-react'
@@ -40,7 +39,7 @@ export default function ProjectOverviewPage() {
   const navigate = useNavigate()
 
   const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, cancelRun, runReport, runOutcome } = useApp()
-  const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
+  const { multiMode, setMultiMode, models, selectedModel, setSelectedModel } = useUI()
 
   const [taskInput, setTaskInput] = useState('')
   const [pushOpen, setPushOpen] = useState(false)
@@ -98,12 +97,12 @@ export default function ProjectOverviewPage() {
               aria-label="Model"
               value={selectedModel.id}
               onChange={(e) => {
-                const next = AVAILABLE_MODELS.find((m) => m.id === e.target.value)
+                const next = models.find((m) => m.id === e.target.value)
                 if (next) setSelectedModel(next)
               }}
               className="model-select"
             >
-              {AVAILABLE_MODELS.map((m) => (
+              {models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>

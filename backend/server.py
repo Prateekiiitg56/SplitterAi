@@ -25,6 +25,7 @@ from agentcli.graph import run_graph
 from agentcli.planner import load_manual_plan
 from agentcli.analysis import run_analysis
 from agentcli.intent import classify_intent
+from agentcli.router import AllModelsFailedError, call_model, stream_model
 from agentcli.allocation import MAX_AGENTS, PRESETS, build_strategy, estimate as estimate_strategy
 from agentcli.telemetry import record_run, record_subtask
 from agentcli.models import select_chain
@@ -125,7 +126,9 @@ manager = ConnectionManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("agentcli server starting")
+    logger.info("SplitterAI server starting")
+    # Open the session DB and run its migrations now, not on the first request.
+    await asyncio.to_thread(list_sessions, 1)
     yield
     logger.info("agentcli server shutting down")
 
@@ -280,6 +283,11 @@ def _spawn(coro) -> None:
 
 async def publish(run: runs.Run, data: dict[str, Any]) -> None:
     await manager.broadcast({**data, "run_id": run.id, "workspace": run.workspace})
+
+
+async def sessions_changed() -> None:
+    """Tell dashboards to reload the project list (instead of polling /sessions)."""
+    await manager.broadcast({"type": "sessions_changed"})
 
 
 # ── Routes ────────────────────────────────────────────────────────
@@ -451,11 +459,15 @@ async def run_file(req: RunFileRequest, x_api_key: str | None = Header(None, ali
     return {"command": command, "exit_code": exit_code, "output": rest if exit_code is not None else output}
 
 
-def planner_config(model: str | None) -> ExecutionConfig:
-    """Decomposition quality drives everything downstream: plan with the strongest reliable reasoning
-    models from the registry, the user's selected model first. /plan and /runs share it so plans match."""
+SHORT_TASK_CHARS = 200
+
+
+def planner_config(model: str | None, task: str) -> ExecutionConfig:
+    """Planner chain shared by /plan and /runs so plans match: the user's model first, then the
+    strongest reasoning models; a short single-deliverable task plans with the fast tier instead."""
     config = ExecutionConfig()
-    config.set_model_chain(AgentRole.planner, select_chain("reasoning", "quality", pinned=model))
+    preset = "fastest" if len(task) < SHORT_TASK_CHARS and "\n" not in task.strip() else "quality"
+    config.set_model_chain(AgentRole.planner, select_chain("reasoning", preset, pinned=model))
     return config
 
 
@@ -469,7 +481,7 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
         raise HTTPException(status_code=400, detail="Task is required")
 
     stack = detect_stack(task, payload.get("stack"))
-    plan, analysis = await run_analysis(task, planner_config(payload.get("model")), history=history,
+    plan, analysis = await run_analysis(task, planner_config(payload.get("model"), task), history=history,
                                         on_event=make_event_emitter(workspace=payload.get("workspace")),
                                         guidance=planning_guidance(stack))
 
@@ -559,8 +571,9 @@ async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan
     on_event = make_event_emitter(run)
     # The project shows up in the dashboard (and survives a refresh) while its first run is still going.
     await asyncio.to_thread(save_session, run.workspace, request.task, RunStatus.executing)
+    await sessions_changed()
     stack = detect_stack(request.task, request.stack)
-    config = planner_config(request.model)
+    config = planner_config(request.model, request.task)
     if request.model:
         for r in AgentRole:
             if r != AgentRole.planner:
@@ -628,6 +641,7 @@ async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan
     # Let log events queued from worker threads reach run.logs before they are persisted.
     await asyncio.sleep(0)
     await asyncio.to_thread(save_run_result, run.workspace, request.task, result, list(run.logs))
+    await sessions_changed()
     run.result = result.model_dump()
     run.subtasks = run.result["subtasks"]
     run.status = result.status.value
@@ -710,87 +724,82 @@ async def intent(req: IntentRequest, x_api_key: str | None = Header(None, alias=
     return await classify_intent(req.message)
 
 
-@app.post("/chat")
-async def chat_with_agent(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Direct conversational chat endpoint for single agent interaction calling real LLM model router."""
-    verify_shared_secret(x_api_key, token)
-    role_str = payload.get("role", "coder")
-    message = payload.get("message", "").strip()
-    history = payload.get("history", [])
-    model_override = payload.get("model")
+CHAT_SYSTEM_PROMPTS = {
+    "planner": "You are SplitterAI's Planner Agent. Help users break down software projects into clean tasks.",
+    "designer": "You are SplitterAI's Designer Agent. Help users with layout, visual hierarchy, typography, color, "
+                "accessibility and design tokens for web interfaces.",
+    "coder": "You are SplitterAI's Coder Agent. Help users write code, debug functions, and refactor applications.",
+    "auditor": "You are SplitterAI's Auditor Agent. Help users review code security, PEP8 standards, and quality.",
+    "tester": "You are SplitterAI's Tester Agent. Help users design unit tests, run verification suites, and fix bugs.",
+}
+CHAT_HANDOFF = (" You answer in chat only and cannot create or change files. When the user wants something built "
+                "or changed, say so briefly: they can press \"Run as task\" and the agents will do it.")
 
-    if not message:
-        raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
-    import datetime
-    ts = datetime.datetime.now().strftime("%I:%M:%S %p")
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    role: str = "coder"
+    model: str | None = None
+    history: list[dict] = Field(default_factory=list)
 
-    model_chain: list[str] = []
+
+def chat_setup(req: ChatRequest) -> tuple[AgentRole, ExecutionConfig, list[str], list[dict]]:
     try:
-        from agentcli.schemas import AgentRole as SchemaAgentRole
-        from agentcli.config import ExecutionConfig
-        from agentcli.router import call_model
+        role = AgentRole(req.role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown role '{req.role}'")
+    config = ExecutionConfig()
+    chain = config.get_model_chain(role)
+    if req.model:
+        chain = [req.model] + [m for m in chain if m != req.model]
+    messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPTS.get(role.value, CHAT_SYSTEM_PROMPTS["coder"]) + CHAT_HANDOFF}]
+    for item in req.history[-10:]:
+        if item.get("text") and item.get("sender"):
+            messages.append({"role": "user" if item["sender"] == "user" else "assistant", "content": str(item["text"])})
+    messages.append({"role": "user", "content": req.message.strip()})
+    return role, config, chain, messages
 
-        role_enum = SchemaAgentRole(role_str)
-        config = ExecutionConfig()
-        model_chain = config.get_model_chain(role_enum)
 
-        if model_override:
-            model_chain = [model_override] + [m for m in model_chain if m != model_override]
+@app.post("/chat")
+async def chat_with_agent(req: ChatRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """One chat reply from a role's model chain. Chat never touches files; tasks go through /runs."""
+    verify_shared_secret(x_api_key, token)
+    import datetime
+    role, config, chain, messages = chat_setup(req)
+    try:
+        res = await call_model(messages=messages, model_chain=chain, role=role, config=config)
+    except AllModelsFailedError as err:
+        raise HTTPException(status_code=502, detail={"message": "Every model in the chain failed.", "attempts": err.attempts})
+    reply = res.get("content", "").strip() or "The model returned an empty response. Please try again or rephrase."
+    return {"reply": reply, "role": role.value, "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p"),
+            "model": res.get("model")}
 
-        # Build OpenAI chat messages
-        system_prompts = {
-            "planner": "You are SplitterAI's Planner Agent. Help users break down software projects into clean tasks.",
-            "coder": "You are SplitterAI's Coder Agent. Help users write code, debug functions, and refactor applications.",
-            "auditor": "You are SplitterAI's Auditor Agent. Help users review code security, PEP8 standards, and quality.",
-            "tester": "You are SplitterAI's Tester Agent. Help users design unit tests, run verification suites, and fix bugs.",
-        }
-        sys_prompt = system_prompts.get(role_str, "You are an AI software engineering assistant.")
 
-        messages = [{"role": "system", "content": sys_prompt}]
-        for item in history[-10:]:
-          if item.get("text") and item.get("sender"):
-            messages.append({
-              "role": "user" if item["sender"] == "user" else "assistant",
-              "content": item["text"],
-            })
-        messages.append({"role": "user", "content": message})
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Same as /chat, streamed as server-sent events: {"delta"} tokens, then {"done", "model"} or {"error"}."""
+    verify_shared_secret(x_api_key, token)
+    from fastapi.responses import StreamingResponse
+    role, config, chain, messages = chat_setup(req)
 
-        # Call litellm model router
-        res = await call_model(
-            messages=messages,
-            model_chain=model_chain,
-            role=role_enum,
-            config=config,
-        )
+    async def events():
+        try:
+            async for item in stream_model(messages, chain, role, config):
+                payload = {"delta": item["delta"]} if "delta" in item else {"done": True, "model": item["model"]}
+                yield f"data: {json.dumps(payload)}\n\n"
+        except AllModelsFailedError as err:
+            yield f"data: {json.dumps({'error': 'Every model in the chain failed.', 'attempts': err.attempts})}\n\n"
+        except Exception as err:
+            yield f"data: {json.dumps({'error': str(err)[:300]})}\n\n"
 
-        reply_content = res.get("content", "").strip()
-        if not reply_content:
-            logger.warning("Model returned empty content for role=%s, message='%s' — using fallback", role_str, message[:80])
-            reply_content = "[Fallback] The model returned an empty response. Please try again or rephrase your request."
-
-        return {
-            "reply": reply_content,
-            "role": role_str,
-            "timestamp": ts,
-            "model": res.get("model"),
-        }
-    except Exception as err:
-        logger.error(
-            "Chat handler failed for role='%s' with model_chain=%s: %s",
-            role_str,
-            model_chain,
-            err,
-            exc_info=True,
-        )
-        raise HTTPException(status_code=500, detail=f"LLM Provider Error ({role_str}): {str(err)}")
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/sessions")
 async def get_sessions(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """List recent sessions for the dashboard sidebar."""
     verify_shared_secret(x_api_key, token)
-    sessions = list_sessions(limit=20)
+    sessions = await asyncio.to_thread(list_sessions, 20)
     return [s.model_dump() for s in sessions]
 
 
@@ -806,8 +815,9 @@ async def patch_session(req: RenameSessionRequest, x_api_key: str | None = Heade
     name = req.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Project name cannot be empty.")
-    if not rename_session(req.workspace, name):
+    if not await asyncio.to_thread(rename_session, req.workspace, name):
         raise HTTPException(status_code=404, detail="Project not found.")
+    await sessions_changed()
     return {"workspace": req.workspace, "name": name}
 
 
@@ -815,15 +825,16 @@ async def patch_session(req: RenameSessionRequest, x_api_key: str | None = Heade
 async def delete_session(workspace: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Delete a project's record, run history and its generated folder under workspace_output."""
     verify_shared_secret(x_api_key, token)
-    found = reset_session(workspace)
+    found = await asyncio.to_thread(reset_session, workspace)
     folder = Path(resolve_workspace(workspace)).resolve()
     # Only project folders directly under a project root are ours to remove; never a root or user paths.
     owned = any(folder.parent == base for base in project_roots())
     if owned and folder.is_dir():
-        shutil.rmtree(folder, ignore_errors=True)
+        await asyncio.to_thread(shutil.rmtree, folder, True)
         found = True
     if not found:
         raise HTTPException(status_code=404, detail="Project not found.")
+    await sessions_changed()
     return {"deleted": workspace}
 
 
@@ -840,6 +851,26 @@ async def get_agents(x_api_key: str | None = Header(None, alias="X-API-Key"), to
         }
         for role in AgentRole
     ]
+
+
+@app.get("/models")
+async def list_models(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Models the router knows (checked against the providers' live model lists), for the model pickers."""
+    verify_shared_secret(x_api_key, token)
+    from agentcli.models import MODEL_PROFILES, all_models, get_profile
+    out = []
+    for model_id in [*MODEL_PROFILES, *(m for m in all_models() if m not in MODEL_PROFILES)]:
+        profile = get_profile(model_id)
+        name = model_id.split("/")[-1]
+        out.append({
+            "id": model_id,
+            "label": name.replace(":free", " (free)"),
+            "provider": {"openrouter": "OpenRouter", "gemini": "Google AI"}.get(profile.provider, profile.provider),
+            "tier": profile.tier,
+            "vision": profile.vision,
+            "capabilities": sorted(profile.capabilities),
+        })
+    return out
 
 
 @app.get("/agents/quota")
@@ -908,7 +939,7 @@ async def get_files(workspace: str = ".", x_api_key: str | None = Header(None, a
             else:
                 return {"name": name, "path": rel, "type": "file", "size": path.stat().st_size}
 
-        tree = build_tree(root_path)
+        tree = await asyncio.to_thread(build_tree, root_path)
         return tree.get("children", [])
     except Exception as e:
         from fastapi import HTTPException
@@ -934,9 +965,10 @@ async def upload_workspace(
     try:
         from agentcli.workspace_import import extract_zip_to_workspace
 
-        ws_path, file_count = extract_zip_to_workspace(zip_bytes)
+        ws_path, file_count = await asyncio.to_thread(extract_zip_to_workspace, zip_bytes)
         # An imported project is a project like any other: listed, openable, previewable.
         await asyncio.to_thread(save_session, str(ws_path), f"Imported {file.filename}", RunStatus.idle)
+        await sessions_changed()
         return {"workspace": str(ws_path), "fileCount": file_count}
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))
@@ -1000,7 +1032,7 @@ async def cleanup_workspaces(
     verify_shared_secret(x_api_key, token)
     try:
         from agentcli.workspace_import import cleanup_expired_workspaces
-        deleted_count, freed_bytes = cleanup_expired_workspaces(max_age_seconds=max_age_seconds)
+        deleted_count, freed_bytes = await asyncio.to_thread(cleanup_expired_workspaces, max_age_seconds=max_age_seconds)
         return {
             "success": True,
             "deletedCount": deleted_count,
@@ -1200,6 +1232,7 @@ async def github_import(req: GithubImportRequest, x_api_key: str | None = Header
     except IntegrationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     await asyncio.to_thread(save_session, str(dest), f"Imported {req.repo}", RunStatus.idle)
+    await sessions_changed()
     return {"workspace": str(dest)}
 
 

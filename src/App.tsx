@@ -1,27 +1,27 @@
 import { lazy, Suspense } from 'react'
 import { MotionConfig } from 'framer-motion'
 import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom'
-import AgentPage from './pages/AgentPage'
-import AgentsOverviewPage from './pages/AgentsOverviewPage'
-import IntegrationsPage from './pages/IntegrationsPage'
-import ProjectsPage from './pages/ProjectsPage'
-import ProjectOverviewPage from './pages/ProjectOverviewPage'
-import ProjectTasksPage from './pages/ProjectTasksPage'
-import ProjectAgentsPage from './pages/ProjectAgentsPage'
-import ProjectFilesPage from './pages/ProjectFilesPage'
-import ProjectActivityPage from './pages/ProjectActivityPage'
-import HomePage from './pages/HomePage'
-import ConsolePage from './pages/ConsolePage'
 import { AppProvider } from './context/AppContext'
 import { UIProvider } from './context/UIContext'
-
-import FlowPage from './pages/FlowPage'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AppShell } from './components/shell/AppShell'
 import { EmptyState } from './components/primitives/EmptyState'
 
-// Landing is the only three.js consumer; loading it lazily keeps ~0.5 MB of WebGL code off dashboard routes.
+// Every page loads on demand: a visit downloads the shell plus the page it opens, not the whole app.
+// Landing is the only three.js consumer, so ~0.5 MB of WebGL code stays off dashboard routes.
 const Landing = lazy(() => import('./pages/Landing'))
+const AgentPage = lazy(() => import('./pages/AgentPage'))
+const AgentsOverviewPage = lazy(() => import('./pages/AgentsOverviewPage'))
+const IntegrationsPage = lazy(() => import('./pages/IntegrationsPage'))
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage'))
+const ProjectOverviewPage = lazy(() => import('./pages/ProjectOverviewPage'))
+const ProjectTasksPage = lazy(() => import('./pages/ProjectTasksPage'))
+const ProjectAgentsPage = lazy(() => import('./pages/ProjectAgentsPage'))
+const ProjectFilesPage = lazy(() => import('./pages/ProjectFilesPage'))
+const ProjectActivityPage = lazy(() => import('./pages/ProjectActivityPage'))
+const HomePage = lazy(() => import('./pages/HomePage'))
+const ConsolePage = lazy(() => import('./pages/ConsolePage'))
+const FlowPage = lazy(() => import('./pages/FlowPage'))
 
 /**
  * Layout — the authenticated app, inside the Cursor-style shell.
@@ -42,6 +42,7 @@ function Layout() {
   return (
     <AppShell>
       <ErrorBoundary key={location.pathname}>
+        <Suspense fallback={null}>
         <Routes>
           {/* Home */}
           <Route path="/home" element={<HomePage />} />
@@ -79,6 +80,7 @@ function Layout() {
             }
           />
         </Routes>
+        </Suspense>
       </ErrorBoundary>
     </AppShell>
   )

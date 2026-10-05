@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState } from 'react'
-import { AVAILABLE_MODELS } from '../data'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { AUTO_MODEL } from '../data'
+import { fetchModels } from '../lib/api'
 import type { AgentRole, ModelOption, ExecutionMode } from '../types'
 import { Layers, Zap, Search, ShieldCheck } from 'lucide-react'
 
@@ -18,6 +19,8 @@ interface UIContextType {
   setSelectedSessionId: React.Dispatch<React.SetStateAction<string>>
   selectedRole: AgentRole
   setSelectedRole: React.Dispatch<React.SetStateAction<AgentRole>>
+  /** Auto first, then the models the backend serves. */
+  models: ModelOption[]
   selectedModel: ModelOption
   setSelectedModel: React.Dispatch<React.SetStateAction<ModelOption>>
   selectedMode: ExecutionMode
@@ -34,7 +37,14 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState('s1')
   const [selectedRole, setSelectedRole] = useState<AgentRole>('coder')
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(AVAILABLE_MODELS[0])
+  const [selectedModel, setSelectedModel] = useState<ModelOption>(AUTO_MODEL)
+  const [models, setModels] = useState<ModelOption[]>([AUTO_MODEL])
+
+  useEffect(() => {
+    fetchModels()
+      .then((list) => setModels([AUTO_MODEL, ...list]))
+      .catch(() => { /* backend down: only Auto, which needs no list */ })
+  }, [])
   const [selectedMode, setSelectedMode] = useState<ExecutionMode>(executionModes[0])
   const [logFilter, setLogFilter] = useState<string | null>(null)
   const [multiMode, setMultiMode] = useState(true)
@@ -51,6 +61,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         setSelectedSessionId,
         selectedRole,
         setSelectedRole,
+        models,
         selectedModel,
         setSelectedModel,
         selectedMode,

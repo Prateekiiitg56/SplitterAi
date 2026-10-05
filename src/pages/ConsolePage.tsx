@@ -16,11 +16,11 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react'
-import { AVAILABLE_MODELS, ROLE_META } from '../data'
+import { ROLE_META } from '../data'
 import { useApp } from '../context/AppContext'
 import { useUI } from '../context/UIContext'
 import type { AgentRole, Subtask } from '../types'
-import { sendChatMessage, planTask, uploadWorkspace, importN8nWorkflow, classifyIntent, type StackId } from '../lib/api'
+import { streamChatMessage, planTask, uploadWorkspace, importN8nWorkflow, classifyIntent, type StackId } from '../lib/api'
 import type { PlanAnalysis, PlanResult } from '../lib/api'
 import { StrategyPanel, recommendedSelection, type StrategySelection } from '../components/StrategyPanel'
 import { AgentIcon } from '../components/Badges'
@@ -121,7 +121,7 @@ export default function ConsolePage() {
   const navigate = useNavigate()
   const score = useScore()
   const { sessions, refetchSessions, executeTaskWithPlan, openProject } = useApp()
-  const { selectedModel, setSelectedModel } = useUI()
+  const { models, selectedModel, setSelectedModel } = useUI()
   const [stack, setStack] = useState<StackId>('auto')
   /** Where the next run writes: a new project, or follow-up work in an existing one. */
   const [targetWorkspace, setTargetWorkspace] = useState<string>(DEFAULT_WORKSPACE)
@@ -236,15 +236,16 @@ export default function ConsolePage() {
     }
 
     setIsSending(true)
+    const replyId = `agent-${Date.now()}`
     try {
       const historyPayload = chatMessages.map((m) => ({ sender: m.sender, text: m.text }))
-      const resp = await sendChatMessage(selectedAgentRole, textToSubmit, selectedModel.id, historyPayload)
-      const agentMsg: ChatMessage = {
-        id: `agent-${Date.now()}`, sender: 'agent', role: selectedAgentRole,
-        text: resp.reply, timestamp: resp.timestamp || ts, source: textToSubmit,
-      }
-      setChatMessages((prev) => [...prev, agentMsg])
+      // Tokens render as they arrive.
+      setChatMessages((prev) => [...prev, { id: replyId, sender: 'agent', role: selectedAgentRole, text: '', timestamp: ts, source: textToSubmit }])
+      await streamChatMessage(selectedAgentRole, textToSubmit, (delta) => {
+        setChatMessages((prev) => prev.map((m) => (m.id === replyId ? { ...m, text: m.text + delta } : m)))
+      }, selectedModel.id, historyPayload)
     } catch (err: any) {
+      setChatMessages((prev) => prev.filter((m) => m.id !== replyId || m.text))
       const errorMsg: ChatMessage = {
         id: `agent-err-${Date.now()}`, sender: 'agent', role: selectedAgentRole,
         text: `API error (${activeAgentName}): ${err?.message || 'Failed to connect to the model.'}`, timestamp: ts,
@@ -501,7 +502,7 @@ export default function ConsolePage() {
                     className="absolute left-0 bottom-full mb-2 w-[260px] rounded-xl border border-white/[0.10] bg-[#1D1A16] shadow-lg p-1 z-50"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {AVAILABLE_MODELS.map((m) => {
+                    {models.map((m) => {
                       const isSel = selectedModel.id === m.id
                       return (
                         <button

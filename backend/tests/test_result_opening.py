@@ -79,7 +79,7 @@ async def test_stale_react_build_runs_before_verify_and_failure_fails_verificati
     plan = Plan(subtasks=[Subtask(id="ui", role=AgentRole.coder, group=1, instruction="build ui")])
     with patch.object(AgentWorker, "run", fake_workers(seen)), patch.object(graph, "run_shell", failing_build):
         result = await graph.run_graph("react app", plan, ExecutionConfig(), Sandbox(tmp_path), preset="cost")
-    assert commands[0] == "npm install --no-audit --no-fund && npm run build"
+    assert commands[0] == "npm install --prefer-offline --no-audit --no-fund && npm run build"
     assert result.verification["verdict"] == "fail" and "cannot resolve" in result.verification["issues"]
     assert result.status.value == "error"
     assert "verify" not in seen  # the LLM verifier is not asked about a project that does not build

@@ -19,7 +19,6 @@ GEMINI_FLASH = "gemini/gemini-3.5-flash"
 NEMOTRON_ULTRA = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 NEMOTRON_SUPER = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
 NEMOTRON_LIGHTNING = "openrouter/nvidia/nemotron-3.5-lightning:free"
-LING_FLASH = "openrouter/inclusionai/ling-3.0-flash-fin:free"
 GEMMA_31B = "openrouter/google/gemma-4-31b-it:free"
 QWEN_27B = "openrouter/qwen/qwen3.8-27b:free"
 NORTH_CODE = "openrouter/cohere/north-mini-code:free"
@@ -30,11 +29,22 @@ LLAMA_70B = "openrouter/meta-llama/llama-3.3-70b-instruct"
 
 # Vision models first for roles that look at screenshots (designer, verifier).
 DEFAULT_MODEL_CHAINS: dict[AgentRole, list[str]] = {
-    AgentRole.planner: [GEMINI_FLASH, NEMOTRON_ULTRA, LING_FLASH, NEMOTRON_SUPER],
+    AgentRole.planner: [GEMINI_FLASH, NEMOTRON_ULTRA, NEMOTRON_SUPER],
     AgentRole.coder: [GEMINI_FLASH, NORTH_CODE, NEMOTRON_SUPER, QWEN_27B, LAGUNA_S, GPT_4O_MINI],
     AgentRole.designer: [GEMINI_FLASH, GEMMA_31B, QWEN_27B, NORTH_CODE],
-    AgentRole.auditor: [GEMINI_FLASH, GEMMA_31B, QWEN_27B, NEMOTRON_ULTRA, LING_FLASH],
+    AgentRole.auditor: [GEMINI_FLASH, GEMMA_31B, QWEN_27B, NEMOTRON_ULTRA],
     AgentRole.tester: [NEMOTRON_LIGHTNING, LAGUNA_XS, NORTH_CODE, GEMINI_FLASH],
+}
+
+
+# Output budget and sampling per role: workers writing whole files need room, reviewers need little.
+# litellm drops whichever a provider does not support.
+ROLE_GENERATION: dict[AgentRole, dict[str, float | int]] = {
+    AgentRole.planner: {"max_tokens": 8192, "temperature": 0.2},
+    AgentRole.coder: {"max_tokens": 8192, "temperature": 0.2},
+    AgentRole.designer: {"max_tokens": 8192, "temperature": 0.4},
+    AgentRole.auditor: {"max_tokens": 4096, "temperature": 0.0},
+    AgentRole.tester: {"max_tokens": 8192, "temperature": 0.1},
 }
 
 
@@ -57,7 +67,6 @@ GEMINI_KEYS = ("GEMINI_API_KEY_2", "GEMINI_API_KEY_3", "GEMINI_API_KEY", "GEMINI
 # Dedicated account first, then accounts with spare quota.
 MODEL_KEYS: dict[str, tuple[str, ...]] = {
     NEMOTRON_ULTRA: ("OPENROUTER_KEY_BIG", "OPENROUTER_ULTRA_KEY", "OPENROUTER_KEY_REASON"),
-    LING_FLASH: ("OPENROUTER_KEY_REASON", "OPENROUTER_KEY_BIG"),
     GEMMA_31B: ("OPENROUTER_KEY_VISION", "OPENROUTER_KEY_FAST"),
     QWEN_27B: ("OPENROUTER_KEY_VISION", "OPENROUTER_KEY_CODE"),
     NORTH_CODE: ("OPENROUTER_KEY_CODE", "OPENROUTER_KEY_FAST"),

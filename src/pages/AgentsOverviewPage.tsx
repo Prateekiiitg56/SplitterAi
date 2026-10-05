@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { projectIdOf } from '../config'
 import { useApp } from '../context/AppContext'
-import { ROLE_META, AVAILABLE_MODELS } from '../data'
+import { ROLE_META } from '../data'
 import type { AgentRole, AgentStatus, ModelOption } from '../types'
 import { AgentIcon, StatusBadge } from '../components/Badges'
 import { Search, Plus, Bot } from 'lucide-react'
@@ -21,7 +21,6 @@ export default function AgentsOverviewPage() {
   const [showLaunchModal, setShowLaunchModal] = useState(false)
   const [modalRole, setModalRole] = useState<AgentRole>('coder')
   const [modalTask, setModalTask] = useState('')
-  const [modalModel, setModalModel] = useState<ModelOption>(AVAILABLE_MODELS[0])
 
   const baseRoster: { role: AgentRole; title: string; desc: string; modelChain: string }[] = [
     {

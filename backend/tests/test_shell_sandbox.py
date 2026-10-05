@@ -106,3 +106,23 @@ def test_bwrap_timeout_kills_the_command(tmp_path, monkeypatch):
     started = time.time()
     out = tools.run_shell(Sandbox(tmp_path), "sleep 30", timeout=3)
     assert "timed out" in out and time.time() - started < 20
+
+
+def _search_fixture(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.js").write_text("const Total = 1\nfunction total() {}\n")
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "dep.js").write_text("total")
+    return Sandbox(tmp_path)
+
+
+def test_search_code_python_fallback(tmp_path):
+    with patch.object(tools.shutil, "which", lambda name: None):
+        out = tools.search_code(_search_fixture(tmp_path), "total")
+    assert "src/app.js:1:" in out.replace("\\", "/") and "node_modules" not in out
+
+
+@pytest.mark.skipif(not tools.shutil.which("rg"), reason="ripgrep not installed")
+def test_search_code_uses_ripgrep(tmp_path):
+    out = tools.search_code(_search_fixture(tmp_path), "total")
+    assert "src/app.js:1: const Total = 1" in out and "src/app.js:2:" in out and "node_modules" not in out

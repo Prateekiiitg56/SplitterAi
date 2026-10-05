@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchSessions, type SessionInfo } from '../lib/api'
+import { fetchSessions, serverEvents, type SessionInfo } from '../lib/api'
 import type { SessionEntry } from '../types'
 
 const toProject = (s: SessionInfo, idx: number): SessionEntry => ({
@@ -33,36 +33,38 @@ export function useSessions() {
     }
   }, [])
 
+  // Load once (retrying with backoff while the backend is down), then reload when the server says the list changed.
   useEffect(() => {
     let active = true
-    let timerId: any = null
+    let timerId: ReturnType<typeof setTimeout> | null = null
     let retries = 0
 
-    const poll = async () => {
+    const load = async () => {
       if (!active) return
       try {
         const data = await fetchSessions()
-        if (active && data) {
-          setSessions(data.map(toProject))
-          setError(null)
-          setLoading(false)
-        }
+        if (!active) return
+        setSessions(data.map(toProject))
+        setError(null)
+        retries = 0
       } catch (err: any) {
-        if (active) {
-          setError(err?.message || 'Failed to fetch sessions')
-          setLoading(false)
-          // Back off (3s .. 30s) so a busy or rate-limited backend isn't hammered.
-          timerId = setTimeout(poll, Math.min(3000 * 2 ** retries, 30000))
-          retries++
-        }
+        if (!active) return
+        setError(err?.message || 'Failed to fetch sessions')
+        // Back off (3s .. 30s) so a busy or rate-limited backend isn't hammered.
+        timerId = setTimeout(load, Math.min(3000 * 2 ** retries, 30000))
+        retries++
+      } finally {
+        if (active) setLoading(false)
       }
     }
 
-    poll()
-
+    load()
+    const onChange = () => load()
+    serverEvents.addEventListener('sessions_changed', onChange)
     return () => {
       active = false
       if (timerId) clearTimeout(timerId)
+      serverEvents.removeEventListener('sessions_changed', onChange)
     }
   }, [])
 

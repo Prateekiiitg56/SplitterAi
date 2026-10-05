@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agentcli import session
+from agentcli import db, session
 from agentcli.schemas import RunStatus
 import server
 
@@ -22,6 +22,7 @@ def client(monkeypatch):
             patch.object(session, "_get_db_path", lambda: Path(tmp) / "sessions.db"), \
             patch.object(session, "is_supabase_enabled", lambda: False):
         yield TestClient(server.app)
+        db.close_all()  # release sessions.db so the temporary folder can be removed
 
 
 def names(client):

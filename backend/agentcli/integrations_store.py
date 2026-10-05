@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 
-from . import vault
+from . import db, vault
 from .db_supabase import (
     supabase_save_integration,
     supabase_load_all_integrations,
@@ -55,11 +55,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def _get_connection() -> sqlite3.Connection:
-    """Get a SQLite connection with integrations schema initialized."""
-    db_path = _get_db_path()
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA journal_mode=WAL")
+def _init_schema(conn: sqlite3.Connection) -> None:
+    """Create tables and run migrations; runs once per database file per process."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS integrations (
             id TEXT PRIMARY KEY,
@@ -82,7 +79,11 @@ def _get_connection() -> sqlite3.Connection:
     """)
     conn.commit()
     _run_migrations(conn)
-    return conn
+
+
+def _connection():
+    """The process-wide connection to this store's database (serialized)."""
+    return db.connection(_get_db_path(), _init_schema)
 
 
 def _row_to_dict(row: tuple) -> dict:
@@ -105,8 +106,7 @@ def _row_to_dict(row: tuple) -> dict:
 def save_integration(integration: dict) -> None:
     """Insert or update an integration (SQLite + Supabase when configured)."""
     # 1. Save to local SQLite
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         conn.execute("""
             INSERT INTO integrations (id, type, name, status, connected_at, config_json, scopes_json, allowed_roles_json, last_error)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -131,8 +131,6 @@ def save_integration(integration: dict) -> None:
             integration.get("lastError"),
         ))
         conn.commit()
-    finally:
-        conn.close()
 
     # 2. Sync to Supabase if enabled
     if is_supabase_enabled():
@@ -146,14 +144,11 @@ def load_all_integrations() -> dict[str, dict]:
         if sp_integrations is not None:
             return sp_integrations
 
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         rows = conn.execute(
             "SELECT id, type, name, status, connected_at, config_json, scopes_json, allowed_roles_json, last_error FROM integrations"
         ).fetchall()
         return {row[0]: _row_to_dict(row) for row in rows}
-    finally:
-        conn.close()
 
 
 def delete_integration(integration_id: str) -> bool:
@@ -162,14 +157,11 @@ def delete_integration(integration_id: str) -> bool:
     if is_supabase_enabled():
         sp_deleted = supabase_delete_integration(integration_id)
 
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         cursor = conn.execute("DELETE FROM integrations WHERE id = ?", (integration_id,))
         conn.execute("DELETE FROM integration_secrets WHERE id = ?", (integration_id,))
         conn.commit()
         return (cursor.rowcount > 0) or sp_deleted
-    finally:
-        conn.close()
 
 
 def update_integration_roles(integration_id: str, allowed_roles: list[str]) -> Optional[dict]:
@@ -178,8 +170,7 @@ def update_integration_roles(integration_id: str, allowed_roles: list[str]) -> O
     if is_supabase_enabled():
         sp_updated = supabase_update_integration_roles(integration_id, allowed_roles)
 
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         conn.execute(
             "UPDATE integrations SET allowed_roles_json = ? WHERE id = ?",
             (json.dumps(allowed_roles), integration_id),
@@ -192,25 +183,17 @@ def update_integration_roles(integration_id: str, allowed_roles: list[str]) -> O
         
         sqlite_res = _row_to_dict(row) if row else None
         return sp_updated or sqlite_res
-    finally:
-        conn.close()
 
 
 
 def save_secret(integration_id: str, secret: str) -> None:
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         conn.execute("INSERT OR REPLACE INTO integration_secrets (id, secret_enc) VALUES (?, ?)",
                      (integration_id, vault.encrypt(secret)))
         conn.commit()
-    finally:
-        conn.close()
 
 
 def get_secret(integration_id: str) -> Optional[str]:
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         row = conn.execute("SELECT secret_enc FROM integration_secrets WHERE id = ?", (integration_id,)).fetchone()
-    finally:
-        conn.close()
     return vault.decrypt(row[0]) if row else None

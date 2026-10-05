@@ -9,31 +9,95 @@ FR-4: Raise distinct error on total failure.
 from __future__ import annotations
 
 import asyncio
+import copy
+import hashlib
+import json
 import logging
-from typing import Any, Callable, Optional
+import os
+import time
+from collections import OrderedDict, deque
+from typing import Any, AsyncIterator, Callable, Optional
 
 import litellm
 
-import time
-
-from . import telemetry
-
+from . import fake_llm, telemetry
+from .config import ROLE_GENERATION, ExecutionConfig
 from .schemas import AgentRole, LogEntry, LogType
-from .config import ExecutionConfig
 
 logger = logging.getLogger(__name__)
 
-import hashlib
-import json
-
-# Suppress litellm's verbose default logging
+# Suppress litellm's verbose default logging; drop per-role params a provider does not support.
 litellm.suppress_debug_info = True
+litellm.drop_params = True
 
-# In-memory call log for real quota & usage tracking
-ROUTER_CALL_LOG: list[dict[str, Any]] = []
+# Recent calls for usage metrics; bounded so a long-lived server does not grow without limit.
+ROUTER_CALL_LOG: deque[dict[str, Any]] = deque(maxlen=5000)
 
-# In-memory prompt cache for planner calls
-PLANNER_CACHE: dict[str, dict[str, Any]] = {}
+# Planner responses for identical prompts: LRU with a TTL, handed out as copies.
+PLANNER_CACHE: OrderedDict[str, tuple[float, dict[str, Any]]] = OrderedDict()
+PLANNER_CACHE_SIZE = 200
+PLANNER_CACHE_TTL_S = 3600
+
+# Errors worth one more try on the same model and key.
+TRANSIENT_ERRORS = (litellm.Timeout, litellm.RateLimitError, litellm.ServiceUnavailableError, litellm.APIConnectionError)
+MAX_RETRY_AFTER_S = 10  # longer waits move on to the next model instead
+
+# Circuit breaker: a model that keeps failing is skipped for a while instead of costing a timeout per call.
+BREAKER_FAILURES = 3
+BREAKER_OPEN_S = 300
+_BREAKER: dict[str, tuple[int, float]] = {}
+
+
+def _cache_get(key: str) -> dict[str, Any] | None:
+    entry = PLANNER_CACHE.get(key)
+    if not entry or entry[0] < time.time():
+        PLANNER_CACHE.pop(key, None)
+        return None
+    PLANNER_CACHE.move_to_end(key)
+    return copy.deepcopy(entry[1])
+
+
+def _cache_put(key: str, result: dict[str, Any]) -> None:
+    PLANNER_CACHE[key] = (time.time() + PLANNER_CACHE_TTL_S, copy.deepcopy(result))
+    PLANNER_CACHE.move_to_end(key)
+    while len(PLANNER_CACHE) > PLANNER_CACHE_SIZE:
+        PLANNER_CACHE.popitem(last=False)
+
+
+def _breaker_open(model: str) -> bool:
+    fails, open_until = _BREAKER.get(model, (0, 0.0))
+    if fails >= BREAKER_FAILURES and open_until > time.time():
+        return True
+    # History says it never works lately (e.g. a retired model id): treat it as open too.
+    stats = telemetry.model_stats(model)
+    return stats["recent_samples"] >= 5 and stats["recent_success_rate"] == 0
+
+
+def _breaker_record(model: str, ok: bool) -> None:
+    if ok:
+        _BREAKER.pop(model, None)
+        return
+    fails = _BREAKER.get(model, (0, 0.0))[0] + 1
+    _BREAKER[model] = (fails, time.time() + BREAKER_OPEN_S if fails >= BREAKER_FAILURES else 0.0)
+
+
+def _retry_after(error: Exception) -> float | None:
+    """Seconds the provider asked us to wait (Retry-After header), when it said."""
+    response = getattr(error, "response", None)
+    value = getattr(response, "headers", {}).get("retry-after") if response is not None else None
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _live_chain(model_chain: list[str], role: AgentRole, on_event) -> list[str]:
+    live = [m for m in model_chain if not _breaker_open(m)]
+    skipped = [m for m in model_chain if m not in live]
+    if skipped and live and on_event:
+        on_event(LogEntry(type=LogType.info, role=role,
+                          message=f"Skipping {len(skipped)} model(s) that keep failing: {', '.join(skipped)}"))
+    return live or model_chain
 
 
 def get_usage_metrics() -> dict[str, Any]:
@@ -62,7 +126,7 @@ def get_usage_metrics() -> dict[str, Any]:
 
     total_tokens_all = 0
 
-    for log in ROUTER_CALL_LOG:
+    for log in list(ROUTER_CALL_LOG):
         p = log.get("provider", "other")
         r = log.get("role", "unknown")
         tokens = log.get("total_tokens", 0)
@@ -152,21 +216,26 @@ async def call_model(
     Raises:
         AllModelsFailedError: If every model in the chain fails.
     """
+    if os.getenv("SPLITTER_FAKE_LLM"):
+        return fake_llm.respond(messages, role, tools)
+
     # Check planner cache for duplicate identical planning prompts
     cache_key = None
     if use_cache and role == AgentRole.planner and not tools:
         cache_str = f"{role.value}:{json.dumps(messages, sort_keys=True)}"
         cache_key = hashlib.md5(cache_str.encode("utf-8")).hexdigest()
-        if cache_key in PLANNER_CACHE:
+        cached = _cache_get(cache_key)
+        if cached is not None:
             if on_event:
                 on_event(LogEntry(
                     type=LogType.info,
                     role=role,
                     message="Using cached planner response",
                 ))
-            return PLANNER_CACHE[cache_key]
+            return cached
 
     attempts: list[dict[str, Any]] = []
+    model_chain = _live_chain(model_chain, role, on_event)
 
     for i, model in enumerate(model_chain):
         model_messages = messages
@@ -197,6 +266,7 @@ async def call_model(
                     "model": target_model,
                     "messages": model_messages,
                     "timeout": config.model_timeout,
+                    **ROLE_GENERATION.get(role, {}),
                 }
                 if api_key:
                     kwargs["api_key"] = api_key
@@ -259,7 +329,8 @@ async def call_model(
                                    "cached_tokens": cached_tokens}
 
                 if cache_key:
-                    PLANNER_CACHE[cache_key] = result
+                    _cache_put(cache_key, result)
+                _breaker_record(model, True)
 
                 if on_event:
                     on_event(LogEntry(
@@ -289,15 +360,17 @@ async def call_model(
                     logger.warning("Model %s: key %d is limited (%s); trying key %d",
                                    model, key_index, error_str[:80], key_index + 1)
                     continue
-                is_transient = any(c in error_str for c in ("429", "502", "503", "504", "timeout", "RateLimit", "Overloaded"))
+                wait = _retry_after(e)
+                is_transient = isinstance(e, TRANSIENT_ERRORS) and (wait is None or wait <= MAX_RETRY_AFTER_S)
 
                 if is_transient and retry < max_retries - 1:
                     logger.warning("Transient error calling %s (retry %d/%d): %s", model, retry + 1, max_retries, error_str)
-                    await asyncio.sleep(1.5 * (retry + 1))
+                    await asyncio.sleep(wait if wait is not None else 1.5 * (retry + 1))
                     retry += 1
                     continue
 
                 attempts.append({"model": model, "error": error_str})
+                _breaker_record(model, False)
                 telemetry.record_call(model, role.value, 0, 0, 0.0, False, limited=_is_account_error(error_full))
                 logger.warning("Model %s failed: %s", model, error_str)
 
@@ -311,8 +384,6 @@ async def call_model(
                         detail=error_str,
                     ))
 
-                if i < len(model_chain) - 1:
-                    await asyncio.sleep(1)
                 break
 
 
@@ -325,4 +396,46 @@ async def call_model(
             detail=str(attempts),
         ))
 
+    raise AllModelsFailedError(attempts)
+
+
+async def stream_model(
+    messages: list[dict[str, Any]],
+    model_chain: list[str],
+    role: AgentRole,
+    config: ExecutionConfig,
+) -> AsyncIterator[dict[str, Any]]:
+    """Yield {"delta": text} as tokens arrive, then {"model": name}.
+
+    Falls back to the next model only while nothing has been sent yet.
+    """
+    if os.getenv("SPLITTER_FAKE_LLM"):
+        reply = fake_llm.respond(messages, role, None)
+        for word in reply["content"].split(" "):
+            yield {"delta": word + " "}
+        yield {"model": fake_llm.MODEL}
+        return
+
+    attempts: list[dict[str, Any]] = []
+    for model in _live_chain(model_chain, role, None):
+        api_key = (config.get_api_keys(role, model) or [None])[0]
+        kwargs: dict[str, Any] = {"model": model, "messages": messages, "timeout": config.model_timeout,
+                                  "stream": True, **ROLE_GENERATION.get(role, {})}
+        if api_key:
+            kwargs["api_key"] = api_key
+        sent = False
+        try:
+            async for chunk in await litellm.acompletion(**kwargs):
+                delta = chunk.choices[0].delta.content if chunk.choices else None
+                if delta:
+                    sent = True
+                    yield {"delta": delta}
+            _breaker_record(model, True)
+            yield {"model": model}
+            return
+        except Exception as e:
+            if sent:
+                raise
+            attempts.append({"model": model, "error": str(e)[:200]})
+            _breaker_record(model, False)
     raise AllModelsFailedError(attempts)
