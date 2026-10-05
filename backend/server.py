@@ -1284,6 +1284,30 @@ async def github_push(req: GithubPushRequest, x_api_key: str | None = Header(Non
     return {"message": message, "url": f"https://github.com/{repo}/tree/{req.branch}"}
 
 
+class GithubDeployRequest(BaseModel):
+    workspace: str
+    repo: str | None = None
+
+
+@app.post("/integrations/github/deploy")
+async def github_deploy(req: GithubDeployRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Publish a web project with GitHub Pages: its site (dist/ when built) replaces the gh-pages branch."""
+    verify_shared_secret(x_api_key, token)
+    root = workspace_dir(req.workspace)
+    github, secret = await asyncio.to_thread(_github)
+    repo = req.repo or github["config"].get("repo")
+    if not repo:
+        raise HTTPException(status_code=400, detail="Pick a repository: the GitHub connection has none.")
+    try:
+        site = agent_integrations.site_dir(root)
+        await asyncio.to_thread(agent_integrations.git_publish_pages, site, repo, secret)
+        url = await agent_integrations.github_enable_pages(secret, repo)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"url": url, "branch": agent_integrations.PAGES_BRANCH,
+            "message": f"Deployed to {url} (GitHub can take a minute to publish the first time)"}
+
+
 # ── Supabase Storage Status Endpoint ──────────────────────────────
 
 @app.get("/storage/status")

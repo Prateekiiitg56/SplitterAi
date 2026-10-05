@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ResultPane } from '../components/ResultPane'
-import { GithubPushDialog } from '../components/GithubDialogs'
+import { GithubDeployDialog, GithubPushDialog } from '../components/GithubDialogs'
 import { useIntegrations } from '../hooks/useIntegrations'
 import { listRuns, type RunSummary } from '../lib/api'
 import ProjectTabShell from './ProjectTabShell'
@@ -44,6 +44,7 @@ export default function ProjectOverviewPage() {
 
   const [taskInput, setTaskInput] = useState('')
   const [pushOpen, setPushOpen] = useState(false)
+  const [deployOpen, setDeployOpen] = useState(false)
   const [history, setHistory] = useState<RunSummary[]>([])
   const { integrations } = useIntegrations()
   const githubConnected = integrations.some((i) => i.type === 'github' && i.status === 'connected')
@@ -162,6 +163,17 @@ export default function ProjectOverviewPage() {
                 onClick={() => setPushOpen(true)}
               >
                 Push to GitHub
+              </Button>
+            )}
+            {githubConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={currentWorkspace === DEFAULT_WORKSPACE || isBusy}
+                title="Publish the site with GitHub Pages"
+                onClick={() => setDeployOpen(true)}
+              >
+                Deploy
               </Button>
             )}
           </div>
@@ -406,6 +418,7 @@ export default function ProjectOverviewPage() {
         </div>
       </div>
       <GithubPushDialog open={pushOpen} onClose={() => setPushOpen(false)} workspace={currentWorkspace} />
+      <GithubDeployDialog open={deployOpen} onClose={() => setDeployOpen(false)} workspace={currentWorkspace} />
     </ProjectTabShell>
   )
 }

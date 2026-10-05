@@ -235,3 +235,56 @@ async def test_post_callback_posts_the_result(monkeypatch):
     monkeypatch.setattr(server.httpx, "AsyncClient", lambda **k: real(transport=httpx.MockTransport(handler)))
     await server.post_callback("https://n8n.example/hook", {"run_id": "r1", "status": "done"})
     assert seen == [("https://n8n.example/hook", {"run_id": "r1", "status": "done"})]
+
+
+def test_deploy_publishes_the_site_to_gh_pages_and_enables_pages(client, tmp_path, monkeypatch):
+    pages_calls = []
+
+    def github_with_pages(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/repos/octo/site/pages":
+            pages_calls.append(request.method)
+            if request.method == "POST":
+                return httpx.Response(409, json={"message": "Pages already enabled"})
+            if request.method == "PUT":
+                return httpx.Response(204)
+            return httpx.Response(200, json={"html_url": "https://octo.github.io/site/"})
+        return ok_github(request)
+
+    with github_api(ok_github):
+        client.post("/integrations/connect", json={"type": "github", "token": TOKEN, "repo": "octo/site"})
+    project = tmp_path / "workspace_output" / "counter-1"
+    (project / "dist" / "assets").mkdir(parents=True)
+    (project / "dist" / "index.html").write_text("built")
+    (project / "dist" / "assets" / "app.js").write_text("js")
+    (project / "index.html").write_text("raw vite index")
+    (project / "node_modules").mkdir()
+    monkeypatch.setattr(server, "workspace_dir", lambda w: project)
+    pushed = {}
+    real_git = integrations._git
+
+    def recording_git(args, cwd, token=""):
+        if args[0] == "push":
+            pushed["args"], pushed["token"] = args, token
+            pushed["files"] = sorted(p.relative_to(cwd).as_posix() for p in cwd.rglob("*")
+                                     if p.is_file() and ".git" not in p.relative_to(cwd).parts)
+            return ""
+        return real_git(args, cwd, token)
+
+    with patch.object(integrations, "_git", recording_git), github_api(github_with_pages):
+        body = client.post("/integrations/github/deploy", json={"workspace": "x"}).json()
+    assert body["url"] == "https://octo.github.io/site/"
+    assert pushed["args"] == ["push", "--force", "https://github.com/octo/site.git", "HEAD:refs/heads/gh-pages"]
+    assert pushed["token"] == TOKEN
+    assert pushed["files"] == [".nojekyll", "assets/app.js", "index.html"]  # dist/ only
+    assert pages_calls == ["POST", "PUT", "GET"]
+
+
+def test_deploy_needs_an_index_html(client, tmp_path, monkeypatch):
+    with github_api(ok_github):
+        client.post("/integrations/connect", json={"type": "github", "token": TOKEN, "repo": "octo/site"})
+    project = tmp_path / "workspace_output" / "script-1"
+    project.mkdir(parents=True)
+    (project / "main.py").write_text("print(1)")
+    monkeypatch.setattr(server, "workspace_dir", lambda w: project)
+    res = client.post("/integrations/github/deploy", json={"workspace": "x"})
+    assert res.status_code == 400 and "Nothing to deploy" in res.json()["detail"]

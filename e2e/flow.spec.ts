@@ -209,6 +209,11 @@ test.describe.serial('SplitterAI end-to-end', () => {
     await page.getByRole('button', { name: 'Push' }).click()
     await expect(page.getByText(/Pushed .* to /)).toBeVisible({ timeout: 120_000 })
     await shot(page, 'github-pushed')
+    await page.getByRole('button', { name: 'Done' }).click()
+    await page.getByRole('button', { name: 'Deploy' }).first().click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Deploy' }).click()
+    await expect(page.getByText(/Deployed to https:\/\/.*github\.io/)).toBeVisible({ timeout: 180_000 })
+    await shot(page, 'github-pages-deployed')
   })
 
   test('14. an agent trying to read ../../.env is blocked and logged', async ({ page }) => {

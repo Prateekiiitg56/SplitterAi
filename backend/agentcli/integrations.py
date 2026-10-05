@@ -133,6 +133,49 @@ def git_commit_and_push(workspace: Path, repo: str, branch: str, message: str, t
     return f"Pushed {branch} to {repo}: https://github.com/{repo}/tree/{branch}"
 
 
+PAGES_BRANCH = "gh-pages"
+
+
+def site_dir(project: Path) -> Path:
+    """The folder GitHub Pages serves: the build output when there is one, else the project itself."""
+    for folder in (project / "dist", project):
+        if (folder / "index.html").is_file():
+            return folder
+    raise IntegrationError("Nothing to deploy: the project has no index.html (or dist/index.html).")
+
+
+def git_publish_pages(site: Path, repo: str, token: str) -> None:
+    """Replace the repository's gh-pages branch with the site's files (one fresh commit, force-pushed)."""
+    if not _REPO.match(repo):
+        raise IntegrationError("Repository must look like owner/name.")
+    import tempfile
+    skip = {"node_modules", ".git", ".splitter", "__pycache__"}
+    with tempfile.TemporaryDirectory(prefix="splitter-pages-") as tmp:
+        stage = Path(tmp) / "site"
+        shutil.copytree(site, stage, ignore=lambda d, names: [n for n in names if n in skip])
+        (stage / ".nojekyll").write_text("")  # serve files and folders starting with _ as they are
+        _git(["init", "-b", PAGES_BRANCH], stage)
+        _git(["add", "-A"], stage)
+        _git(["-c", "user.name=SplitterAI", "-c", "user.email=splitterai@users.noreply.github.com",
+              "commit", "-m", "Deploy from SplitterAI"], stage)
+        _git(["push", "--force", f"https://github.com/{repo}.git", f"HEAD:refs/heads/{PAGES_BRANCH}"], stage, token)
+
+
+async def github_enable_pages(token: str, repo: str) -> str:
+    """Turn on Pages for the gh-pages branch (or point existing Pages at it). Returns the site URL."""
+    source = {"source": {"branch": PAGES_BRANCH, "path": "/"}}
+    async with _http() as client:
+        resp = await client.post(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token), json=source)
+        if resp.status_code == 409:  # Pages already on: update its source
+            resp = await client.put(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token), json=source)
+        if resp.status_code not in (200, 201, 204):
+            raise _gh_error(resp)
+        info = await client.get(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token))
+    if info.status_code != 200:
+        raise _gh_error(info)
+    return info.json().get("html_url") or f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"
+
+
 async def github_open_pr(token: str, repo: str, head: str, base: str, title: str, body: str = "") -> str:
     async with _http() as client:
         resp = await client.post(f"{GITHUB_API}/repos/{repo}/pulls", headers=_gh_headers(token),

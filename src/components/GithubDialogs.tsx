@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Modal } from './primitives/Modal'
 import { Button } from './primitives/Button'
 import { TextField } from './primitives/Field'
-import { fetchGithubRepos, importGithubRepo, pushToGithub } from '../lib/api'
+import { deployToGithubPages, fetchGithubRepos, importGithubRepo, pushToGithub } from '../lib/api'
 
 /** Pick one of the connected account's repositories and clone it into a new project. */
 export function GithubImportDialog({ open, onClose, onImported }: {
@@ -133,6 +133,68 @@ export function GithubPushDialog({ open, onClose, workspace }: { open: boolean; 
           {error && <p role="alert" className="text-meta text-[var(--bad)]">{error}</p>}
           <TextField label="Branch" value={branch} onChange={(e) => setBranch(e.target.value)} />
           <TextField label="Commit message" value={message} onChange={(e) => setMessage(e.target.value)} />
+          <TextField label="Repository (owner/name)" value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="defaults to the connected repository" />
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+/** Publish a web project with GitHub Pages (its dist/ when built). Replaces the repo's gh-pages branch. */
+export function GithubDeployDialog({ open, onClose, workspace }: { open: boolean; onClose: () => void; workspace: string }) {
+  const [repo, setRepo] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<{ url: string; message: string } | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      setError(null)
+      setDone(null)
+    }
+  }, [open])
+
+  const submit = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      setDone(await deployToGithubPages(workspace, repo.trim()))
+    } catch (err: any) {
+      setError(err?.message || 'Deploy failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={() => !busy && onClose()}
+      title="Deploy with GitHub Pages"
+      width={440}
+      footer={
+        done ? (
+          <Button variant="primary" size="md" onClick={onClose}>Done</Button>
+        ) : (
+          <>
+            <Button variant="ghost" size="md" disabled={busy} onClick={onClose}>Cancel</Button>
+            <Button variant="primary" size="md" loading={busy} onClick={submit}>Deploy</Button>
+          </>
+        )
+      }
+    >
+      {done ? (
+        <p className="text-meta text-[var(--text-2)]">
+          {done.message}{' '}
+          <a href={done.url} target="_blank" rel="noreferrer" className="text-[var(--accent)] underline">Open site</a>
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {error && <p role="alert" className="text-meta text-[var(--bad)]">{error}</p>}
+          <p className="text-meta text-[var(--dim)]">
+            The project's site (its built <code>dist/</code> when there is one) replaces the repository's <code>gh-pages</code> branch,
+            and Pages is switched on for it.
+          </p>
           <TextField label="Repository (owner/name)" value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="defaults to the connected repository" />
         </div>
       )}

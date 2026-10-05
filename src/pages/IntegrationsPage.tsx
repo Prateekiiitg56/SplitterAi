@@ -45,7 +45,7 @@ const CATALOG = [
     badge: 'Recommended',
     icon: GitBranch,
     description: 'Import repositories as projects, push projects as branches, and let agents open pull requests.',
-    features: ['Import from GitHub', 'Push to a branch', 'Agents can open pull requests'],
+    features: ['Import from GitHub', 'Push to a branch, deploy with GitHub Pages', 'Agents can open pull requests'],
     buttonLabel: 'Connect GitHub',
   },
   {

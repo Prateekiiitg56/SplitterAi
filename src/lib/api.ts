@@ -538,6 +538,16 @@ export async function pushToGithub(workspace: string, branch: string, message: s
   return res.json()
 }
 
+export async function deployToGithubPages(workspace: string, repo?: string): Promise<{ url: string; message: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/github/deploy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace, repo: repo || undefined }),
+  }, 180000)
+  if (!res.ok) throw await sessionError(res, 'Deploy failed')
+  return res.json()
+}
+
 export async function disconnectIntegration(id: string): Promise<any> {
   const res = await fetchWithTimeout(`${API_BASE}/integrations/disconnect`, {
     method: 'POST',
