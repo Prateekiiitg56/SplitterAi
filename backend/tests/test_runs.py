@@ -155,3 +155,28 @@ def test_registry_keeps_active_runs_and_caps_finished():
     runs.prune()
     assert runs.get(active.id) and len(runs._RUNS) == runs.MAX_FINISHED + 1
     runs._RUNS.clear()
+
+
+def test_follow_up_runs_in_the_same_folder_with_the_previous_summary(client):
+    seen = []
+
+    async def analysis(task, config, **kwargs):
+        seen.append(task)
+        return plan(), {}
+
+    with patch.object(server, "run_graph", quick_graph), patch.object(server, "run_analysis", analysis):
+        first = client.post("/runs", json={"task": "build a calculator", "workspace": "./workspace_output"}).json()
+        wait_for(client, first["run_id"], {"done"})
+        with patch.object(server, "previous_summary", lambda ws: "Built index.html with a calculator" if ws == first["workspace"] else None):
+            second = client.post("/runs", json={"task": "add a clear button", "workspace": first["workspace"]}).json()
+            wait_for(client, second["run_id"], {"done"})
+    assert second["workspace"] == first["workspace"]
+    assert seen[0] == "build a calculator"
+    assert seen[1].startswith("add a clear button") and "Built index.html with a calculator" in seen[1]
+
+
+def test_previous_summary_reads_the_last_finished_run():
+    from agentcli.session import save_run_result
+    save_run_result("./workspace_output/calc", "build", RunResult(subtasks=[], run_id="r1", synthesis="made calc"))
+    assert server.previous_summary("./workspace_output/calc") == "made calc"
+    assert server.previous_summary("./workspace_output/other") is None

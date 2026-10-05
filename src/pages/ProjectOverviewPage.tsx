@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ResultPane } from '../components/ResultPane'
 import { GithubPushDialog } from '../components/GithubDialogs'
 import { useIntegrations } from '../hooks/useIntegrations'
+import { listRuns, type RunSummary } from '../lib/api'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
 import { fmtTime, fmtTokens, range } from '../components/StrategyPanel'
@@ -38,11 +39,12 @@ export default function ProjectOverviewPage() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, executeTaskWithPlan, cancelRun, runReport, runOutcome } = useApp()
+  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, executeTaskWithPlan, cancelRun, runReport, runOutcome, runId, followRun } = useApp()
   const { multiMode, setMultiMode, models, selectedModel, setSelectedModel } = useUI()
 
   const [taskInput, setTaskInput] = useState('')
   const [pushOpen, setPushOpen] = useState(false)
+  const [history, setHistory] = useState<RunSummary[]>([])
   const { integrations } = useIntegrations()
   const githubConnected = integrations.some((i) => i.type === 'github' && i.status === 'connected')
   const termRef = useRef<HTMLDivElement>(null)
@@ -53,6 +55,21 @@ export default function ProjectOverviewPage() {
       executeTask(passedTask, currentWorkspace, selectedModel.id)
     }
   }, [location.state, taskTitle, runStatus, executeTask, currentWorkspace, selectedModel.id])
+
+  // Every run of this project (sessions.db), refreshed when a run starts or settles.
+  useEffect(() => {
+    if (currentWorkspace === DEFAULT_WORKSPACE) {
+      setHistory([])
+      return
+    }
+    let cancelled = false
+    listRuns(currentWorkspace)
+      .then((list) => !cancelled && setHistory(list))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [currentWorkspace, runStatus])
 
   // Follow the newest log line while a run streams.
   useEffect(() => {
@@ -332,6 +349,31 @@ export default function ProjectOverviewPage() {
                 </ol>
               )}
             </section>
+
+            {history.length > 0 && (
+              <section>
+                <div className="ov-section-title">
+                  <h3>Run history</h3>
+                  <span className="aside">{history.length} run{history.length === 1 ? '' : 's'}</span>
+                </div>
+                <ul className="space-y-1">
+                  {history.map((r) => (
+                    <li key={r.run_id}>
+                      <button
+                        type="button"
+                        onClick={() => followRun(r.run_id)}
+                        aria-current={r.run_id === runId ? 'true' : undefined}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-left text-meta border ${r.run_id === runId ? 'border-[var(--accent-edge)] bg-[var(--panel-2)]' : 'border-transparent hover:bg-[var(--panel-2)]'}`}
+                      >
+                        <StatusBadge status={r.status} size="sm" />
+                        <span className="flex-1 truncate">{r.task}</span>
+                        <span className="text-micro text-[var(--faint)]">{new Date(r.created_at * 1000).toLocaleString()}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <section>
               <div className="ov-section-title">

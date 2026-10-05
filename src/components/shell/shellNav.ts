@@ -14,6 +14,7 @@ import {
   UsersThree,
   TreeStructure,
   GitBranch,
+  Gear,
 } from '@phosphor-icons/react'
 
 /**
@@ -37,6 +38,7 @@ export const ACTIVITY_ITEMS: ActivityItem[] = [
   { to: '/agents', label: 'AI Agents', icon: Robot, matches: ['/agents', '/agent/'] },
   { to: '/flow', label: 'Workflow Map', icon: Network, matches: ['/flow'] },
   { to: '/integrations', label: 'Connected Tools', icon: PlugsConnected, matches: ['/integrations'] },
+  { to: '/settings', label: 'Settings', icon: Gear, matches: ['/settings'] },
 ]
 
 export function isActivityItemActive(item: ActivityItem, pathname: string): boolean {
@@ -109,6 +111,10 @@ export function getShellChrome(pathname: string): ShellChrome {
 
   if (parts[0] === 'integrations') {
     return { label: 'Connected Tools', icon: PlugsConnected, crumbs: ['SplitterAI', 'Connected Tools'] }
+  }
+
+  if (parts[0] === 'settings') {
+    return { label: 'Settings', icon: Gear, crumbs: ['SplitterAI', 'Settings'] }
   }
 
   if (parts[0] === 'run') {

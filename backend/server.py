@@ -7,6 +7,7 @@ NFR-5: Real-time event streaming via WebSocket.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -87,7 +88,19 @@ PROJECTS_ROOT = (PROJECT_ROOT / "workspace_output").resolve()
 PROJECTS_ROOT.mkdir(exist_ok=True)
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+# Every log line carries the run it belongs to (run=- outside runs), so one run's lines can be grepped out.
+CURRENT_RUN: contextvars.ContextVar[str] = contextvars.ContextVar("run_id", default="-")
+
+
+class RunIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.run_id = CURRENT_RUN.get()
+        return True
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] run=%(run_id)s %(message)s")
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(RunIdFilter())
 
 
 # ── WebSocket Connection Manager ─────────────────────────────────
@@ -316,6 +329,7 @@ async def health():
         "fake_llm": fake,
         "sandbox": await asyncio.to_thread(sandbox_status),
         "auth_required": bool(os.getenv("SHARED_SECRET")),
+        "max_concurrent_agents": ExecutionConfig().max_concurrent_agents,
     }
 
 
@@ -562,13 +576,33 @@ def start_run(request: RunRequest) -> runs.Run:
         sandbox = Sandbox(workspace_dir(workspace))
 
     run = runs.create(workspace, request.task)
-    run.job = asyncio.create_task(execute_run(run, request, sandbox, plan))
+    run.job = asyncio.create_task(execute_run(run, request, sandbox, plan, follow_up=Path(resolve_workspace(request.workspace)) != PROJECTS_ROOT))
     return run
 
 
-async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan: Plan | None) -> RunResult:
+def previous_summary(workspace: str) -> str | None:
+    """What the project's last finished run reported, for follow-up runs in the same folder."""
+    for item in list_runs(workspace, limit=5):
+        stored = load_run(item["run_id"])
+        synthesis = ((stored or {}).get("result") or {}).get("synthesis")
+        if synthesis:
+            return synthesis
+    return None
+
+
+async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan: Plan | None,
+                      follow_up: bool = False) -> RunResult:
     """The whole job: plan (unless confirmed), run the graph, persist, announce completion."""
+    CURRENT_RUN.set(run.id)
+    logger.info("Run started in %s: %s", run.workspace, request.task[:200])
     on_event = make_event_emitter(run)
+    # Follow-up work: the agents see what the previous run in this project did (the files are already there).
+    agent_task = request.task
+    previous = await asyncio.to_thread(previous_summary, run.workspace) if follow_up else None
+    if previous:
+        agent_task = (f"{request.task}\n\nThis is a follow-up in an existing project; read the existing files "
+                      f"before changing them. What the previous run reported:\n{previous[:4000]}")
+        on_event(LogEntry(type="info", role=AgentRole.planner, message="Follow-up: previous run summary added as context"))
     # The project shows up in the dashboard (and survives a refresh) while its first run is still going.
     await asyncio.to_thread(save_session, run.workspace, request.task, RunStatus.executing)
     await sessions_changed()
@@ -588,7 +622,7 @@ async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan
             on_event(LogEntry(type="info", role=AgentRole.planner,
                               message=f"Loaded manual plan: {len(plan.subtasks)} subtasks"))
         else:
-            plan, _ = await run_analysis(request.task, config, on_event=on_event, guidance=planning_guidance(stack))
+            plan, _ = await run_analysis(agent_task, config, on_event=on_event, guidance=planning_guidance(stack))
 
         estimate = None
         if request.strategy:
@@ -611,7 +645,7 @@ async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan
                               message=f"Web project: {stack} stack" + (f", starter files {', '.join(starter)}" if starter else "")))
 
         # Workers -> synthesis -> verification -> repair
-        result = await run_graph(request.task, plan, config, sandbox, on_event,
+        result = await run_graph(agent_task, plan, config, sandbox, on_event,
                                  preset=request.strategy or "balanced", design=design)
         if estimate:
             result.report = execution_report(result, request.strategy, config.max_concurrent_agents, estimate)

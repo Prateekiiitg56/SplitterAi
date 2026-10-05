@@ -33,6 +33,7 @@ import { useIntegrations } from '../hooks/useIntegrations'
 import { ModelFusionIcon } from '../components/BrandIcons'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { GithubImportDialog } from '../components/GithubDialogs'
+import { readPreference } from '../lib/preferences'
 
 /* ── Types ──────────────────────────────────────────────────────── */
 
@@ -122,7 +123,7 @@ export default function ConsolePage() {
   const score = useScore()
   const { sessions, refetchSessions, executeTaskWithPlan, openProject } = useApp()
   const { models, selectedModel, setSelectedModel } = useUI()
-  const [stack, setStack] = useState<StackId>('auto')
+  const [stack, setStack] = useState<StackId>(() => readPreference('stack', 'auto') as StackId)
   /** Where the next run writes: a new project, or follow-up work in an existing one. */
   const [targetWorkspace, setTargetWorkspace] = useState<string>(DEFAULT_WORKSPACE)
   const { integrations } = useIntegrations()

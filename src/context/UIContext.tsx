@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { AUTO_MODEL } from '../data'
 import { fetchModels } from '../lib/api'
+import { readPreference, writePreference } from '../lib/preferences'
 import type { AgentRole, ModelOption, ExecutionMode } from '../types'
 import { Layers, Zap, Search, ShieldCheck } from 'lucide-react'
 
@@ -37,12 +38,25 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState('s1')
   const [selectedRole, setSelectedRole] = useState<AgentRole>('coder')
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(AUTO_MODEL)
+  const [selectedModel, setSelectedModelState] = useState<ModelOption>(AUTO_MODEL)
   const [models, setModels] = useState<ModelOption[]>([AUTO_MODEL])
+
+  // The chosen model is remembered per browser (Settings or any model picker).
+  const setSelectedModel: React.Dispatch<React.SetStateAction<ModelOption>> = (next) => {
+    setSelectedModelState((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next
+      writePreference('model', value.id)
+      return value
+    })
+  }
 
   useEffect(() => {
     fetchModels()
-      .then((list) => setModels([AUTO_MODEL, ...list]))
+      .then((list) => {
+        setModels([AUTO_MODEL, ...list])
+        const saved = list.find((m) => m.id === readPreference('model', ''))
+        if (saved) setSelectedModelState(saved)
+      })
       .catch(() => { /* backend down: only Auto, which needs no list */ })
   }, [])
   const [selectedMode, setSelectedMode] = useState<ExecutionMode>(executionModes[0])

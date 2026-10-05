@@ -15,7 +15,7 @@ export function useIntegrations() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [connectingId, setConnectingId] = useState<string | null>(null)
-  const [health, setHealth] = useState<HealthStatus>({ supabase_enabled: false })
+  const [health, setHealth] = useState<Pick<HealthStatus, 'supabase_enabled'>>({ supabase_enabled: false })
 
   const loadIntegrations = useCallback(async () => {
     try {
@@ -26,7 +26,7 @@ export function useIntegrations() {
         fetchHealth(),
       ])
       setIntegrations(data)
-      setHealth(healthData)
+      setHealth({ supabase_enabled: !!healthData?.supabase_enabled })
     } catch (err: any) {
       setError(err?.message || 'Failed to load workspace integrations')
       setIntegrations([])

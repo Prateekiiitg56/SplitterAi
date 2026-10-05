@@ -50,3 +50,4 @@ workspace_output/
 *.tsbuildinfo
 test-results/
 playwright-report/
+!.env.example

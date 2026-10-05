@@ -468,16 +468,24 @@ export async function fetchIntegrations(): Promise<any[]> {
 }
 
 export interface HealthStatus {
+  version: string
+  uptime_s: number
   supabase_enabled: boolean
+  llm_ready: boolean
+  llm_keys: Record<string, boolean>
+  fake_llm: boolean
+  sandbox: { mode: string; available: boolean }
+  auth_required: boolean
+  max_concurrent_agents: number
 }
 
-export async function fetchHealth(): Promise<HealthStatus> {
+/** null when the backend cannot be reached. */
+export async function fetchHealth(): Promise<HealthStatus | null> {
   try {
     const res = await fetchWithTimeout(`${API_BASE}/health`, {}, 5000)
-    if (!res.ok) return { supabase_enabled: false }
-    return res.json()
+    return res.ok ? res.json() : null
   } catch {
-    return { supabase_enabled: false }
+    return null
   }
 }
 

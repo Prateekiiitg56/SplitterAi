@@ -22,6 +22,7 @@ const ProjectActivityPage = lazy(() => import('./pages/ProjectActivityPage'))
 const HomePage = lazy(() => import('./pages/HomePage'))
 const ConsolePage = lazy(() => import('./pages/ConsolePage'))
 const FlowPage = lazy(() => import('./pages/FlowPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 
 /**
  * Layout — the authenticated app, inside the Cursor-style shell.
@@ -67,6 +68,7 @@ function Layout() {
           {/* Flow & Integrations */}
           <Route path="/flow" element={<FlowPage />} />
           <Route path="/integrations" element={<IntegrationsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/run" element={<ProjectOverviewPage />} />
           <Route
             path="*"

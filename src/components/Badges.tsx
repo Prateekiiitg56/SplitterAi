@@ -70,9 +70,9 @@ export function StatusBadge({ status, compact = false, size = 'md', className = 
   } else if (s === 'failed' || s === 'error') {
     statusClass = 'failed'
     label = 'failed'
-  } else if (s === 'paused' || s === 'waiting' || s === 'queued') {
+  } else if (s === 'paused' || s === 'waiting' || s === 'queued' || s === 'unverified' || s === 'cancelled') {
     statusClass = 'paused'
-    label = s === 'queued' ? 'queued' : 'waiting'
+    label = s === 'queued' || s === 'unverified' || s === 'cancelled' ? s : 'waiting'
   }
 
   const isRunning = statusClass === 'working'
