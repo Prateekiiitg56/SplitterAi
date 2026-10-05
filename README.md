@@ -1,4 +1,4 @@
-# AgentCLI
+# SplitterAI
 
 A personal, model-agnostic multi-agent system that takes a high-level task, breaks it into subtasks, and runs those subtasks through specialist AI agents — each backed by a **free** LLM with its own API key.
 
@@ -380,15 +380,26 @@ cp .env.example .env
 ### 2. Backend (Agent Engine)
 
 ```bash
-cd backend
-pip install -r requirements.txt
+python -m venv .venv
+. .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -r backend/requirements-dev.txt
+
+# Browser for the agents' browser_check tool and tests/test_web.py.
+# playwright is pinned in requirements.txt so package and browser stay in sync.
+python -m playwright install --with-deps chromium   # Windows/macOS: drop --with-deps
 
 # Runs on http://localhost:8000, WebSocket at ws://localhost:8000/ws
-python server.py
+python backend/server.py
 ```
 
-The CLI is also available from the same directory: `python cli.py "Build a REST API with Express"`
-(see `python cli.py --help` for `interactive`, `sessions`, and `reset`).
+The CLI is also available: `python backend/cli.py "Build a REST API with Express"`
+(see `python backend/cli.py --help` for `interactive`, `sessions`, and `reset`).
+
+Run the backend tests from `backend/` (`pytest.ini` sets `asyncio_mode = auto`):
+
+```bash
+cd backend && pytest -q tests
+```
 
 ### 3. Frontend (Dashboard)
 

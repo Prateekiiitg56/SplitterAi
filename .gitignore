@@ -44,3 +44,9 @@ workspace_output/
 
 # AI tool metadata
 .claude/
+
+# Local virtualenv and e2e output
+.venv/
+*.tsbuildinfo
+test-results/
+playwright-report/

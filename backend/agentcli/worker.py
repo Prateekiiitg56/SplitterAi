@@ -318,7 +318,8 @@ class AgentWorker:
                             "content": result,
                         })
                         screenshots += [line[len(SCREENSHOT_MARK):] for line in result.splitlines()
-                                        if line.startswith(SCREENSHOT_MARK)]
+                                        if line.startswith(SCREENSHOT_MARK)
+                                        and self.sandbox.resolve_path(line[len(SCREENSHOT_MARK):]).is_file()]
 
                     if screenshots:
                         messages.append(self._screenshot_message(screenshots))
