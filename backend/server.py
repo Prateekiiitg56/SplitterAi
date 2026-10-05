@@ -847,7 +847,6 @@ async def get_agents(x_api_key: str | None = Header(None, alias="X-API-Key"), to
         {
             "role": role.value,
             "model_chain": config.get_model_chain(role),
-            "status": "idle",
         }
         for role in AgentRole
     ]
@@ -884,29 +883,21 @@ async def get_agent_quotas(x_api_key: str | None = Header(None, alias="X-API-Key
 
 @app.get("/agents/{role}")
 async def get_agent_detail(role: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Get detailed status, logs, and subtask metrics for a specific agent role."""
+    """A role's model chain and its real track record from the execution history (no live status here:
+    live state comes from the run the dashboard follows)."""
     verify_shared_secret(x_api_key, token)
-    valid_roles = [r.value for r in AgentRole]
-    if role not in valid_roles:
+    if role not in {r.value for r in AgentRole}:
         raise HTTPException(status_code=404, detail=f"Role '{role}' not found")
-
-    config = ExecutionConfig()
-    role_enum = AgentRole(role)
-    model_chain = config.get_model_chain(role_enum)
-    sessions = list_sessions(limit=50)
-    total_runs = sum(s.subtask_count for s in sessions if s.subtask_count > 0)
-
+    from agentcli import telemetry
+    done = [r for r in await asyncio.to_thread(telemetry.load, "subtask") if r.get("role") == role]
     return {
         "role": role,
-        "status": "idle",
-        "stepsCompleted": 0,
-        "totalRuns": max(total_runs, 1),
-        "successRate": 100,
-        "lastActive": "Just now",
-        "model": model_chain[0] if model_chain else "gemini/gemini-3.5-flash",
-        "modelChain": model_chain,
+        "modelChain": ExecutionConfig().get_model_chain(AgentRole(role)),
+        "subtasks": len(done),
+        "successRate": round(100 * sum(1 for r in done if r.get("success")) / len(done)) if done else None,
+        "steps": sum(r.get("steps", 0) for r in done),
+        "lastActive": max((r.get("ts", 0) for r in done), default=None),
         "logs": [],
-        "subtasks": [],
     }
 
 

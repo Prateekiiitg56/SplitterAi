@@ -115,3 +115,13 @@ def test_stores_share_one_connection_and_set_up_the_schema_once(monkeypatch):
         assert first is second
     session.list_sessions()
     assert len(calls) == 1
+
+
+def test_agent_detail_reports_real_history(client):
+    from agentcli import telemetry
+    assert client.get("/agents/coder").json()["successRate"] is None
+    telemetry.record_subtask("coder", "coding", "s", "m", 100, 2.0, 3, True)
+    telemetry.record_subtask("coder", "coding", "s", "m", 100, 2.0, 4, False)
+    body = client.get("/agents/coder").json()
+    assert body["subtasks"] == 2 and body["successRate"] == 50 and body["steps"] == 7 and body["lastActive"]
+    assert client.get("/agents/nobody").status_code == 404

@@ -38,7 +38,7 @@ export default function ProjectOverviewPage() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, cancelRun, runReport, runOutcome } = useApp()
+  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, executeTaskWithPlan, cancelRun, runReport, runOutcome } = useApp()
   const { multiMode, setMultiMode, models, selectedModel, setSelectedModel } = useUI()
 
   const [taskInput, setTaskInput] = useState('')
@@ -79,7 +79,16 @@ export default function ProjectOverviewPage() {
     const taskToRun = taskInput.trim() || taskTitle.trim()
     if (!taskToRun || isBusy) return
     setTaskInput('')
-    const started = await executeTask(taskToRun, currentWorkspace, selectedModel.id)
+    // Solo: one coder does the whole task with one agent; Team: the planner splits it across roles.
+    const started = multiMode
+      ? await executeTask(taskToRun, currentWorkspace, selectedModel.id)
+      : await executeTaskWithPlan(
+          taskToRun,
+          [{ id: 't1', role: 'coder', group: 1, instruction: taskToRun, status: 'pending', steps: 0 }],
+          currentWorkspace,
+          selectedModel.id,
+          { id: 'balanced', agents: 1 },
+        )
     if (started && currentWorkspace === DEFAULT_WORKSPACE) navigate(`/projects/${projectIdOf(started.workspace)}`)
   }
 
@@ -110,10 +119,10 @@ export default function ProjectOverviewPage() {
             </select>
 
             <div className="mode-toggle" role="group" aria-label="Agent mode">
-              <button type="button" aria-pressed={multiMode} onClick={() => setMultiMode(true)} className={multiMode ? 'active' : ''}>
+              <button type="button" aria-pressed={multiMode} onClick={() => setMultiMode(true)} className={multiMode ? 'active' : ''} title="The planner splits the task across agent roles">
                 Team
               </button>
-              <button type="button" aria-pressed={!multiMode} onClick={() => setMultiMode(false)} className={!multiMode ? 'active' : ''}>
+              <button type="button" aria-pressed={!multiMode} onClick={() => setMultiMode(false)} className={!multiMode ? 'active' : ''} title="One coder agent does the whole task">
                 Solo
               </button>
             </div>
