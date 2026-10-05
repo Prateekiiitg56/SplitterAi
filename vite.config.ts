@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -9,6 +10,12 @@ export default defineConfig({
     tailwindcss(),
     svgr(),
   ],
+  test: {
+    environment: 'jsdom',
+    // Lets Testing Library register its automatic cleanup between tests.
+    globals: true,
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
   server: {
     port: 5173,
     host: true,
@@ -18,23 +25,16 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // Only React gets a fixed vendor chunk (every route needs it). Everything else is left to the
+        // bundler so libraries used by one lazy page or component (animejs, highlight.js)
+        // stay in that page's chunk instead of a shared one every route downloads.
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            // Match the three package itself; a bare 'three' also caught @designcodeio/threeui's CSS,
-            // which made every route eagerly load the WebGL chunk.
-            if (id.includes('/node_modules/three/')) {
-              return 'vendor-three'
-            }
-            if (id.includes('framer-motion')) {
-              return 'vendor-motion'
-            }
-            if (id.includes('lucide-react') || id.includes('@phosphor-icons')) {
-              return 'vendor-icons'
-            }
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'vendor-react'
-            }
-            return 'vendor-libs'
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) {
+            return 'vendor-react'
+          }
+          // Only the lazy Landing page uses three; its own chunk keeps Landing's code under the size warning.
+          if (/[\/]node_modules[\/]three[\/]/.test(id)) {
+            return 'vendor-three'
           }
         },
       },

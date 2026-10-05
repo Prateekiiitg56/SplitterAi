@@ -5,11 +5,9 @@ import {
   Plus,
   Trash2,
   Settings,
-  Database,
   Loader2,
   X,
   AlertTriangle,
-  BookOpen,
   Search,
   CheckCircle2,
   Plug,
@@ -37,7 +35,7 @@ const CATALOG = [
     badge: 'Storage',
     icon: HardDrive,
     description: 'Save your project files and AI outputs to Supabase Storage so nothing is lost between sessions.',
-    features: ['Files saved across sessions', 'Shareable public links', 'Cloud backup'],
+    features: ['Project zip uploaded after each run', 'Signed download link in the result', 'Cloud backup'],
     buttonLabel: 'Connect Supabase',
   },
   {
@@ -46,34 +44,25 @@ const CATALOG = [
     subtitle: 'Code & Repositories',
     badge: 'Recommended',
     icon: GitBranch,
-    description: 'Let AI agents read and write code to your GitHub repositories and branches.',
-    features: ['Read & write access', 'Branch management', 'Pull request support'],
+    description: 'Import repositories as projects, push projects as branches, and let agents open pull requests.',
+    features: ['Import from GitHub', 'Push to a branch, deploy with GitHub Pages', 'Agents can open pull requests'],
     buttonLabel: 'Connect GitHub',
   },
   {
     id: 'mcp',
-    title: 'Custom Tool Server',
-    subtitle: 'Add your own tool',
+    title: 'MCP Server',
+    subtitle: 'Model Context Protocol',
     badge: 'Flexible',
     icon: Server,
-    description: 'Connect any external tool or service to let AI agents use it automatically.',
-    features: ['Works with any HTTP server', 'Auto-detected on connect', 'Custom tools for agents'],
-    buttonLabel: 'Add Custom Tool',
-  },
-  {
-    id: 'postgres',
-    title: 'PostgreSQL Database',
-    subtitle: 'Database Tools',
-    badge: 'Database',
-    icon: Database,
-    description: 'Let agents read your database structure, run queries, and apply database changes.',
-    features: ['View database structure', 'Run SQL queries', 'Apply database changes'],
-    buttonLabel: 'Connect Database',
+    description: 'Connect an MCP server over stdio, streamable HTTP or SSE; agents get its tools during runs.',
+    features: ['stdio, HTTP and SSE transports', 'Tools listed on connect', 'Only for the roles you allow'],
+    buttonLabel: 'Add MCP Server',
   },
 ]
 
 export default function IntegrationsPage() {
-  const { integrations, loading, error, health, connect, disconnect, refetch } = useIntegrations()
+  const { integrations, loading, error, health, connect, disconnect, refetch, test, reconfigure } = useIntegrations()
+  const [testingId, setTestingId] = useState<string | null>(null)
 
   const [showConnectGithubModal, setShowConnectGithubModal] = useState(false)
   const [showConnectMcpModal, setShowConnectMcpModal] = useState(false)
@@ -85,13 +74,12 @@ export default function IntegrationsPage() {
   const [errorDismissed, setErrorDismissed] = useState(false)
   const [catalogSearch, setCatalogSearch] = useState('')
 
-  const [ghRepo, setGhRepo] = useState('Prateekiiitg56/SplitterAi')
+  const [ghRepo, setGhRepo] = useState('')
   const [ghToken, setGhToken] = useState('')
   const [ghRoles] = useState<AgentRole[]>(['coder', 'auditor'])
 
   const [mcpName, setMcpName] = useState('')
   const [mcpUrl, setMcpUrl] = useState('')
-  const [mcpToken, setMcpToken] = useState('')
   const [mcpRoles] = useState<AgentRole[]>(['planner', 'coder', 'auditor', 'tester'])
 
   const [supabaseBucket, setSupabaseBucket] = useState('workspace-artifacts')
@@ -105,17 +93,16 @@ export default function IntegrationsPage() {
   )
 
   const handleConnectGithub = async () => {
-    if (!ghRepo.trim()) {
-      setFormError('Please enter your GitHub repository name (e.g. username/repo-name)')
+    if (!ghToken.trim()) {
+      setFormError('A GitHub access token is required (repo scope to push and open pull requests).')
       return
     }
     setFormError(null)
     try {
       await connect({
         type: 'github',
-        name: `GitHub (${ghRepo.trim()})`,
-        repo: ghRepo.trim(),
-        token: ghToken.trim() || undefined,
+        repo: ghRepo.trim() || undefined,
+        token: ghToken.trim(),
         allowedRoles: ghRoles,
       })
       setShowConnectGithubModal(false)
@@ -136,13 +123,11 @@ export default function IntegrationsPage() {
         type: 'mcp',
         name: mcpName.trim(),
         url: mcpUrl.trim(),
-        token: mcpToken.trim() || undefined,
         allowedRoles: mcpRoles,
       })
       setShowConnectMcpModal(false)
       setMcpName('')
       setMcpUrl('')
-      setMcpToken('')
     } catch (err: any) {
       setFormError(err?.message || 'Could not connect to tool server. Please check the URL and try again.')
     }
@@ -155,6 +140,7 @@ export default function IntegrationsPage() {
       await connect({
         type: 'supabase_storage',
         name: 'Supabase Storage',
+        bucket: supabaseBucket.trim() || undefined,
         allowedRoles: ['planner', 'coder', 'auditor', 'tester'] as AgentRole[],
       })
       setShowConnectSupabaseModal(false)
@@ -170,11 +156,6 @@ export default function IntegrationsPage() {
     if (id === 'github') setShowConnectGithubModal(true)
     else if (id === 'mcp') setShowConnectMcpModal(true)
     else if (id === 'supabase_storage') setShowConnectSupabaseModal(true)
-    else if (id === 'postgres') {
-      setMcpName('PostgreSQL Database MCP')
-      setMcpUrl('http://localhost:5432/mcp')
-      setShowConnectMcpModal(true)
-    }
   }
 
   const filteredCatalog = CATALOG.filter(
@@ -197,11 +178,6 @@ export default function IntegrationsPage() {
         icon={<Plug size={16} />}
         title="Integrations"
         meta="/ connectors"
-        actions={
-          <Button variant="ghost" size="sm" icon={<BookOpen size={13} />}>
-            Documentation
-          </Button>
-        }
       />
 
       {/* Page Body */}
@@ -273,8 +249,11 @@ export default function IntegrationsPage() {
                     <div className="cr-sub">
                       {item.type === 'supabase_storage'
                         ? `Bucket: ${item.config?.bucket || 'workspace-artifacts'}`
-                        : item.config?.repo || item.config?.url || 'Connected'}
+                        : item.type === 'mcp'
+                          ? `${item.config?.tools?.length ?? 0} tools · ${item.config?.url || ''}`
+                          : [item.config?.login, item.config?.repo].filter(Boolean).join(' · ') || 'Connected'}
                     </div>
+                    {item.lastError && <div className="text-micro text-[var(--bad)] mt-0.5">{item.lastError}</div>}
                   </div>
                   <div className="cr-status">
                     {item.status === 'connected' ? (
@@ -303,6 +282,17 @@ export default function IntegrationsPage() {
                     )}
                   </div>
                   <div className="cr-actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={testingId === item.id}
+                      onClick={async () => {
+                        setTestingId(item.id)
+                        try { await test(item.id) } catch { /* the row shows lastError */ } finally { setTestingId(null) }
+                      }}
+                    >
+                      Test connection
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -406,7 +396,7 @@ export default function IntegrationsPage() {
             <Button variant="ghost" size="md" onClick={() => setShowConnectGithubModal(false)}>
               Cancel
             </Button>
-            <Button variant="primary" size="md" onClick={handleConnectGithub} disabled={!ghRepo.trim()}>
+            <Button variant="primary" size="md" onClick={handleConnectGithub} disabled={!ghToken.trim()}>
               Connect GitHub
             </Button>
           </>
@@ -419,18 +409,19 @@ export default function IntegrationsPage() {
             </div>
           )}
           <TextField
-            label="Repository (username/repo-name)"
-            value={ghRepo}
-            onChange={(e) => setGhRepo(e.target.value)}
-            placeholder="Prateekiiitg56/SplitterAi"
-          />
-          <TextField
             label="Access Token"
             type="password"
             value={ghToken}
             onChange={(e) => setGhToken(e.target.value)}
             placeholder="ghp_…"
-            hint="Optional: only needed for private repositories"
+            hint="Stored encrypted on the backend and never sent back to the browser. Needs repo scope to push."
+          />
+          <TextField
+            label="Default repository (owner/name)"
+            value={ghRepo}
+            onChange={(e) => setGhRepo(e.target.value)}
+            placeholder="optional, e.g. octocat/hello-world"
+            hint="Used by Push to GitHub and the agents' pull requests"
           />
         </div>
       </Modal>
@@ -439,7 +430,7 @@ export default function IntegrationsPage() {
       <Modal
         open={showConnectMcpModal}
         onClose={() => setShowConnectMcpModal(false)}
-        title="Add a Custom Tool Server"
+        title="Add an MCP Server"
         width={440}
         footer={
           <>
@@ -462,20 +453,14 @@ export default function IntegrationsPage() {
             label="Tool Name"
             value={mcpName}
             onChange={(e) => setMcpName(e.target.value)}
-            placeholder="e.g. My Task Manager"
+            placeholder="e.g. Everything"
           />
           <TextField
-            label="Server URL"
+            label="Server"
             value={mcpUrl}
             onChange={(e) => setMcpUrl(e.target.value)}
-            placeholder="http://localhost:8008/mcp"
-          />
-          <TextField
-            label="Access Token"
-            type="password"
-            value={mcpToken}
-            onChange={(e) => setMcpToken(e.target.value)}
-            placeholder="Optional"
+            placeholder="stdio://npx -y @modelcontextprotocol/server-everything"
+            hint="stdio://<command>, http(s)://host/mcp (streamable HTTP) or sse://host/sse"
           />
         </div>
       </Modal>
@@ -598,8 +583,29 @@ export default function IntegrationsPage() {
       >
         {reconfigureTarget && (
           <div className="space-y-3 text-meta text-[var(--dim)]">
-            <p>You can update the settings for <strong className="text-[var(--text)]">{reconfigureTarget.name}</strong>.</p>
-            <p className="text-micro">Change your access token, permissions, or which agents can use this tool.</p>
+            <p>Agent roles that may use <strong className="text-[var(--text)]">{reconfigureTarget.name}</strong> during runs:</p>
+            <div className="flex flex-wrap gap-2">
+              {(['planner', 'designer', 'coder', 'auditor', 'tester'] as AgentRole[]).map((role) => {
+                const on = (reconfigureTarget.allowedRoles || []).includes(role)
+                return (
+                  <button
+                    key={role}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={async () => {
+                      const roles = on
+                        ? (reconfigureTarget.allowedRoles || []).filter((r) => r !== role)
+                        : [...(reconfigureTarget.allowedRoles || []), role]
+                      await reconfigure(reconfigureTarget.id, roles)
+                      setReconfigureTarget({ ...reconfigureTarget, allowedRoles: roles })
+                    }}
+                    className={`role-tag cursor-pointer ${on ? 'text-[var(--text)] border-[var(--accent-edge)]' : 'opacity-50'}`}
+                  >
+                    {role}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
       </Modal>

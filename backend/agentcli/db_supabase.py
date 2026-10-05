@@ -345,3 +345,18 @@ def supabase_download_file(
     except Exception as exc:
         logger.error("Supabase Storage error downloading %s from bucket %s: %s", storage_path, bucket, exc)
         return None
+
+
+def supabase_upload_signed(storage_path: str, data: bytes, bucket: str, expires_s: int = 7 * 24 * 3600) -> Optional[str]:
+    """Upload bytes and return a signed download URL (None on failure)."""
+    client = get_supabase_client()
+    if not client:
+        return None
+    try:
+        store = client.storage.from_(bucket)
+        store.upload(path=storage_path, file=data, file_options={"content-type": "application/zip", "upsert": "true"})
+        signed = store.create_signed_url(storage_path, expires_s)
+        return signed.get("signedURL") or signed.get("signedUrl") if isinstance(signed, dict) else None
+    except Exception as exc:
+        logger.error("Supabase Storage error uploading %s to bucket %s: %s", storage_path, bucket, exc)
+        return None

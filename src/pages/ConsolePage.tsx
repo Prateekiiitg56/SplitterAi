@@ -16,15 +16,15 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react'
-import { AVAILABLE_MODELS, ROLE_META } from '../data'
+import { ROLE_META } from '../data'
 import { useApp } from '../context/AppContext'
 import { useUI } from '../context/UIContext'
 import type { AgentRole, Subtask } from '../types'
-import { sendChatMessage, planTask, uploadWorkspace, importN8nWorkflow, type StackId } from '../lib/api'
+import { streamChatMessage, planTask, uploadWorkspace, importN8nWorkflow, classifyIntent, type StackId } from '../lib/api'
 import type { PlanAnalysis, PlanResult } from '../lib/api'
 import { StrategyPanel, recommendedSelection, type StrategySelection } from '../components/StrategyPanel'
 import { AgentIcon } from '../components/Badges'
-import { DEFAULT_WORKSPACE } from '../config'
+import { DEFAULT_WORKSPACE, projectIdOf } from '../config'
 import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
 import { useScore } from '../lib/motion'
@@ -32,6 +32,8 @@ import { cx } from '../lib/cx'
 import { useIntegrations } from '../hooks/useIntegrations'
 import { ModelFusionIcon } from '../components/BrandIcons'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
+import { GithubImportDialog } from '../components/GithubDialogs'
+import { readPreference } from '../lib/preferences'
 
 /* ── Types ──────────────────────────────────────────────────────── */
 
@@ -41,6 +43,8 @@ interface ChatMessage {
   role?: AgentRole
   text: string
   timestamp: string
+  /** For chat replies: the user message answered, so it can still be run as a task. */
+  source?: string
 }
 
 const ROLES: AgentRole[] = ['planner', 'designer', 'coder', 'auditor', 'tester']
@@ -117,9 +121,11 @@ const staggerContainer = {
 export default function ConsolePage() {
   const navigate = useNavigate()
   const score = useScore()
-  const { sessions, sessionsLoading, refetchSessions, executeTaskWithPlan } = useApp()
-  const { selectedModel, setSelectedModel } = useUI()
-  const [stack, setStack] = useState<StackId>('auto')
+  const { sessions, refetchSessions, executeTaskWithPlan, openProject } = useApp()
+  const { models, selectedModel, setSelectedModel } = useUI()
+  const [stack, setStack] = useState<StackId>(() => readPreference('stack', 'auto') as StackId)
+  /** Where the next run writes: a new project, or follow-up work in an existing one. */
+  const [targetWorkspace, setTargetWorkspace] = useState<string>(DEFAULT_WORKSPACE)
   const { integrations } = useIntegrations()
 
   /* Chat state */
@@ -137,6 +143,7 @@ export default function ConsolePage() {
   const [draftPlan, setDraftPlan] = useState<DraftPlan | null>(null)
   const [strategy, setStrategy] = useState<StrategySelection | null>(null)
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
+  const [githubImportOpen, setGithubImportOpen] = useState(false)
 
   const hasMessages = chatMessages.length > 0
   const inChatView = hasMessages || !!draftPlan
@@ -178,28 +185,35 @@ export default function ConsolePage() {
 
   /* ── Handlers (identical to ai-assistant-interface) ──────────── */
 
-  const isMultiAgentSplitRequest = (msg: string) => {
-    const lower = msg.toLowerCase()
-    return (
-      lower.includes('split') ||
-      lower.includes('together') ||
-      lower.includes('divide') ||
-      lower.includes('do this') ||
-      lower.includes('build an app') ||
-      lower.includes('build a website') ||
-      lower.includes('create a project') ||
-      lower.includes('create an app') ||
-      lower.includes('build a') ||
-      lower.includes('implement a')
-    )
-  }
-
   const selectedMeta = ROLE_META[selectedAgentRole] || ROLE_META.planner
   const activeAgentName = selectedMeta.label
 
+  /** Ask the planner for a split of `task` and show it as an editable proposal. */
+  const proposePlan = async (task: string, history: ChatMessage[]) => {
+    const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    setIsPlanning(true)
+    try {
+      const historyPayload = history.map((m) => ({ sender: m.sender, text: m.text }))
+      const planResult = await planTask(task, targetWorkspace, selectedModel.id, historyPayload, stack)
+      setDraftPlan({
+        taskTitle: task,
+        goalLabel: task,
+        sourceTask: task,
+        subtasks: withRosterRoles(fromPlanResult(planResult), sessionAgents),
+        analysis: planResult.analysis,
+      })
+      setStrategy(planResult.analysis ? recommendedSelection(planResult.analysis) : null)
+    } catch (err: any) {
+      setChatMessages((prev) => [...prev, {
+        id: `agent-err-${Date.now()}`, sender: 'agent', role: 'planner',
+        text: `Plan generation failed: ${err?.message || 'Could not reach the backend planner.'}`, timestamp: ts,
+      }])
+    } finally { setIsPlanning(false) }
+  }
+
   const handleSend = async (overrideText?: string) => {
     const textToSubmit = (overrideText || inputValue).trim()
-    if (!textToSubmit || isSending) return
+    if (!textToSubmit || isSending || isPlanning) return
 
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     const userMsg: ChatMessage = { id: `user-${Date.now()}`, sender: 'user', text: textToSubmit, timestamp: ts }
@@ -208,44 +222,31 @@ export default function ConsolePage() {
     setChatMessages(currentHistory)
     setInputValue('')
 
-    if (isMultiAgentSplitRequest(textToSubmit)) {
-      setIsPlanning(true)
-      try {
-        const historyPayload = currentHistory.map((m) => ({ sender: m.sender, text: m.text }))
-        const planResult = await planTask(textToSubmit, DEFAULT_WORKSPACE, selectedModel.id, historyPayload, stack)
+    // Work for the agents becomes a plan; questions get a chat reply (which can still be run as a task).
+    setIsSending(true)
+    let intent: 'task' | 'chat' = 'task'
+    try {
+      intent = (await classifyIntent(textToSubmit)).intent
+    } catch {
+      /* backend unreachable: planning reports the error */
+    } finally { setIsSending(false) }
 
-        const priorUserMsg = chatMessages.slice().reverse().find((m) => m.sender === 'user' && !m.text.toLowerCase().includes('do this'))
-        const goalLabel = priorUserMsg ? priorUserMsg.text : textToSubmit
-        const effectiveTaskTitle = priorUserMsg ? `${priorUserMsg.text} (${textToSubmit})` : textToSubmit
-
-        setDraftPlan({
-          taskTitle: effectiveTaskTitle,
-          goalLabel,
-          sourceTask: textToSubmit,
-          subtasks: withRosterRoles(fromPlanResult(planResult), sessionAgents),
-          analysis: planResult.analysis,
-        })
-        setStrategy(planResult.analysis ? recommendedSelection(planResult.analysis) : null)
-      } catch (err: any) {
-        const errorMsg: ChatMessage = {
-          id: `agent-err-${Date.now()}`, sender: 'agent', role: 'planner',
-          text: `Plan generation failed: ${err?.message || 'Could not reach the backend planner.'}`, timestamp: ts,
-        }
-        setChatMessages((prev) => [...prev, errorMsg])
-      } finally { setIsPlanning(false) }
+    if (intent === 'task') {
+      await proposePlan(textToSubmit, currentHistory)
       return
     }
 
     setIsSending(true)
+    const replyId = `agent-${Date.now()}`
     try {
       const historyPayload = chatMessages.map((m) => ({ sender: m.sender, text: m.text }))
-      const resp = await sendChatMessage(selectedAgentRole, textToSubmit, selectedModel.id, historyPayload)
-      const agentMsg: ChatMessage = {
-        id: `agent-${Date.now()}`, sender: 'agent', role: selectedAgentRole,
-        text: resp.reply, timestamp: resp.timestamp || ts,
-      }
-      setChatMessages((prev) => [...prev, agentMsg])
+      // Tokens render as they arrive.
+      setChatMessages((prev) => [...prev, { id: replyId, sender: 'agent', role: selectedAgentRole, text: '', timestamp: ts, source: textToSubmit }])
+      await streamChatMessage(selectedAgentRole, textToSubmit, (delta) => {
+        setChatMessages((prev) => prev.map((m) => (m.id === replyId ? { ...m, text: m.text + delta } : m)))
+      }, selectedModel.id, historyPayload)
     } catch (err: any) {
+      setChatMessages((prev) => prev.filter((m) => m.id !== replyId || m.text))
       const errorMsg: ChatMessage = {
         id: `agent-err-${Date.now()}`, sender: 'agent', role: selectedAgentRole,
         text: `API error (${activeAgentName}): ${err?.message || 'Failed to connect to the model.'}`, timestamp: ts,
@@ -261,6 +262,13 @@ export default function ConsolePage() {
       // Roster-added roles review or test the existing work, so they run after all of it.
       const added = { ...makeSubtaskForRole(role, nextGroup(prev.subtasks)), dependsOn: prev.subtasks.map((s) => s.id) }
       return { ...prev, subtasks: [...prev.subtasks, added], analysisStale: true }
+    })
+  }, [])
+
+  const editInstruction = useCallback((id: string, instruction: string) => {
+    setDraftPlan((prev) => prev && {
+      ...prev,
+      subtasks: prev.subtasks.map((s) => (s.id === id ? { ...s, instruction } : s)),
     })
   }, [])
 
@@ -291,7 +299,7 @@ export default function ConsolePage() {
     setIsPlanning(true)
     try {
       const historyPayload = chatMessages.map((m) => ({ sender: m.sender, text: m.text }))
-      const planResult = await planTask(draftPlan.sourceTask, DEFAULT_WORKSPACE, selectedModel.id, historyPayload, stack)
+      const planResult = await planTask(draftPlan.sourceTask, targetWorkspace, selectedModel.id, historyPayload, stack)
       setDraftPlan((prev) => (prev ? {
         ...prev,
         subtasks: withRosterRoles(fromPlanResult(planResult), sessionAgents),
@@ -312,15 +320,24 @@ export default function ConsolePage() {
     if (!draftPlan) return
     const planToExecute = draftPlan
     setDraftPlan(null)
-    navigate('/projects/default')
-    await executeTaskWithPlan(
+    const started = await executeTaskWithPlan(
       planToExecute.taskTitle,
       planToExecute.subtasks,
-      DEFAULT_WORKSPACE,
+      targetWorkspace,
       selectedModel.id,
       planToExecute.analysis && strategy ? { id: strategy.id, agents: strategy.agents } : undefined,
       stack,
     )
+    if (started) {
+      refetchSessions()
+      navigate(`/projects/${projectIdOf(started.workspace)}`)
+    } else {
+      setChatMessages((prev) => [...prev, {
+        id: `agent-err-${Date.now()}`, sender: 'agent', role: 'planner',
+        text: 'Could not start the run. Check that the backend is running and try again.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }])
+    }
   }
 
   const handleStartFromScratch = useCallback(() => {
@@ -340,14 +357,16 @@ export default function ConsolePage() {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
       try {
-        await uploadWorkspace(file)
-        refetchSessions()
+        const { workspace } = await uploadWorkspace(file)
+        await refetchSessions()
+        openProject(workspace)
+        navigate(`/projects/${projectIdOf(workspace)}`)
       } catch (err: any) {
         alert(`Upload failed: ${err?.message}`)
       }
     }
     input.click()
-  }, [refetchSessions])
+  }, [refetchSessions, openProject, navigate])
 
   const handleImportN8n = useCallback(() => {
     const input = document.createElement('input')
@@ -437,6 +456,15 @@ export default function ConsolePage() {
                     >
                       <Upload size={14} /> Upload workspace (.zip)
                     </button>
+                    {integrations.some((i) => i.type === 'github' && i.status === 'connected') && (
+                      <button
+                        type="button"
+                        onClick={() => { setGithubImportOpen(true); setAttachMenuOpen(false) }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-[12px] text-white/60 hover:text-white hover:bg-white/[0.06] transition-colors"
+                      >
+                        <Upload size={14} /> Import from GitHub
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => { handleImportN8n(); setAttachMenuOpen(false) }}
@@ -482,7 +510,7 @@ export default function ConsolePage() {
                     className="absolute left-0 bottom-full mb-2 w-[260px] rounded-xl border border-white/[0.10] bg-[#1D1A16] shadow-lg p-1 z-50"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {AVAILABLE_MODELS.map((m) => {
+                    {models.map((m) => {
                       const isSel = selectedModel.id === m.id
                       return (
                         <button
@@ -515,6 +543,18 @@ export default function ConsolePage() {
               <option value="tailwind">Tailwind</option>
               <option value="plain">Plain HTML/CSS</option>
               <option value="react">React + Vite</option>
+            </select>
+            <select
+              value={targetWorkspace}
+              onChange={(e) => setTargetWorkspace(e.target.value)}
+              aria-label="Project"
+              title="Run in a new project, or as follow-up work in an existing one"
+              className="h-8 max-w-[11rem] truncate rounded-xl bg-white/[0.04] px-2.5 border border-white/[0.08] text-[11.5px] text-white/60 hover:bg-white/[0.07] hover:text-white/80 hover:border-white/[0.14] transition-all cursor-pointer [&>option]:bg-[#1D1A16]"
+            >
+              <option value={DEFAULT_WORKSPACE}>New project</option>
+              {sessions.map((p) => (
+                <option key={p.workspace} value={p.workspace}>{p.name || p.task}</option>
+              ))}
             </select>
           </div>
 
@@ -598,7 +638,13 @@ export default function ConsolePage() {
                       >
                         <AgentIcon role={st.role} size={10} /> {st.role}
                       </span>
-                      <span className="text-[12.5px] leading-relaxed text-white/70">{st.instruction}</span>
+                      <textarea
+                        value={st.instruction}
+                        onChange={(e) => editInstruction(st.id, e.target.value)}
+                        rows={Math.min(4, Math.max(1, Math.ceil(st.instruction.length / 70)))}
+                        aria-label={`Instruction for ${st.role} subtask ${st.id}`}
+                        className="flex-1 resize-y bg-transparent border border-transparent hover:border-white/[0.10] focus:border-[#D8A657]/45 rounded-md px-1.5 py-0.5 text-[12.5px] leading-relaxed text-white/70 outline-none"
+                      />
                     </div>
                   )
                 })}
@@ -840,7 +886,19 @@ export default function ConsolePage() {
                           )}
                         >
                           {msg.sender === 'agent' ? (
-                            <MarkdownRenderer content={msg.text} />
+                            <>
+                              <MarkdownRenderer content={msg.text} />
+                              {msg.source && (
+                                <button
+                                  type="button"
+                                  onClick={() => proposePlan(msg.source!, chatMessages)}
+                                  disabled={isPlanning}
+                                  className="mt-2 inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-white/[0.06] border border-white/[0.10] text-[11.5px] text-white/70 hover:text-white hover:bg-white/[0.10] transition-colors disabled:opacity-40"
+                                >
+                                  <Play size={11} fill="currentColor" /> Run as task
+                                </button>
+                              )}
+                            </>
                           ) : (
                             msg.text
                           )}
@@ -904,6 +962,16 @@ export default function ConsolePage() {
           </div>
         )}
 
+
+      <GithubImportDialog
+        open={githubImportOpen}
+        onClose={() => setGithubImportOpen(false)}
+        onImported={async (workspace) => {
+          await refetchSessions()
+          openProject(workspace)
+          navigate(`/projects/${projectIdOf(workspace)}`)
+        }}
+      />
 
       {/* ── Add-agent dialog ───────────────────────────────────── */}
       <Modal

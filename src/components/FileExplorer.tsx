@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ChevronRight,
   Folder,
@@ -13,17 +13,19 @@ import {
   FileSpreadsheet,
   Lock,
   Eye,
-  FileCheck
 } from 'lucide-react'
 import { DEFAULT_WORKSPACE } from '../config'
 import { useWorkspaceFiles } from '../hooks/useWorkspaceFiles'
 import type { FileNode } from '../types'
 import { EmptyState } from './primitives/EmptyState'
+import { FileViewer } from './FileViewer'
 
 interface FileExplorerProps {
   workspace?: string
   onSelectFile?: (file: FileNode) => void
   modifiedFiles?: string[]
+  /** Open this file in the viewer (e.g. a script's entry file when its run finishes). */
+  openFile?: string | null
 }
 
 function getFileIcon(filename: string) {
@@ -68,7 +70,7 @@ function TreeNode({
   const [open, setOpen] = useState(depth === 0 || Boolean(searchQuery))
   const isDir = node.type === 'dir' || node.type === 'folder'
   const isSelected = selectedPath === (node.path || node.name)
-  const isModified = modifiedFiles.some(f => f.includes(node.name) || (node.path && f.includes(node.path)))
+  const isModified = !!node.path && modifiedFiles.includes(node.path)
 
   // Search matching
   const matchesSearch = !searchQuery || node.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -182,12 +184,19 @@ function TreeNode({
 export default function FileExplorer({
   workspace = DEFAULT_WORKSPACE,
   onSelectFile,
-  modifiedFiles = []
+  modifiedFiles = [],
+  openFile,
 }: FileExplorerProps) {
   const { fileTree, loading, error } = useWorkspaceFiles(workspace)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
+
+  useEffect(() => {
+    if (!openFile) return
+    setSelectedFile({ name: openFile.split('/').pop() || openFile, path: openFile, type: 'file' })
+    setPreviewOpen(true)
+  }, [openFile])
 
   const handleSelect = (file: FileNode) => {
     setSelectedFile(file)
@@ -280,19 +289,8 @@ export default function FileExplorer({
             </button>
           </div>
 
-          <div className="flex-1 p-3 overflow-y-auto bg-[var(--bg-inset)] font-mono text-micro">
-            <div className="text-micro text-[var(--faint)] uppercase tracking-wider mb-2 flex items-center gap-1">
-              <FileCheck size={11} className="text-[var(--accent)]" /> Read-only Sandbox Preview
-            </div>
-            <div className="p-3 rounded bg-[var(--panel)] border border-[var(--border)] text-[var(--text-2)] whitespace-pre-wrap leading-relaxed">
-              {selectedFile.content ? (
-                selectedFile.content
-              ) : (
-                <div className="text-[var(--faint)] italic">
-                  File content preview for <span className="text-[var(--accent)]">{selectedFile.name}</span>. Click to open in main editor panel.
-                </div>
-              )}
-            </div>
+          <div className="flex-1 min-h-0">
+            <FileViewer workspace={workspace} path={selectedFile.path || selectedFile.name} />
           </div>
         </div>
       )}

@@ -33,7 +33,9 @@ class RunStatus(str, Enum):
     planning = "planning"
     executing = "executing"
     done = "done"
+    unverified = "unverified"  # finished, but the verifier gave no verdict
     error = "error"
+    cancelled = "cancelled"
 
 
 class LogType(str, Enum):
@@ -48,6 +50,7 @@ class LogType(str, Enum):
     subtask_start = "subtask_start"
     subtask_end = "subtask_end"
     sandbox_block = "sandbox_block"
+    file_written = "file_written"  # detail is the workspace-relative path
     info = "info"
     error = "error"
 
@@ -91,6 +94,9 @@ class RunResult(BaseModel):
     synthesis: Optional[str] = None
     verification: Optional[dict] = None  # {"verdict": pass|fail|unknown, "issues": str, "repair_rounds": int}
     workspace: Optional[str] = None  # where the run wrote its files (a new project folder for new projects)
+    run_id: Optional[str] = None
+    error: Optional[str] = None  # why the run stopped before finishing (planning crash, all models failed...)
+    artifact_url: Optional[str] = None  # signed download link of the project zip (Supabase Storage integration)
 
 
 class LogEntry(BaseModel):
@@ -105,6 +111,8 @@ class LogEntry(BaseModel):
     model: Optional[str] = None
     message: str
     detail: Optional[str] = None
+    run_id: Optional[str] = None
+    workspace: Optional[str] = None
 
 
 # ── Session / Persistence ─────────────────────────────────────────
@@ -135,6 +143,7 @@ class RunRequest(BaseModel):
     agent_count: Optional[int] = None  # Concurrent agents chosen from the strategy table
     strategy: Optional[str] = None  # cost | balanced | fastest | quality; None keeps the legacy single-chain run
     stack: Optional[str] = None  # tailwind | plain | react; None picks from the task text
+    callback_url: Optional[str] = None  # POSTed the RunResult when the run ends (n8n outbound webhook)
 
 
 class HealthResponse(BaseModel):

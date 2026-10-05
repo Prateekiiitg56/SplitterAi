@@ -25,7 +25,9 @@ const RUN_LABEL: Record<RunStatus, string> = {
   planning: 'Planning',
   executing: 'Running',
   done: 'Last run completed',
+  unverified: 'Last run finished unverified',
   error: 'Last run failed',
+  cancelled: 'Last run cancelled',
 }
 
 export function StatusBar() {

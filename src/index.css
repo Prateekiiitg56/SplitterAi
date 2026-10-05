@@ -759,6 +759,8 @@ code, pre, kbd, samp { font-family: var(--mono); }
 .run-pill.done .dot { background: var(--good); }
 .run-pill.error { border-color: rgba(228,113,93,0.4); color: var(--bad); }
 .run-pill.error .dot { background: var(--bad); }
+.run-pill.unverified, .run-pill.cancelled { border-color: var(--warn-edge, rgba(224,178,90,0.4)); color: var(--warn, #e0b25a); }
+.run-pill.unverified .dot, .run-pill.cancelled .dot { background: var(--warn, #e0b25a); }
 @keyframes ov-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
 .mode-toggle { display: flex; align-items: center; padding: 2px; gap: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }

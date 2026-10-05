@@ -24,6 +24,7 @@ from .prompts import get_system_prompt
 from .router import AllModelsFailedError, call_model
 from .sandbox import Sandbox, SandboxEscapeError
 from .schemas import AgentRole, LogEntry, LogType, Subtask, SubtaskStatus
+from .integrations import AgentIntegrations
 from .tools import TOOL_DEFINITIONS, execute_tool
 
 logger = logging.getLogger(__name__)
@@ -47,9 +48,14 @@ def _stub(n: int) -> str:
     return f"[{n} chars of earlier output removed to save tokens; run the tool again if you still need it]"
 
 
+def _part_chars(part: dict[str, Any]) -> int:
+    return len(part.get("text") or "") + len((part.get("image_url") or {}).get("url") or "")
+
+
 def _message_chars(msg: dict[str, Any]) -> int:
+    # Runs for every message on every step: plain length sums, no JSON serialisation of screenshots.
     content = msg.get("content")
-    n = len(content) if isinstance(content, str) else (len(json.dumps(content)) if content else 0)
+    n = len(content) if isinstance(content, str) else sum(_part_chars(p) for p in content or [])
     return n + sum(len(tc["function"]["arguments"]) for tc in msg.get("tool_calls") or [])
 
 
@@ -69,7 +75,7 @@ def compact_history(messages: list[dict[str, Any]]) -> int:
             messages[i] = {**msg, "content": _stub(len(content))}
             saved += len(content)
         elif msg["role"] == "user" and isinstance(content, list):
-            size = len(json.dumps(content))
+            size = sum(_part_chars(p) for p in content)
             messages[i] = {**msg, "content": "[screenshots removed to save tokens]"}
             saved += size
         elif msg.get("tool_calls"):
@@ -123,6 +129,8 @@ class AgentWorker:
         self.on_event = on_event
         self.model_chain = config.get_model_chain(role)
         self.max_steps = config.max_steps
+        # Connected GitHub / MCP servers this role is allowed to use.
+        self.integrations = AgentIntegrations(role.value) if self.use_tools else None
 
     def _emit(self, entry: LogEntry) -> None:
         """Emit a log event if callback is registered."""
@@ -168,6 +176,8 @@ class AgentWorker:
             )},
         ]
         tools = TOOL_DEFINITIONS if self.use_tools else None
+        if tools and self.integrations and self.integrations.definitions:
+            tools = [*tools, *self.integrations.definitions]
         if tools and self.board:
             tools = [*tools, POST_NOTE_TOOL]
         # Coders deliver files. Some models answer with code as chat text instead of calling
@@ -275,6 +285,8 @@ class AgentWorker:
                                     "replaces the whole file, so read_file it first, then write back the complete "
                                     "updated content (existing parts included)."
                                 )
+                            elif self.integrations and self.integrations.handles(tool_name):
+                                result = await self.integrations.call(self.sandbox, tool_name, args)
                             else:
                                 # Off the event loop: parallel workers and the coordinator keep running
                                 # while a shell command or browser check blocks.
@@ -288,6 +300,15 @@ class AgentWorker:
                                 )
                                 if file_key and not result.startswith(("Error", "BLOCKED")):
                                     known_files.add(file_key)
+                                if result.startswith("BLOCKED"):
+                                    # execute_tool turns sandbox escapes into a BLOCKED result for the model.
+                                    self._emit(LogEntry(
+                                        type=LogType.sandbox_block,
+                                        role=self.role,
+                                        subtask_id=subtask.id,
+                                        message=f"Blocked: {tool_name}({args_summary})",
+                                        detail=result,
+                                    ))
                         except SandboxEscapeError as e:
                             result = f"BLOCKED: {e}"
                             self._emit(LogEntry(
@@ -308,6 +329,13 @@ class AgentWorker:
 
                         if tool_name == "write_file" and result.startswith("Successfully wrote"):
                             wrote_files = True
+                            self._emit(LogEntry(
+                                type=LogType.file_written,
+                                role=self.role,
+                                subtask_id=subtask.id,
+                                message=f"wrote {args['path']}",
+                                detail=self.sandbox.resolve_path(args["path"]).relative_to(self.sandbox.workspace).as_posix(),
+                            ))
                             if self.board:
                                 self.board.post(subtask.id, f"wrote {args['path']}", to=COORDINATOR, file=args["path"])
 
@@ -318,7 +346,8 @@ class AgentWorker:
                             "content": result,
                         })
                         screenshots += [line[len(SCREENSHOT_MARK):] for line in result.splitlines()
-                                        if line.startswith(SCREENSHOT_MARK)]
+                                        if line.startswith(SCREENSHOT_MARK)
+                                        and self.sandbox.resolve_path(line[len(SCREENSHOT_MARK):]).is_file()]
 
                     if screenshots:
                         messages.append(self._screenshot_message(screenshots))

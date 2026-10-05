@@ -1,4 +1,4 @@
-# AgentCLI
+# SplitterAI
 
 A personal, model-agnostic multi-agent system that takes a high-level task, breaks it into subtasks, and runs those subtasks through specialist AI agents — each backed by a **free** LLM with its own API key.
 
@@ -200,54 +200,57 @@ Session (SQLite):
 
 ## API Surface
 
-### `POST /run`
+### Run flow
 
-**Request:**
-```json
-{
-  "task": "Build a portfolio website with home/about/contact pages",
-  "workspace": "/abs/path"
-}
-```
-
-**Response:**
-```json
-{
-  "subtasks": [
-    { "id": "t1", "role": "coder", "group": 1, "instruction": "..." },
-    { "id": "t2", "role": "auditor", "group": 2, "instruction": "..." }
-  ],
-  "results": {
-    "t1": "created index.html ...",
-    "t2": "audit passed, no issues found"
-  }
-}
-```
-
-### `GET /health`
+1. The dashboard sends the console message to `POST /intent`. A task becomes a plan via `POST /plan`
+   (editable in the UI); a question gets a chat reply (`POST /chat/stream`) with a "Run as task" button.
+2. `POST /runs` with the confirmed subtasks returns `{run_id, workspace}` at once and starts the job in
+   the background. `workspace: "./workspace_output"` means "new project" (a new folder is created);
+   any other value must be an existing project folder (follow-up work, which also gets the previous
+   run's summary as context).
+3. Progress arrives over `WS /ws`; every message carries `run_id` and `workspace`, and the dashboard
+   follows only its own run. `GET /runs/{id}` returns status, plan, log and result, so a refresh or a
+   reconnect resumes the run. `POST /runs/{id}/cancel` stops it and kills its shell commands.
+4. When the run ends, `GET /projects/info?workspace=` tells the dashboard what to open: the preview
+   (`/preview/<project id>/`) for web projects, otherwise the main source file (with a Run button).
 
 ```json
-{ "status": "ok" }
+POST /runs
+{ "task": "make a todo app with dark mode", "workspace": "./workspace_output",
+  "subtasks": [{ "id": "t1", "role": "coder", "group": 1, "instruction": "..." }],
+  "strategy": "balanced", "agent_count": 2, "stack": "tailwind", "model": null,
+  "callback_url": "https://n8n.example/webhook/..." }
+-> { "run_id": "3f2a9c1d7b4e", "workspace": "./workspace_output/make-a-todo-app-1a2b3c" }
 ```
 
-### Also implemented (not part of the original v1 spec, but live in `backend/server.py`)
+`POST /run` takes the same body and waits for the `RunResult` (for n8n and scripts that want one
+blocking call). With `callback_url`, the `RunResult` is also POSTed there when the run ends, so n8n
+does not have to hold a long HTTP request.
+
+### Endpoints
 
 | Endpoint | Purpose |
 | :--- | :--- |
-| `POST /plan` | Generate a plan without executing it (plan‑review‑confirm flow in the dashboard). |
-| `POST /chat` | Direct single-agent conversational chat (Home Console single-agent mode). |
-| `GET /sessions` | Recent workspace sessions, for the sidebar. |
-| `GET /agents` | Per-role model chain + status. |
-| `GET /agents/{role}` | Detail view for one agent role. |
-| `GET /agents/quota` | Real per-provider usage vs. free-tier limits, sourced from router call logs. |
-| `GET /files?workspace=` | Sandboxed recursive file tree for a workspace. |
-| `GET /integrations` | List connected integrations (GitHub, MCP, generic). |
-| `POST /integrations/connect` | Validate + persist a new integration (SQLite-backed). |
-| `POST /integrations/disconnect` | Revoke and delete a stored integration. |
-| `POST /integrations/reconfigure` | Update an integration's allowed agent roles. |
-| `WS /ws` | Real-time event stream (NFR-5) — model calls, tool calls, plan/group/subtask lifecycle, completion. |
+| `GET /health` | Version, uptime, `llm_ready` and per-provider key presence, sandbox status (no auth, no secrets). |
+| `POST /intent` | `{intent: "task" \| "chat", confidence}` for a console message. |
+| `POST /plan` | Plan + strategy estimates without executing. |
+| `POST /runs`, `GET /runs/{id}`, `GET /runs?workspace=`, `POST /runs/{id}/cancel` | Background runs and run history. |
+| `POST /run` | Blocking run (inbound webhook). |
+| `POST /chat`, `POST /chat/stream` | Chat with one role (text only; streamed as server-sent events). |
+| `GET /models` | Models the router uses, for the model pickers. |
+| `GET /sessions`, `PATCH /sessions`, `DELETE /sessions` | Projects: list, rename, delete (folder included). |
+| `GET /files?workspace=`, `GET /files/content?workspace=&path=` | File tree and one file's content (sandboxed, size-capped). |
+| `GET /projects/info?workspace=`, `POST /projects/run-file` | What to open after a run; run a .py/.js file in the sandbox. |
+| `GET /preview/<project id>/...` | Serves a project (its `dist/` when built). |
+| `POST /workspaces/upload`, `GET /workspaces/export` | Import a zip as a project; download a project zip. |
+| `GET /integrations`, `POST /integrations/connect`, `/test`, `/disconnect`, `/reconfigure` | GitHub, MCP and Supabase Storage connections. |
+| `GET /integrations/github/repos`, `POST /integrations/github/import`, `POST /integrations/github/push` | Import a repo as a project; push a project as a branch. |
+| `GET /agents`, `GET /agents/{role}`, `GET /agents/quota` | Model chains, a role's track record, per-model usage. |
+| `POST /workflows/import-n8n` | Turn an n8n workflow export into a plan. |
+| `WS /ws` | Run events, plus `sessions_changed` and `file_written` pushes. |
 
-If `SHARED_SECRET` is set in `.env`, all of the above (except `/health`) require it via an `X-API-Key` header or `?token=` query param — see [Risks & Open Questions](#risks--open-questions).
+If `SHARED_SECRET` is set, everything except `/health` needs it as an `X-API-Key` header or `?token=`
+(the dashboard sends it when `VITE_SHARED_SECRET` is set or it is saved on the Settings page).
 
 ---
 
@@ -372,7 +375,7 @@ for anything beyond the static UI to work.
 git clone https://github.com/Prateekiiitg56/SplitterAi.git
 cd SplitterAi
 
-# One .env for the whole project — see Configuration below.
+# One .env for the whole project (see Configuration below)
 cp .env.example .env
 # then edit .env and fill in at least one provider API key
 ```
@@ -380,15 +383,26 @@ cp .env.example .env
 ### 2. Backend (Agent Engine)
 
 ```bash
-cd backend
-pip install -r requirements.txt
+python -m venv .venv
+. .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -r backend/requirements-dev.txt
+
+# Browser for the agents' browser_check tool and tests/test_web.py.
+# playwright is pinned in requirements.txt so package and browser stay in sync.
+python -m playwright install --with-deps chromium   # Windows/macOS: drop --with-deps
 
 # Runs on http://localhost:8000, WebSocket at ws://localhost:8000/ws
-python server.py
+python backend/server.py
 ```
 
-The CLI is also available from the same directory: `python cli.py "Build a REST API with Express"`
-(see `python cli.py --help` for `interactive`, `sessions`, and `reset`).
+The CLI is also available: `python backend/cli.py "Build a REST API with Express"`
+(see `python backend/cli.py --help` for `interactive`, `sessions`, and `reset`).
+
+Run the backend tests from `backend/` (`pytest.ini` sets `asyncio_mode = auto`):
+
+```bash
+cd backend && pytest -q tests
+```
 
 ### 3. Frontend (Dashboard)
 
@@ -412,6 +426,8 @@ Open `http://localhost:5173` in your browser. It talks to the backend at the `VI
 | Command | Description |
 | :--- | :--- |
 | `npm run dev` | Start the Vite dev server with HMR |
+| `npm run dev:all` | Start the backend and the dashboard together |
+| `npm test` | Run the frontend tests (Vitest) |
 | `npm run build` | Compile TypeScript and build production bundle to `dist/` |
 | `npm run preview` | Preview the production build locally |
 
@@ -419,58 +435,39 @@ Open `http://localhost:5173` in your browser. It talks to the backend at the `VI
 
 ## Configuration
 
-There is **one `.env` file, at the project root** (`SplitterAi/.env`, copied from `.env.example`).
-`backend/server.py` and `backend/cli.py` both load it explicitly by absolute path, so it doesn't
-matter which directory you launch the server or CLI from. `VITE_`-prefixed variables in the same
-file are picked up by the frontend build (Vite inlines them into the browser bundle — never put a
-secret behind a `VITE_` prefix).
+There is **one `.env` file, at the project root** (copy `.env.example`). `backend/server.py` and
+`backend/cli.py` load it by absolute path, so the start directory does not matter. `.env.example`
+lists every variable the backend reads, grouped and commented: provider keys (at least one Gemini or
+OpenRouter key), per-role keys, execution limits, the shell sandbox, server hardening, Supabase and
+the `VITE_` values for the dashboard. Never put a secret behind a `VITE_` prefix: those are built
+into the browser bundle (`VITE_SHARED_SECRET` is the one deliberate exception, for a dashboard you
+host yourself).
 
-### Environment Variables (Backend — Agent Engine)
+The Settings page shows which providers have a key, whether the sandbox works and how many agents
+run at once, without ever sending a key to the browser.
 
-```bash
-# Provider keys (server-side only). At least one is required.
-GEMINI_API_KEY=your_gemini_key
-GEMINI_API_KEY_ALT=your_alt_gemini_key      # optional second Gemini key/account
-XAI_GROK_API_KEY=your_xai_grok_key
-OPENROUTER_SUPER_KEY=your_openrouter_key    # used for nemotron-3-super
-OPENROUTER_ULTRA_KEY=your_openrouter_key    # used for nemotron-3-ultra
+### Shell sandbox
 
-# Per-role API keys (optional — override the provider key above so
-# parallel agents don't share one rate-limit bucket). Leave blank to
-# fall back to the provider key resolved from the model name (FR-25).
-PLANNER_API_KEY=
-CODER_API_KEY=
-AUDITOR_API_KEY=
-TESTER_API_KEY=
+Agents' shell commands run under [bubblewrap](https://github.com/containers/bubblewrap): only the
+project folder (as `/workspace`), a shared npm cache and read-only system folders exist inside. The
+repo, its `.env`, the session database and your home folder are not reachable. On Windows bubblewrap
+runs inside a WSL distro:
 
-# Execution limits
-MAX_STEPS=25              # Max ReAct loop steps per agent
-MAX_CONCURRENT_AGENTS=4   # Max parallel subtasks within a group
-SHELL_TIMEOUT=30          # Shell command timeout in seconds
-OUTPUT_MAX_BYTES=10240    # Shell/tool output truncation size
-
-# Optional server hardening
-SHARED_SECRET=            # if set, all endpoints except /health require it
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173
+```powershell
+wsl --install -d Ubuntu            # or import a rootfs with wsl --import
+wsl -d Ubuntu -u root -- bash -c "apt-get update && apt-get install -y bubblewrap ripgrep python-is-python3 && mkdir -p /var/cache/splitter-npm && chmod 777 /var/cache/splitter-npm"
+# Node 20.19+ inside the distro (for Vite projects), e.g. the official tarball into /usr/local
 ```
 
-See `backend/agentcli/config.py` (`DEFAULT_MODEL_CHAINS`, `ROLE_API_KEY_ENVVARS`,
-`PROVIDER_KEY_ENVVARS`) for exactly how each variable is resolved — it's the source of truth if
-this section ever drifts again.
+On Linux install `bubblewrap`. Without a working sandbox, shell commands are refused unless you set
+`SPLITTER_SANDBOX=none` (no isolation). `/health` reports the sandbox state.
 
-### Model Chains (per role)
+### Model chains
 
-Each role has an ordered fallback chain of models. If the first model fails (rate limit, error, timeout), the router tries the next:
-
-```
-planner:  gemini/gemini-3.5-flash → openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
-coder:    openrouter/nvidia/nemotron-3-super-120b-a12b:free → xai/grok-2-beta → gemini/gemini-3.5-flash
-auditor:  xai/grok-2-beta → gemini/gemini-3.5-flash
-tester:   openrouter/nvidia/nemotron-3-super-120b-a12b:free → xai/grok-2-beta
-```
-
-Note: **Groq is no longer used anywhere in the code** — an earlier revision of this README described
-a Groq-based chain, but the current provider set is Gemini, xAI Grok, and OpenRouter (Nemotron).
+Each role has an ordered fallback chain (`DEFAULT_MODEL_CHAINS` in `backend/agentcli/config.py`); the
+planner and per-strategy chains are picked by capability and reliability history
+(`backend/agentcli/models.py`). Ids were checked against the live OpenRouter and Gemini model lists;
+`GET /models` serves them to the dashboard. Models that keep failing are skipped for a few minutes.
 
 ---
 

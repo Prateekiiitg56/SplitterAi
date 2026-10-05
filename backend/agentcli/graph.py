@@ -30,6 +30,8 @@ from .orchestrator import Orchestrator
 from .prompts import SYNTHESIZER_SYSTEM, VERIFIER_SYSTEM
 from .sandbox import Sandbox
 from .schemas import AgentRole, LogEntry, LogType, Plan, RunResult, RunStatus, Subtask, SubtaskStatus
+from .tools import NODE_TIMEOUT_S, run_shell
+from .web import build_command, needs_build
 from .worker import AgentWorker
 
 EVIDENCE_OUTPUT_CHARS = 2000
@@ -141,13 +143,34 @@ def _verify_instruction(state: ExecutionState) -> str:
     return text
 
 
+async def _build_if_stale(state: ExecutionState) -> str | None:
+    """Build an npm project whose dist/ is missing or stale. Returns the failure output, or None."""
+    root = state["sandbox"].workspace
+    if not needs_build(root):
+        return None
+    command = build_command(root)
+    _emit(state, f"Building the project: {command}")
+    output = await asyncio.to_thread(run_shell, state["sandbox"], command, NODE_TIMEOUT_S)
+    if output.startswith("Exit code: 0") and (root / "dist" / "index.html").is_file():
+        _emit(state, "Build succeeded")
+        return None
+    _emit(state, "Build failed", output[-2000:])
+    return output[-4000:]
+
+
 async def verify(state: ExecutionState) -> dict[str, Any]:
     rounds = len(state["verifications"])
     _emit(state, "Verifier checking the workspace against the contract" + (f" (after repair {rounds})" if rounds else ""))
     _, check = stage_subtasks([], state["preset"], verify_instruction=_verify_instruction(state))
     check.id = f"verify-{rounds + 1}" if rounds else check.id
     check.depends_on = [state["repairs"][-1].id] if state["repairs"] else [state["synthesis"].id]
-    result = await _worker(state, AgentRole.auditor, system_prompt=VERIFIER_SYSTEM).run(check)
+    build_error = await _build_if_stale(state)
+    if build_error:
+        # The preview serves dist/: a project that does not build is not done, whatever the files look like.
+        check.status, check.output = SubtaskStatus.success, f"VERDICT: FAIL\n- `npm run build` failed:\n{build_error}"
+        result = check
+    else:
+        result = await _worker(state, AgentRole.auditor, system_prompt=VERIFIER_SYSTEM).run(check)
 
     matches = _VERDICT.findall(result.output or "")
     verdict = matches[-1].lower() if result.status == SubtaskStatus.success and matches else "unknown"
@@ -228,11 +251,21 @@ async def run_graph(
         st.instruction = STAGE_LABELS[st.id.split("-")[0]]
     all_subtasks = [*workers_done, *stages]
 
-    failed = any(st.status == SubtaskStatus.error for st in workers_done) or state["verdict"] == "fail"
+    failed = (
+        any(st.status == SubtaskStatus.error for st in workers_done)
+        or state["verdict"] == "fail"
+        or (state["repairs"] and state["repairs"][-1].status == SubtaskStatus.error)
+    )
+    if failed:
+        status = RunStatus.error
+    elif state["verdict"] == "unknown":
+        status = RunStatus.unverified
+    else:
+        status = RunStatus.done
     return RunResult(
         subtasks=all_subtasks,
         results={st.id: st.output or st.error or "" for st in all_subtasks},
-        status=RunStatus.error if failed else RunStatus.done,
+        status=status,
         total_duration_ms=(time.time() - state["started_at"]) * 1000,
         synthesis=state["synthesis"].output,
         verification={"verdict": state["verdict"], "issues": state["issues"], "repair_rounds": len(state["repairs"])},

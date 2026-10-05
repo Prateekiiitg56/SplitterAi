@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from . import db
 from .schemas import RunResult, RunStatus, SessionEntry
 from .db_supabase import (
     supabase_save_session,
@@ -26,7 +27,7 @@ from .db_supabase import (
 
 def _get_db_path() -> Path:
     """Get the SQLite database path (~/.agentcli/sessions.db)."""
-    base = Path.home() / ".agentcli"
+    base = Path(os.getenv("SPLITTER_DATA_DIR") or Path.home() / ".agentcli")
     base.mkdir(parents=True, exist_ok=True)
     return base / "sessions.db"
 
@@ -55,11 +56,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def _get_connection() -> sqlite3.Connection:
-    """Get a SQLite connection with the schema initialized."""
-    db_path = _get_db_path()
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA journal_mode=WAL")
+def _init_schema(conn: sqlite3.Connection) -> None:
+    """Create tables and run migrations; runs once per database file per process."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             workspace TEXT PRIMARY KEY,
@@ -72,9 +70,24 @@ def _get_connection() -> sqlite3.Connection:
             name TEXT NOT NULL DEFAULT ''
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS runs (
+            run_id TEXT PRIMARY KEY,
+            workspace TEXT NOT NULL,
+            task TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'done',
+            result_json TEXT NOT NULL DEFAULT '{}',
+            logs_json TEXT NOT NULL DEFAULT '[]',
+            created_at REAL NOT NULL DEFAULT 0
+        )
+    """)
     conn.commit()
     _run_migrations(conn)
-    return conn
+
+
+def _connection():
+    """The process-wide connection to this store's database (serialized)."""
+    return db.connection(_get_db_path(), _init_schema)
 
 
 # ── Public API ────────────────────────────────────────────────────
@@ -88,8 +101,7 @@ def save_session(
 ) -> None:
     """Save or update a workspace session (SQLite + Supabase when configured)."""
     # 1. Save to local SQLite
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         messages_json = json.dumps(messages or [])
         now = time.time()
         created_at = time.strftime("%I:%M %p")
@@ -105,8 +117,6 @@ def save_session(
                 updated_at = excluded.updated_at
         """, (workspace, task, status.value, messages_json, subtask_count, created_at, now))
         conn.commit()
-    finally:
-        conn.close()
 
     # 2. Sync to Supabase if configured
     if is_supabase_enabled():
@@ -126,8 +136,7 @@ def load_session(workspace: str) -> Optional[dict]:
         if sp_data:
             return sp_data
 
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         row = conn.execute(
             "SELECT workspace, task, status, messages_json, subtask_count, created_at, updated_at FROM sessions WHERE workspace = ?",
             (workspace,)
@@ -145,8 +154,6 @@ def load_session(workspace: str) -> Optional[dict]:
             "created_at": row[5],
             "updated_at": row[6],
         }
-    finally:
-        conn.close()
 
 
 def reset_session(workspace: str) -> bool:
@@ -155,35 +162,27 @@ def reset_session(workspace: str) -> bool:
     if is_supabase_enabled():
         sp_deleted = supabase_reset_session(workspace)
 
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         cursor = conn.execute("DELETE FROM sessions WHERE workspace = ?", (workspace,))
+        conn.execute("DELETE FROM runs WHERE workspace = ?", (workspace,))
         conn.commit()
         return (cursor.rowcount > 0) or sp_deleted
-    finally:
-        conn.close()
 
 
 def rename_session(workspace: str, name: str) -> bool:
     """Set a project's display name. Runs never overwrite it (save_session leaves `name` alone)."""
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         cursor = conn.execute("UPDATE sessions SET name = ? WHERE workspace = ?", (name, workspace))
         conn.commit()
         found = cursor.rowcount > 0
-    finally:
-        conn.close()
     if is_supabase_enabled():
         found = supabase_rename_session(workspace, name) or found
     return found
 
 
 def _local_names() -> dict[str, str]:
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         return {ws: name for ws, name in conn.execute("SELECT workspace, name FROM sessions WHERE name != ''")}
-    finally:
-        conn.close()
 
 
 def list_sessions(limit: int = 20) -> list[SessionEntry]:
@@ -209,8 +208,7 @@ def list_sessions(limit: int = 20) -> list[SessionEntry]:
                 )
             return entries
 
-    conn = _get_connection()
-    try:
+    with _connection() as conn:
         rows = conn.execute(
             "SELECT workspace, task, status, subtask_count, created_at, updated_at, name FROM sessions ORDER BY updated_at DESC LIMIT ?",
             (limit,)
@@ -228,12 +226,10 @@ def list_sessions(limit: int = 20) -> list[SessionEntry]:
             )
             for row in rows
         ]
-    finally:
-        conn.close()
 
 
-def save_run_result(workspace: str, task: str, result: RunResult) -> None:
-    """Save a completed run result as a session."""
+def save_run_result(workspace: str, task: str, result: RunResult, logs: list[dict] | None = None) -> None:
+    """Save a completed run as the workspace's session, and in run history when it has a run id."""
     save_session(
         workspace=workspace,
         task=task,
@@ -241,4 +237,38 @@ def save_run_result(workspace: str, task: str, result: RunResult) -> None:
         messages=[st.model_dump() for st in result.subtasks],
         subtask_count=len(result.subtasks),
     )
+    if not result.run_id:
+        return
+    with _connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO runs (run_id, workspace, task, status, result_json, logs_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (result.run_id, workspace, task, result.status.value, result.model_dump_json(),
+             json.dumps(logs or []), time.time()),
+        )
+        conn.commit()
 
+
+def load_run(run_id: str) -> Optional[dict]:
+    """A finished run in the same shape as the live run snapshot."""
+    with _connection() as conn:
+        row = conn.execute(
+            "SELECT run_id, workspace, task, status, result_json, logs_json, created_at FROM runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+    if not row:
+        return None
+    result = json.loads(row[4])
+    return {"run_id": row[0], "workspace": row[1], "task": row[2], "status": row[3],
+            "subtasks": result.get("subtasks", []), "logs": json.loads(row[5]), "result": result,
+            "created_at": row[6]}
+
+
+def list_runs(workspace: str, limit: int = 20) -> list[dict]:
+    """Finished runs of one workspace, newest first, without logs."""
+    with _connection() as conn:
+        rows = conn.execute(
+            "SELECT run_id, task, status, created_at FROM runs WHERE workspace = ? ORDER BY created_at DESC LIMIT ?",
+            (workspace, limit),
+        ).fetchall()
+    return [{"run_id": r[0], "workspace": workspace, "task": r[1], "status": r[2], "created_at": r[3]} for r in rows]

@@ -46,6 +46,19 @@ def test_new_project_folder_and_template():
         assert "DESIGN GUIDE" in web.design_context("plain", ["styles.css"])
 
 
+def _chromium_available() -> bool:
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            p.chromium.launch().close()
+        return True
+    except Exception:
+        return False
+
+
+needs_chromium = pytest.mark.skipif(not _chromium_available(), reason="Playwright Chromium not installed")
+
+
 PAGE = """<!DOCTYPE html><html><body>
 <button id="inc">+</button><output id="count">0</output>
 <script>
@@ -58,6 +71,7 @@ console.error('boom');
 </body></html>"""
 
 
+@needs_chromium
 def test_browser_check_reports_problems_and_runs_actions():
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "index.html").write_text(PAGE)
@@ -74,7 +88,7 @@ def test_browser_check_reports_problems_and_runs_actions():
         assert (Path(tmp) / ".splitter/screenshots/mobile.jpg").stat().st_size > 0
 
 
-@pytest.mark.asyncio
+@needs_chromium
 async def test_screenshots_reach_the_model_as_images():
     calls = []
 
@@ -93,6 +107,25 @@ async def test_screenshots_reach_the_model_as_images():
     assert len(images) == 2 and images[0]["image_url"]["url"].startswith("data:image/jpeg;base64,")
 
 
+async def test_failed_browser_check_sends_no_screenshot_message():
+    calls = []
+
+    async def fake_model(messages, **kwargs):
+        calls.append(messages)
+        if len(calls) == 1:
+            return {"content": "", "tool_calls": [{"id": "c1", "type": "function", "function": {
+                "name": "browser_check", "arguments": json.dumps({"screenshot": True})}}]}
+        return {"content": "VERDICT: PASS"}
+
+    report = "Browser check failed: no browser\nSCREENSHOT: .splitter/screenshots/mobile.jpg"
+    with tempfile.TemporaryDirectory() as tmp, patch("agentcli.worker.call_model", fake_model), \
+            patch("agentcli.tools.browser_check", lambda *a, **k: report):
+        (Path(tmp) / "index.html").write_text("<h1>hi</h1>")
+        await AgentWorker(AgentRole.auditor, ExecutionConfig(), Sandbox(Path(tmp))).run(
+            Subtask(id="verify", role=AgentRole.auditor, group=1, instruction="check"))
+    assert calls[1][-1]["role"] == "tool"
+
+
 def test_run_with_projects_root_creates_new_project_and_preview_serves_it(monkeypatch):
     monkeypatch.delenv("SHARED_SECRET", raising=False)
     seen = {}
@@ -102,14 +135,14 @@ def test_run_with_projects_root_creates_new_project_and_preview_serves_it(monkey
         (sandbox.workspace / "app.js").write_text("// built")
         return RunResult(subtasks=[])
 
-    async def fake_plan(**kwargs):
+    async def fake_plan(task, config, **kwargs):
         seen["guidance"] = kwargs.get("guidance", "")
-        return Plan(subtasks=[Subtask(id="d", role=AgentRole.designer, group=1, instruction="design")])
+        return Plan(subtasks=[Subtask(id="d", role=AgentRole.designer, group=1, instruction="design")]), {}
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp).resolve()
         with patch.object(server, "PROJECTS_ROOT", root), patch.object(server, "run_graph", fake_graph), \
-                patch.object(server, "generate_plan", fake_plan), patch.object(server, "save_run_result", lambda *a: None), \
+                patch.object(server, "run_analysis", fake_plan), patch.object(server, "save_run_result", lambda *a: None), \
                 patch.object(server, "resolve_workspace", lambda w: str(root if w == "./workspace_output" else root / Path(w).name)):
             client = TestClient(server.app)
             body = client.post("/run", json={"task": "build a calculator", "workspace": "./workspace_output"}).json()
@@ -145,7 +178,6 @@ def test_preview_root_ignores_leftover_files_and_delete_removes_project(monkeypa
             assert root.exists()
 
 
-@pytest.mark.asyncio
 async def test_text_only_model_retries_without_screenshots():
     from types import SimpleNamespace
     from agentcli.router import call_model

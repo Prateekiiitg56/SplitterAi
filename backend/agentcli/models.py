@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from . import telemetry
 from .config import (
-    DEFAULT_MODEL_CHAINS, GEMINI_FLASH, GEMMA_31B, GPT_4O_MINI, LAGUNA_S, LAGUNA_XS, LING_FLASH, LLAMA_70B,
+    DEFAULT_MODEL_CHAINS, GEMINI_FLASH, GEMMA_31B, GPT_4O_MINI, LAGUNA_S, LAGUNA_XS, LLAMA_70B,
     NEMOTRON_LIGHTNING, NEMOTRON_SUPER, NEMOTRON_ULTRA, NORTH_CODE, QWEN_27B,
 )
 
@@ -36,7 +36,6 @@ MODEL_PROFILES: dict[str, ModelProfile] = {p.id: p for p in [
     # Four keys and the most reliable tool use: the default lead.
     _profile(GEMINI_FLASH, {"coding", "reasoning", "review", "testing", "docs"}, "standard", vision=True),
     _profile(NEMOTRON_ULTRA, {"reasoning", "review", "coding"}, "strong"),
-    _profile(LING_FLASH, {"reasoning", "review", "docs"}, "fast"),
     _profile(GEMMA_31B, {"review", "coding", "docs"}, "standard", vision=True),
     _profile(QWEN_27B, {"coding", "review", "reasoning"}, "standard", vision=True),
     _profile(NORTH_CODE, {"coding", "testing"}, "fast"),

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchFiles } from '../lib/api'
+import { fetchFiles, serverEvents } from '../lib/api'
 import { DEFAULT_WORKSPACE } from '../config'
 import { useApp } from '../context/AppContext'
 import type { FileNode } from '../types'
@@ -31,15 +31,27 @@ export function useWorkspaceFiles(workspace: string = DEFAULT_WORKSPACE) {
     }
   }, [workspace, isRoot])
 
-  // Load on project switch; agents write files mid-run, so refresh while busy and once more when the run settles.
+  // Load on project switch and when a run settles; while agents work, reload when they report a written
+  // file in this workspace (pushed over the WebSocket, batched) instead of polling.
   useEffect(() => {
-    if (runStatus !== 'executing' && runStatus !== 'planning') {
-      loadFiles(true)
-      return
+    loadFiles(true)
+  }, [loadFiles, runStatus === 'executing' || runStatus === 'planning'])
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const onWrite = (e: Event) => {
+      if ((e as CustomEvent).detail?.workspace !== workspace || timer) return
+      timer = setTimeout(() => {
+        timer = null
+        loadFiles(true)
+      }, 500)
     }
-    const id = setInterval(() => loadFiles(true), 4000)
-    return () => clearInterval(id)
-  }, [runStatus, loadFiles])
+    serverEvents.addEventListener('file_written', onWrite)
+    return () => {
+      serverEvents.removeEventListener('file_written', onWrite)
+      if (timer) clearTimeout(timer)
+    }
+  }, [workspace, loadFiles])
 
   return { fileTree, loading, error, refetch: () => loadFiles() }
 }

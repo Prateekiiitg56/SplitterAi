@@ -10,6 +10,7 @@ import { ChatPanel } from './ChatPanel'
 import { StatusBar } from './StatusBar'
 import { getShellChrome } from './shellNav'
 import DownloadAppModal from '../DownloadAppModal'
+import { SetupBanner } from '../SetupBanner'
 
 /**
  * AppShell — the Cursor-style chrome every authenticated route renders inside.
@@ -121,6 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClose={closeTab}
           />
           <Breadcrumb crumbs={chrome.crumbs} />
+          <SetupBanner />
           {/* Pages own their own scrolling, exactly as they did under the old
               layout — this stays overflow-hidden so nothing double-scrolls. */}
           <main id="main-content" className="flex-1 min-h-0 relative flex flex-col overflow-hidden">{children}</main>

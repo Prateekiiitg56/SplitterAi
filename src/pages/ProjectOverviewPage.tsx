@@ -1,20 +1,30 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
-import FileExplorer from '../components/FileExplorer'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { ResultPane } from '../components/ResultPane'
+import { GithubDeployDialog, GithubPushDialog } from '../components/GithubDialogs'
+import { useIntegrations } from '../hooks/useIntegrations'
+import { listRuns, type RunSummary } from '../lib/api'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
 import { fmtTime, fmtTokens, range } from '../components/StrategyPanel'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { useUI } from '../context/UIContext'
 import { Button } from '../components/primitives/Button'
-import { AVAILABLE_MODELS } from '../data'
 import type { Subtask } from '../types'
 import { StatusBadge, RoleBadge } from '../components/Badges'
-import { ExternalLink, Play, Loader2, Download } from 'lucide-react'
-import { API_BASE, DEFAULT_WORKSPACE } from '../config'
+import { Play, Loader2, Download } from 'lucide-react'
+import { DEFAULT_WORKSPACE, projectIdOf } from '../config'
 import { workspaceExportUrl } from '../lib/api'
 
-const RUN_LABEL = { idle: 'Ready', planning: 'Planning', executing: 'Running', done: 'Completed', error: 'Failed' } as const
+const RUN_LABEL = {
+  idle: 'Ready',
+  planning: 'Planning',
+  executing: 'Running',
+  done: 'Completed',
+  unverified: 'Finished, not verified',
+  error: 'Failed',
+  cancelled: 'Cancelled',
+} as const
 const DONE = new Set(['completed', 'success', 'done'])
 const FAILED = new Set(['error', 'failed'])
 
@@ -27,11 +37,17 @@ const segState = (st: Subtask) => {
 
 export default function ProjectOverviewPage() {
   const location = useLocation()
+  const navigate = useNavigate()
 
-  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, runReport, runOutcome } = useApp()
-  const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
+  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, executeTaskWithPlan, cancelRun, runReport, runOutcome, runId, followRun } = useApp()
+  const { multiMode, setMultiMode, models, selectedModel, setSelectedModel } = useUI()
 
   const [taskInput, setTaskInput] = useState('')
+  const [pushOpen, setPushOpen] = useState(false)
+  const [deployOpen, setDeployOpen] = useState(false)
+  const [history, setHistory] = useState<RunSummary[]>([])
+  const { integrations } = useIntegrations()
+  const githubConnected = integrations.some((i) => i.type === 'github' && i.status === 'connected')
   const termRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -40,6 +56,21 @@ export default function ProjectOverviewPage() {
       executeTask(passedTask, currentWorkspace, selectedModel.id)
     }
   }, [location.state, taskTitle, runStatus, executeTask, currentWorkspace, selectedModel.id])
+
+  // Every run of this project (sessions.db), refreshed when a run starts or settles.
+  useEffect(() => {
+    if (currentWorkspace === DEFAULT_WORKSPACE) {
+      setHistory([])
+      return
+    }
+    let cancelled = false
+    listRuns(currentWorkspace)
+      .then((list) => !cancelled && setHistory(list))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [currentWorkspace, runStatus])
 
   // Follow the newest log line while a run streams.
   useEffect(() => {
@@ -59,12 +90,24 @@ export default function ProjectOverviewPage() {
   const completedCount = subtasks.filter((st) => DONE.has(String(st.status || ''))).length
   const agentCount = new Set(subtasks.map((st) => st.role)).size
 
-  // Projects live in workspace_output/<folder>; the bare root means no project yet, so nothing to preview.
-  const folder = currentWorkspace.split('\\').join('/').split('workspace_output/')[1]?.replace(/\/+$/, '')
+  const changedFiles = Array.from(new Set(logs.filter((l) => l.type === 'file_written' && l.detail).map((l) => l.detail as string)))
 
-  const run = () => {
+  // Follow-up work runs in this project's folder; on /projects/default it starts a new project.
+  const run = async () => {
     const taskToRun = taskInput.trim() || taskTitle.trim()
-    if (taskToRun && !isBusy) executeTask(taskToRun, currentWorkspace, selectedModel.id)
+    if (!taskToRun || isBusy) return
+    setTaskInput('')
+    // Solo: one coder does the whole task with one agent; Team: the planner splits it across roles.
+    const started = multiMode
+      ? await executeTask(taskToRun, currentWorkspace, selectedModel.id)
+      : await executeTaskWithPlan(
+          taskToRun,
+          [{ id: 't1', role: 'coder', group: 1, instruction: taskToRun, status: 'pending', steps: 0 }],
+          currentWorkspace,
+          selectedModel.id,
+          { id: 'balanced', agents: 1 },
+        )
+    if (started && currentWorkspace === DEFAULT_WORKSPACE) navigate(`/projects/${projectIdOf(started.workspace)}`)
   }
 
   return (
@@ -81,12 +124,12 @@ export default function ProjectOverviewPage() {
               aria-label="Model"
               value={selectedModel.id}
               onChange={(e) => {
-                const next = AVAILABLE_MODELS.find((m) => m.id === e.target.value)
+                const next = models.find((m) => m.id === e.target.value)
                 if (next) setSelectedModel(next)
               }}
               className="model-select"
             >
-              {AVAILABLE_MODELS.map((m) => (
+              {models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
@@ -94,24 +137,14 @@ export default function ProjectOverviewPage() {
             </select>
 
             <div className="mode-toggle" role="group" aria-label="Agent mode">
-              <button type="button" aria-pressed={multiMode} onClick={() => setMultiMode(true)} className={multiMode ? 'active' : ''}>
+              <button type="button" aria-pressed={multiMode} onClick={() => setMultiMode(true)} className={multiMode ? 'active' : ''} title="The planner splits the task across agent roles">
                 Team
               </button>
-              <button type="button" aria-pressed={!multiMode} onClick={() => setMultiMode(false)} className={!multiMode ? 'active' : ''}>
+              <button type="button" aria-pressed={!multiMode} onClick={() => setMultiMode(false)} className={!multiMode ? 'active' : ''} title="One coder agent does the whole task">
                 Solo
               </button>
             </div>
 
-            <Button
-              variant={runStatus === 'done' ? 'primary' : 'ghost'}
-              size="sm"
-              icon={<ExternalLink size={12} />}
-              disabled={!folder}
-              title={folder ? `Open ${folder} in a new tab` : 'Preview is available once the project has its own folder'}
-              onClick={() => folder && window.open(`${API_BASE}/preview/${encodeURIComponent(folder)}/`, '_blank')}
-            >
-              Preview
-            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -122,13 +155,34 @@ export default function ProjectOverviewPage() {
             >
               Export .zip
             </Button>
+            {githubConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={currentWorkspace === DEFAULT_WORKSPACE || isBusy}
+                onClick={() => setPushOpen(true)}
+              >
+                Push to GitHub
+              </Button>
+            )}
+            {githubConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={currentWorkspace === DEFAULT_WORKSPACE || isBusy}
+                title="Publish the site with GitHub Pages"
+                onClick={() => setDeployOpen(true)}
+              >
+                Deploy
+              </Button>
+            )}
           </div>
         </div>
 
         {errorMessage && (
           <div role="alert" className="mx-6 mt-4 px-4 py-3 rounded-[10px] border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between gap-4 flex-shrink-0">
             <span>
-              <strong>Run failed.</strong> {errorMessage}
+              <strong>{runStatus === 'cancelled' ? 'Run cancelled.' : 'Run failed.'}</strong> {errorMessage}
             </span>
             <button type="button" onClick={clearError} className="font-semibold hover:underline flex-shrink-0">
               Dismiss
@@ -157,6 +211,11 @@ export default function ProjectOverviewPage() {
                 <span className="hint">
                   <kbd>Enter</kbd> to run, <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line
                 </span>
+                {isBusy && (
+                  <Button variant="ghost" size="sm" onClick={cancelRun}>
+                    Cancel
+                  </Button>
+                )}
                 <Button
                   variant="primary"
                   size="sm"
@@ -233,6 +292,11 @@ export default function ProjectOverviewPage() {
                       <MarkdownRenderer content={runOutcome.synthesis} />
                     </div>
                   )}
+                  {runOutcome.artifactUrl && (
+                    <a href={runOutcome.artifactUrl} target="_blank" rel="noreferrer" className="text-micro text-[var(--accent)] underline">
+                      Download the project zip (Supabase Storage)
+                    </a>
+                  )}
                   {runOutcome.verification?.verdict === 'fail' && runOutcome.verification.issues && (
                     <pre className="text-micro text-[var(--bad)] whitespace-pre-wrap font-mono">{runOutcome.verification.issues}</pre>
                   )}
@@ -298,6 +362,31 @@ export default function ProjectOverviewPage() {
               )}
             </section>
 
+            {history.length > 0 && (
+              <section>
+                <div className="ov-section-title">
+                  <h3>Run history</h3>
+                  <span className="aside">{history.length} run{history.length === 1 ? '' : 's'}</span>
+                </div>
+                <ul className="space-y-1">
+                  {history.map((r) => (
+                    <li key={r.run_id}>
+                      <button
+                        type="button"
+                        onClick={() => followRun(r.run_id)}
+                        aria-current={r.run_id === runId ? 'true' : undefined}
+                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-[8px] text-left text-meta border ${r.run_id === runId ? 'border-[var(--accent-edge)] bg-[var(--panel-2)]' : 'border-transparent hover:bg-[var(--panel-2)]'}`}
+                      >
+                        <StatusBadge status={r.status} size="sm" />
+                        <span className="flex-1 truncate">{r.task}</span>
+                        <span className="text-micro text-[var(--faint)]">{new Date(r.created_at * 1000).toLocaleString()}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <section>
               <div className="ov-section-title">
                 <h3>Live output</h3>
@@ -324,10 +413,12 @@ export default function ProjectOverviewPage() {
           </div>
 
           <div className="ov-pane !p-0 !gap-0 min-h-0">
-            <FileExplorer workspace={currentWorkspace} />
+            <ResultPane workspace={currentWorkspace} runStatus={runStatus} changedFiles={changedFiles} />
           </div>
         </div>
       </div>
+      <GithubPushDialog open={pushOpen} onClose={() => setPushOpen(false)} workspace={currentWorkspace} />
+      <GithubDeployDialog open={deployOpen} onClose={() => setDeployOpen(false)} workspace={currentWorkspace} />
     </ProjectTabShell>
   )
 }

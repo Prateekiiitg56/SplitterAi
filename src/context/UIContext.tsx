@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState } from 'react'
-import { AVAILABLE_MODELS } from '../data'
-import { useMCPServers } from '../hooks/useMCPServers'
-import type { AgentRole, ModelOption, ExecutionMode, MCPServer } from '../types'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { AUTO_MODEL } from '../data'
+import { fetchModels } from '../lib/api'
+import { readPreference, writePreference } from '../lib/preferences'
+import type { AgentRole, ModelOption, ExecutionMode } from '../types'
 import { Layers, Zap, Search, ShieldCheck } from 'lucide-react'
 
 export const executionModes: ExecutionMode[] = [
@@ -19,6 +20,8 @@ interface UIContextType {
   setSelectedSessionId: React.Dispatch<React.SetStateAction<string>>
   selectedRole: AgentRole
   setSelectedRole: React.Dispatch<React.SetStateAction<AgentRole>>
+  /** Auto first, then the models the backend serves. */
+  models: ModelOption[]
   selectedModel: ModelOption
   setSelectedModel: React.Dispatch<React.SetStateAction<ModelOption>>
   selectedMode: ExecutionMode
@@ -27,9 +30,6 @@ interface UIContextType {
   setLogFilter: React.Dispatch<React.SetStateAction<string | null>>
   multiMode: boolean
   setMultiMode: React.Dispatch<React.SetStateAction<boolean>>
-  mcpServers: MCPServer[]
-  toggleMCPServer: (id: string) => void
-  addMCPServer: (name: string, command: string) => void
 }
 
 const UIContext = createContext<UIContextType | undefined>(undefined)
@@ -38,12 +38,30 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState('s1')
   const [selectedRole, setSelectedRole] = useState<AgentRole>('coder')
-  const [selectedModel, setSelectedModel] = useState<ModelOption>(AVAILABLE_MODELS[0])
+  const [selectedModel, setSelectedModelState] = useState<ModelOption>(AUTO_MODEL)
+  const [models, setModels] = useState<ModelOption[]>([AUTO_MODEL])
+
+  // The chosen model is remembered per browser (Settings or any model picker).
+  const setSelectedModel: React.Dispatch<React.SetStateAction<ModelOption>> = (next) => {
+    setSelectedModelState((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next
+      writePreference('model', value.id)
+      return value
+    })
+  }
+
+  useEffect(() => {
+    fetchModels()
+      .then((list) => {
+        setModels([AUTO_MODEL, ...list])
+        const saved = list.find((m) => m.id === readPreference('model', ''))
+        if (saved) setSelectedModelState(saved)
+      })
+      .catch(() => { /* backend down: only Auto, which needs no list */ })
+  }, [])
   const [selectedMode, setSelectedMode] = useState<ExecutionMode>(executionModes[0])
   const [logFilter, setLogFilter] = useState<string | null>(null)
   const [multiMode, setMultiMode] = useState(true)
-
-  const { mcpServers, toggleMCPServer, addMCPServer } = useMCPServers()
 
   const toggleSidebar = () => setSidebarCollapsed((prev) => !prev)
 
@@ -57,6 +75,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         setSelectedSessionId,
         selectedRole,
         setSelectedRole,
+        models,
         selectedModel,
         setSelectedModel,
         selectedMode,
@@ -65,9 +84,6 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         setLogFilter,
         multiMode,
         setMultiMode,
-        mcpServers,
-        toggleMCPServer,
-        addMCPServer,
       }}
     >
       {children}

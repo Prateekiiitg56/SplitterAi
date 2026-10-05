@@ -21,9 +21,12 @@ interface AppContextType {
   runStatus: RunStatus
   taskTitle: string
   errorMessage: string | null
-  executeTask: (newTask: string, workspace?: string, model?: string) => Promise<void>
+  runId: string | null
+  runWorkspace: string | null
+  resetRun: () => void
+  executeTask: (newTask: string, workspace?: string, model?: string) => Promise<StartedRun | null>
   runReport: RunReport | null
-  runOutcome: { synthesis: string | null; verification: Verification | null } | null
+  runOutcome: { synthesis: string | null; verification: Verification | null; artifactUrl?: string | null } | null
   executeTaskWithPlan: (
     newTask: string,
     initialSubtasks: Subtask[],
@@ -31,10 +34,14 @@ interface AppContextType {
     model?: string,
     strategy?: { id: StrategyId; agents: number },
     stack?: StackId,
-  ) => Promise<void>
+  ) => Promise<StartedRun | null>
+  followRun: (runId: string) => void
+  cancelRun: () => Promise<void>
   addEvent: (event: Partial<LogEntry>) => void
   clearError: () => void
 }
+
+type StartedRun = { runId: string; workspace: string }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
@@ -62,6 +69,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { sessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions } = useSessions()
 
   const {
+    runId,
+    runWorkspace,
     connection,
     subtasks,
     logs,
@@ -73,6 +82,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     runOutcome,
     executeTask,
     executeTaskWithPlan,
+    followRun,
+    cancelRun,
     addEvent,
     resetRun,
     clearError,
@@ -94,6 +105,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sessionsLoading,
         sessionsError,
         refetchSessions,
+        runId,
+        runWorkspace,
+        resetRun,
         connection,
         subtasks,
         logs,
@@ -105,6 +119,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         runOutcome,
         executeTask,
         executeTaskWithPlan,
+        followRun,
+        cancelRun,
         addEvent,
         clearError,
       }}

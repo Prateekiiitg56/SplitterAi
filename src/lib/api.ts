@@ -9,7 +9,7 @@
  * - WebSocket /ws → real-time log event streaming
  */
 
-import { API_BASE, WS_URL } from '../config'
+import { API_BASE, WS_URL, getSharedSecret } from '../config'
 import type { QuotaInfo } from '../types'
 
 // ── Types matching backend schemas ─────────────────────────────
@@ -116,6 +116,9 @@ export interface SubtaskResult {
 }
 
 export interface RunResult {
+  run_id?: string
+  error?: string | null
+  artifact_url?: string | null
   subtasks: SubtaskResult[]
   results: Record<string, string>
   status: string
@@ -136,6 +139,19 @@ export interface LogEvent {
   model?: string
   message: string
   detail?: string
+  run_id?: string | null
+  workspace?: string | null
+}
+
+/** GET /runs/{id}: live state of an active run, or the stored record of a finished one. */
+export interface RunSnapshot {
+  run_id: string
+  workspace: string
+  task: string
+  status: string
+  subtasks: SubtaskResult[]
+  logs: LogEvent[]
+  result: RunResult | null
 }
 
 export interface SessionInfo {
@@ -156,12 +172,23 @@ export interface AgentConfig {
 
 // ── REST Client with Timeout & Network Resilience ────────────────
 
+/** Adds the shared secret as ?token= for URLs the browser opens directly (links, iframes, WebSocket). */
+export function withToken(url: string): string {
+  const secret = getSharedSecret()
+  if (!secret) return url
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(secret)}`
+}
+
 export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  const secret = getSharedSecret()
+  const headers = new Headers(options.headers)
+  if (secret) headers.set('X-API-Key', secret)
   try {
     const res = await fetch(url, {
       ...options,
+      headers,
       signal: controller.signal,
     })
     return res
@@ -197,17 +224,54 @@ export async function planTask(
   return res.json()
 }
 
-export async function runTask(request: RunRequest): Promise<RunResult> {
-  const res = await fetchWithTimeout(`${API_BASE}/run`, {
+/** Starts a run in the background; progress arrives over the WebSocket tagged with run_id. */
+export async function startRun(request: RunRequest): Promise<{ run_id: string; workspace: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...request, stack: request.stack === 'auto' ? undefined : request.stack }),
-  }, 900000) // multi-agent runs routinely exceed a few minutes
+  })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Run failed: ${res.status} ${res.statusText}` }))
     throw new Error(err.detail || `Run failed (${res.status})`)
   }
   return res.json()
+}
+
+export interface RunSummary {
+  run_id: string
+  workspace: string
+  task: string
+  status: string
+  created_at: number
+}
+
+/** Active runs of a workspace first, then finished ones, newest first. */
+export async function listRuns(workspace: string): Promise<RunSummary[]> {
+  const res = await fetchWithTimeout(`${API_BASE}/runs?workspace=${encodeURIComponent(workspace)}`, {}, 10000)
+  if (!res.ok) throw new Error(`Could not load runs (HTTP ${res.status})`)
+  return res.json()
+}
+
+export async function classifyIntent(message: string): Promise<{ intent: 'task' | 'chat'; confidence: number }> {
+  const res = await fetchWithTimeout(`${API_BASE}/intent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  }, 30000)
+  if (!res.ok) throw await sessionError(res, 'Could not classify the message')
+  return res.json()
+}
+
+export async function fetchRun(runId: string): Promise<RunSnapshot> {
+  const res = await fetchWithTimeout(`${API_BASE}/runs/${encodeURIComponent(runId)}`, {}, 10000)
+  if (!res.ok) throw new Error(`Could not load run (HTTP ${res.status})`)
+  return res.json()
+}
+
+export async function cancelRun(runId: string): Promise<void> {
+  const res = await fetchWithTimeout(`${API_BASE}/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' }, 10000)
+  if (!res.ok && res.status !== 409) throw await sessionError(res, 'Could not cancel run')
 }
 
 // Throws on failure so callers can tell "no projects" apart from "backend down".
@@ -238,6 +302,12 @@ export async function deleteSession(workspace: string): Promise<void> {
   if (!res.ok) throw await sessionError(res, 'Could not delete project')
 }
 
+export async function fetchModels(): Promise<Array<{ id: string; label: string; provider: string }>> {
+  const res = await fetchWithTimeout(`${API_BASE}/models`, {}, 10000)
+  if (!res.ok) throw new Error(`Could not load models (HTTP ${res.status})`)
+  return res.json()
+}
+
 export async function fetchAgents(): Promise<Array<{ role: string; model_chain: string[]; status: string }>> {
   try {
     const res = await fetchWithTimeout(`${API_BASE}/agents`, {}, 10000)
@@ -262,7 +332,73 @@ export async function fetchAgentQuotas(): Promise<QuotaInfo[]> {
 
 /** Direct download URL; a plain link lets the browser stream the zip. */
 export function workspaceExportUrl(workspace: string): string {
-  return `${API_BASE}/workspaces/export?workspace=${encodeURIComponent(workspace)}`
+  return withToken(`${API_BASE}/workspaces/export?workspace=${encodeURIComponent(workspace)}`)
+}
+
+export interface ProjectEntry {
+  kind: 'web' | 'file' | 'none'
+  path: string | null
+}
+
+export interface ProjectInfo {
+  project_id: string
+  workspace: string
+  entry: ProjectEntry
+}
+
+export async function fetchProjectInfo(workspace: string): Promise<ProjectInfo> {
+  const res = await fetchWithTimeout(`${API_BASE}/projects/info?workspace=${encodeURIComponent(workspace)}`, {}, 10000)
+  if (!res.ok) throw await sessionError(res, 'Could not load project')
+  return res.json()
+}
+
+/** Preview of a project, by the project id the backend returned (works for generated and imported projects). */
+export function previewUrl(projectId: string): string {
+  return withToken(`${API_BASE}/preview/${encodeURIComponent(projectId)}/`)
+}
+
+export interface FileContent {
+  path: string
+  size: number
+  binary: boolean
+  truncated: boolean
+  content: string
+}
+
+export async function fetchFileContent(workspace: string, path: string): Promise<FileContent> {
+  const q = `workspace=${encodeURIComponent(workspace)}&path=${encodeURIComponent(path)}`
+  const res = await fetchWithTimeout(`${API_BASE}/files/content?${q}`, {}, 10000)
+  if (!res.ok) throw await sessionError(res, 'Could not read file')
+  return res.json()
+}
+
+export type RunFileEvent = { command: string } | { line: string } | { exit_code: number } | { error: string }
+
+/** Read a server-sent event stream, calling onEvent for each JSON payload. */
+async function readEvents(res: Response, onEvent: (event: any) => void): Promise<void> {
+  if (!res.body) return
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const events = buffer.split('\n\n')
+    buffer = events.pop() || ''
+    for (const raw of events) if (raw.startsWith('data: ')) onEvent(JSON.parse(raw.slice(6)))
+  }
+}
+
+/** Runs a project's .py/.js file in the sandbox; output arrives line by line while it runs. */
+export async function runProjectFile(workspace: string, path: string, onEvent: (event: RunFileEvent) => void): Promise<void> {
+  const res = await fetchWithTimeout(`${API_BASE}/projects/run-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace, path }),
+  }, 90000)
+  if (!res.ok) throw await sessionError(res, 'Could not run file')
+  await readEvents(res, onEvent)
 }
 
 export async function fetchFiles(workspace: string): Promise<any[]> {
@@ -303,22 +439,33 @@ export async function importN8nWorkflow(json: object): Promise<PlanResult> {
   return res.json()
 }
 
-export async function sendChatMessage(
+/** Streams a chat reply: onDelta gets text as it arrives; resolves with the model that answered. */
+export async function streamChatMessage(
   role: string,
   message: string,
+  onDelta: (text: string) => void,
   model?: string,
   history?: Array<{ sender: 'user' | 'agent'; text: string }>
-): Promise<{ reply: string; role: string; timestamp: string; model?: string }> {
-  const res = await fetchWithTimeout(`${API_BASE}/chat`, {
+): Promise<{ model?: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, message, model, history }),
-  }, 60000)
+    body: JSON.stringify({ role, message, model: model || undefined, history }),
+  }, 180000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to send chat message' }))
-    throw new Error(err.detail || 'Failed to send chat message')
+    throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to send chat message')
   }
-  return res.json()
+  let answeredBy: string | undefined
+  await readEvents(res, (event) => {
+    if (event.delta) onDelta(event.delta)
+    if (event.error) {
+      const tried = (event.attempts || []).map((a: any) => `${a.model}: ${a.error}`).join('; ')
+      throw new Error(tried ? `${event.error} ${tried}` : event.error)
+    }
+    if (event.done) answeredBy = event.model
+  })
+  return { model: answeredBy }
 }
 
 // Throws on failure so the UI can show "backend unreachable" instead of "nothing connected".
@@ -329,16 +476,24 @@ export async function fetchIntegrations(): Promise<any[]> {
 }
 
 export interface HealthStatus {
+  version: string
+  uptime_s: number
   supabase_enabled: boolean
+  llm_ready: boolean
+  llm_keys: Record<string, boolean>
+  fake_llm: boolean
+  sandbox: { mode: string; available: boolean }
+  auth_required: boolean
+  max_concurrent_agents: number
 }
 
-export async function fetchHealth(): Promise<HealthStatus> {
+/** null when the backend cannot be reached. */
+export async function fetchHealth(): Promise<HealthStatus | null> {
   try {
     const res = await fetchWithTimeout(`${API_BASE}/health`, {}, 5000)
-    if (!res.ok) return { supabase_enabled: false }
-    return res.json()
+    return res.ok ? res.json() : null
   } catch {
-    return { supabase_enabled: false }
+    return null
   }
 }
 
@@ -347,11 +502,57 @@ export async function connectIntegration(payload: any): Promise<any> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  }, 15000)
+  }, 90000) // MCP connect starts the server (npx may download it) and lists its tools; the backend allows 60s
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to connect integration' }))
     throw new Error(err.detail || 'Connection failed')
   }
+  return res.json()
+}
+
+export async function testIntegration(id: string): Promise<any> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  }, 90000)
+  if (!res.ok) throw await sessionError(res, 'Could not test the connection')
+  return res.json()
+}
+
+export async function fetchGithubRepos(): Promise<Array<{ full_name: string; private: boolean; default_branch?: string }>> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/github/repos`, {}, 20000)
+  if (!res.ok) throw await sessionError(res, 'Could not load repositories')
+  return res.json()
+}
+
+export async function importGithubRepo(repo: string): Promise<{ workspace: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/github/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo }),
+  }, 180000)
+  if (!res.ok) throw await sessionError(res, 'Could not import the repository')
+  return res.json()
+}
+
+export async function pushToGithub(workspace: string, branch: string, message: string, repo?: string): Promise<{ message: string; url: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/github/push`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace, branch, message, repo: repo || undefined }),
+  }, 180000)
+  if (!res.ok) throw await sessionError(res, 'Push failed')
+  return res.json()
+}
+
+export async function deployToGithubPages(workspace: string, repo?: string): Promise<{ url: string; message: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/github/deploy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace, repo: repo || undefined }),
+  }, 180000)
+  if (!res.ok) throw await sessionError(res, 'Deploy failed')
   return res.json()
 }
 
@@ -386,9 +587,16 @@ export async function healthCheck(): Promise<boolean> {
 
 // ── WebSocket Client ───────────────────────────────────────────
 
+/**
+ * Every WebSocket message is also dispatched here as a CustomEvent named after its type
+ * (e.g. 'sessions_changed', 'file_written', 'complete'), so any hook can react to pushes
+ * without opening its own socket or polling.
+ */
+export const serverEvents = new EventTarget()
+
 export type EventHandler = (event: LogEvent) => void
-export type PlanHandler = (subtasks: SubtaskResult[], workspace?: string) => void
-export type CompleteHandler = (result: RunResult) => void
+export type PlanHandler = (subtasks: SubtaskResult[], runId?: string) => void
+export type CompleteHandler = (result: RunResult, runId?: string) => void
 
 interface WebSocketHandlers {
   onEvent?: EventHandler
@@ -412,7 +620,7 @@ export class AgentWebSocket {
   connect(): void {
     this.shouldReconnect = true
     try {
-      const ws = new WebSocket(WS_URL)
+      const ws = new WebSocket(withToken(WS_URL))
       this.ws = ws
 
       ws.onopen = () => {
@@ -423,11 +631,12 @@ export class AgentWebSocket {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
+          serverEvents.dispatchEvent(new CustomEvent(data.type || 'message', { detail: data }))
 
           if (data.type === 'plan' && data.subtasks) {
-            this.handlers.onPlan?.(data.subtasks, data.workspace)
+            this.handlers.onPlan?.(data.subtasks, data.run_id)
           } else if (data.type === 'complete' && data.result) {
-            this.handlers.onComplete?.(data.result)
+            this.handlers.onComplete?.(data.result, data.run_id)
           } else {
             // It's a LogEntry event
             this.handlers.onEvent?.(data as LogEvent)

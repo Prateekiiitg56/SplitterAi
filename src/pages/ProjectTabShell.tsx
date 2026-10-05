@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, CheckSquare, Users, FolderTree, Terminal, GitBranch } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { DEFAULT_WORKSPACE } from '../config'
+import { listRuns } from '../lib/api'
 
 interface ProjectTabShellProps {
   children: ReactNode
@@ -13,13 +14,33 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
   const { projectId = 'default' } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentWorkspace, taskTitle, sessions, openProject } = useApp()
+  const { currentWorkspace, taskTitle, sessions, sessionsLoading, openProject, runWorkspace, followRun, resetRun } = useApp()
   const session = sessions.find((s) => s.id === projectId)
+  // Imported projects live outside workspace_output, so their path comes from the session list.
+  const workspace = projectId === 'default'
+    ? DEFAULT_WORKSPACE
+    : session?.workspace ?? (sessionsLoading ? null : `./workspace_output/${projectId}`)
 
   // The URL decides which project is open, so a refresh or deep link never shows another project's files.
   useEffect(() => {
-    if (session) openProject(session.workspace)
-  }, [session?.workspace]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (workspace) openProject(workspace)
+  }, [workspace]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show this project's latest run (live or finished) unless the page already follows one of its runs.
+  useEffect(() => {
+    if (!workspace || workspace !== currentWorkspace || workspace === DEFAULT_WORKSPACE || runWorkspace === workspace) return
+    let cancelled = false
+    listRuns(workspace)
+      .then((list) => {
+        if (cancelled) return
+        if (list.length) followRun(list[0].run_id)
+        else resetRun()
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [workspace, currentWorkspace, runWorkspace]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const tabs = [
     { id: `/projects/${projectId}`, label: 'Overview', icon: LayoutDashboard, exact: true },

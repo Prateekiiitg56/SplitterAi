@@ -4,6 +4,7 @@ import {
   connectIntegration,
   disconnectIntegration,
   reconfigureIntegration,
+  testIntegration,
   fetchHealth,
 } from '../lib/api'
 import type { HealthStatus } from '../lib/api'
@@ -14,7 +15,7 @@ export function useIntegrations() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [connectingId, setConnectingId] = useState<string | null>(null)
-  const [health, setHealth] = useState<HealthStatus>({ supabase_enabled: false })
+  const [health, setHealth] = useState<Pick<HealthStatus, 'supabase_enabled'>>({ supabase_enabled: false })
 
   const loadIntegrations = useCallback(async () => {
     try {
@@ -25,7 +26,7 @@ export function useIntegrations() {
         fetchHealth(),
       ])
       setIntegrations(data)
-      setHealth(healthData)
+      setHealth({ supabase_enabled: !!healthData?.supabase_enabled })
     } catch (err: any) {
       setError(err?.message || 'Failed to load workspace integrations')
       setIntegrations([])
@@ -39,14 +40,15 @@ export function useIntegrations() {
   }, [loadIntegrations])
 
   const connect = async (payload: {
-    type: 'mcp' | 'github' | 'supabase_storage' | 'oauth_generic'
-    name: string
+    type: 'mcp' | 'github' | 'supabase_storage'
+    name?: string
     token?: string
     url?: string
     repo?: string
+    bucket?: string
     allowedRoles?: AgentRole[]
   }) => {
-    setConnectingId(payload.name)
+    setConnectingId(payload.name ?? payload.type)
     try {
       const newInt = await connectIntegration(payload)
       setIntegrations((prev) => [...prev.filter((i) => i.id !== newInt.id), newInt])
@@ -66,9 +68,16 @@ export function useIntegrations() {
     setIntegrations((prev) => prev.map((i) => (i.id === id ? updated : i)))
   }
 
+  const test = async (id: string) => {
+    const updated = await testIntegration(id)
+    setIntegrations((prev) => prev.map((i) => (i.id === id ? updated : i)))
+    return updated
+  }
+
   return {
     integrations,
     loading,
+    test,
     error,
     connectingId,
     health,

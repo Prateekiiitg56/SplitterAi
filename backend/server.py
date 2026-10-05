@@ -7,6 +7,7 @@ NFR-5: Real-time event streaming via WebSocket.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -19,14 +20,17 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, H
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 
-from agentcli.config import ExecutionConfig
+from agentcli import runs
+from agentcli.config import ExecutionConfig, llm_key_status
 from agentcli.graph import run_graph
-from agentcli.planner import generate_plan, load_manual_plan
+from agentcli.planner import load_manual_plan
 from agentcli.analysis import run_analysis
+from agentcli.intent import classify_intent
+from agentcli.router import AllModelsFailedError, call_model, stream_model
 from agentcli.allocation import MAX_AGENTS, PRESETS, build_strategy, estimate as estimate_strategy
 from agentcli.telemetry import record_run, record_subtask
 from agentcli.models import select_chain
-from agentcli.sandbox import Sandbox
+from agentcli.sandbox import Sandbox, SandboxEscapeError
 from agentcli.schemas import (
     AgentRole,
     HealthResponse,
@@ -40,12 +44,20 @@ from agentcli.schemas import (
 )
 from pydantic import BaseModel, Field
 
-from agentcli.web import apply_template, design_context, detect_stack, is_web_task, new_project_dir, planning_guidance
-from agentcli.session import list_sessions, rename_session, reset_session, save_run_result
+from agentcli.web import (
+    RUNNABLE_SUFFIXES, apply_template, design_context, detect_stack, is_web_task, needs_build, new_project_dir,
+    planning_guidance, project_entry,
+)
+from agentcli.tools import kill_processes, run_shell, sandbox_status, stream_shell
+from agentcli.session import list_runs, list_sessions, load_run, rename_session, reset_session, save_run_result, save_session
+from agentcli import integrations as agent_integrations
+from agentcli.integrations import IntegrationError
 from agentcli.integrations_store import (
     load_all_integrations,
     save_integration,
     delete_integration as db_delete_integration,
+    get_secret as get_integration_secret,
+    save_secret as save_integration_secret,
     update_integration_roles,
 )
 from agentcli.db_supabase import is_supabase_enabled
@@ -76,7 +88,19 @@ PROJECTS_ROOT = (PROJECT_ROOT / "workspace_output").resolve()
 PROJECTS_ROOT.mkdir(exist_ok=True)
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+# Every log line carries the run it belongs to (run=- outside runs), so one run's lines can be grepped out.
+CURRENT_RUN: contextvars.ContextVar[str] = contextvars.ContextVar("run_id", default="-")
+
+
+class RunIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.run_id = CURRENT_RUN.get()
+        return True
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] run=%(run_id)s %(message)s")
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(RunIdFilter())
 
 
 # ── WebSocket Connection Manager ─────────────────────────────────
@@ -115,7 +139,9 @@ manager = ConnectionManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("agentcli server starting")
+    logger.info("SplitterAI server starting")
+    # Open the session DB and run its migrations now, not on the first request.
+    await asyncio.to_thread(list_sessions, 1)
     yield
     logger.info("agentcli server shutting down")
 
@@ -131,6 +157,9 @@ app = FastAPI(
 import os
 from fastapi import Header, Query, HTTPException, status
 
+# Credentialed CORS with a default origin list is only acceptable on a developer machine.
+if os.getenv("SPLITTER_ENV", "development").lower() != "development" and not os.getenv("ALLOWED_ORIGINS"):
+    raise RuntimeError("ALLOWED_ORIGINS must be set when SPLITTER_ENV is not 'development'.")
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173")
 allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 
@@ -233,16 +262,45 @@ def verify_shared_secret(x_api_key: str | None = Header(None, alias="X-API-Key")
 
 # ── Event Broadcasting Helper ────────────────────────────────────
 
-def make_event_emitter():
-    """Create an on_event callback that broadcasts to WebSocket clients."""
-    loop = asyncio.get_event_loop()
+def make_event_emitter(run: runs.Run | None = None, workspace: str | None = None):
+    """on_event callback: tags every LogEntry with its run and workspace, keeps it on the run, broadcasts it.
+
+    Safe to call from worker threads as well as the event loop thread.
+    """
+    loop = asyncio.get_running_loop()
+
+    def deliver(data: dict[str, Any]) -> None:
+        if run:
+            run.logs.append(data)
+        _spawn(manager.broadcast(data))
 
     def on_event(entry: LogEntry):
-        data = entry.model_dump()
-        # Fire-and-forget broadcast
-        asyncio.run_coroutine_threadsafe(manager.broadcast(data), loop)
+        data = entry.model_copy(update={
+            "run_id": run.id if run else None,
+            "workspace": run.workspace if run else workspace,
+        }).model_dump()
+        loop.call_soon_threadsafe(deliver, data)
 
     return on_event
+
+
+_background: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> None:
+    """Fire-and-forget task that is not garbage collected before it finishes."""
+    task = asyncio.get_running_loop().create_task(coro)
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+
+
+async def publish(run: runs.Run, data: dict[str, Any]) -> None:
+    await manager.broadcast({**data, "run_id": run.id, "workspace": run.workspace})
+
+
+async def sessions_changed() -> None:
+    """Tell dashboards to reload the project list (instead of polling /sessions)."""
+    await manager.broadcast({"type": "sessions_changed"})
 
 
 # ── Routes ────────────────────────────────────────────────────────
@@ -253,45 +311,206 @@ async def root():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/docs")
 
-@app.get("/health", response_model=HealthResponse)
-async def health():
-    """Health check endpoint."""
-    return HealthResponse(supabase_enabled=is_supabase_enabled())
+STARTED_AT = time.time()
 
+
+@app.get("/health")
+async def health():
+    """Liveness plus what the dashboard needs to explain a broken setup (no secrets, no auth)."""
+    keys = llm_key_status()
+    fake = bool(os.getenv("SPLITTER_FAKE_LLM"))
+    return {
+        "status": "ok",
+        "version": app.version,
+        "uptime_s": round(time.time() - STARTED_AT),
+        "supabase_enabled": is_supabase_enabled(),
+        "llm_ready": fake or any(keys.values()),
+        "llm_keys": keys,
+        "fake_llm": fake,
+        "sandbox": await asyncio.to_thread(sandbox_status),
+        "auth_required": bool(os.getenv("SHARED_SECRET")),
+        "max_concurrent_agents": ExecutionConfig().max_concurrent_agents,
+    }
+
+
+
+def project_roots() -> tuple[Path, Path]:
+    """Every project lives directly under one of these: generated ones and imported/uploaded ones."""
+    from agentcli.workspace_import import DEFAULT_WORKSPACES_ROOT
+    return PROJECTS_ROOT, DEFAULT_WORKSPACES_ROOT.resolve()
+
+
+def project_dir(project_id: str) -> Path | None:
+    """The folder of a project id (its folder name), or None when no such project exists."""
+    if not project_id or project_id in (".", "..") or "/" in project_id or "\\" in project_id:
+        return None
+    for base in project_roots():
+        folder = base / project_id
+        if folder.is_dir():
+            return folder
+    return None
+
+
+def _placeholder(title: str, body: str, status_code: int = 200) -> HTMLResponse:
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html>
+<head><title>{title}</title><style>body{{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0b0f19;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}} .box{{background:#1e293b;padding:30px;border-radius:12px;text-align:center;max-width:500px;}} h2{{color:#60a5fa;}}</style></head>
+<body><div class="box"><h2>{title}</h2><p>{body}</p></div></body>
+</html>""", status_code=status_code)
+
+
+PREVIEW_COOKIE = "splitter_preview_token"
 
 
 @app.get("/preview")
-@app.get("/preview/{file_name:path}")
-async def preview_workspace(file_name: str = ""):
-    """Serve generated website files from workspace_output; /preview/<project>/ serves one project."""
-    resolved_ws = PROJECTS_ROOT
-    resolved_file = (resolved_ws / file_name).resolve()
-    try:
-        resolved_file.relative_to(resolved_ws)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Forbidden: path escapes workspace")
-    if resolved_file == resolved_ws or (resolved_file.parent == resolved_ws and resolved_file.is_file()):
-        # The root is not a project; loose files there are leftovers from old runs.
-        resolved_file = resolved_ws / "__no_project__" / "index.html"
-    elif resolved_file.is_dir():
-        if file_name and not file_name.endswith("/"):
-            # Relative links (styles.css, app.js) only resolve inside the project with a trailing slash.
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url=f"/preview/{file_name}/")
-        # A Vite project previews its build output.
-        built = resolved_file / "dist" / "index.html"
-        resolved_file = built if built.exists() else resolved_file / "index.html"
+@app.get("/preview/{project_id}")
+@app.get("/preview/{project_id}/{file_name:path}")
+async def preview_project(request: Request, project_id: str = "", file_name: str = "", token: str | None = Query(None)):
+    """Serve one project's site: /preview/<project id>/ (dist/ when the project has a build).
 
-    if not resolved_file.exists():
-        if resolved_file.name == "index.html":
-            return HTMLResponse("""<!DOCTYPE html>
-<html>
-<head><title>Workspace Preview</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0b0f19;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;} .box{background:#1e293b;padding:30px;border-radius:12px;text-align:center;max-width:500px;} h2{color:#60a5fa;}</style></head>
-<body><div class="box"><h2>Nothing to preview yet</h2><p>This project has no <code>index.html</code> yet. If a run is in progress, refresh once the agents finish writing files.</p></div></body>
-</html>""")
+    With SHARED_SECRET set, the first request needs ?token=; it sets a cookie so the page's own
+    scripts, styles and images load without it.
+    """
+    secret = os.getenv("SHARED_SECRET")
+    provided = token or request.cookies.get(PREVIEW_COOKIE)
+    if secret and provided != secret:
+        raise HTTPException(status_code=401, detail="Invalid or missing shared secret token.")
+
+    def respond(response):
+        if secret and token == secret:
+            response.set_cookie(PREVIEW_COOKIE, secret, httponly=True, samesite="lax", path="/preview")
+        return response
+
+    if not project_id:
+        return respond(_placeholder("No project selected", "Open a project to preview it."))
+    root = project_dir(project_id)
+    if not root:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if request.url.path.rstrip("/") == f"/preview/{project_id}" and not request.url.path.endswith("/"):
+        # Relative links (styles.css, app.js) only resolve inside the project with a trailing slash.
+        from fastapi.responses import RedirectResponse
+        return respond(RedirectResponse(url=f"/preview/{project_id}/" + (f"?token={token}" if token else "")))
+
+    base = root / "dist" if (root / "dist" / "index.html").is_file() else root
+    target = (base / file_name).resolve()
+    if not target.is_relative_to(root.resolve()):
+        raise HTTPException(status_code=403, detail="Forbidden: path escapes the project")
+    if target.is_dir():
+        target = target / "index.html"
+    unbuilt = base == root and needs_build(root)
+    if target.is_file() and not (unbuilt and target == root.resolve() / "index.html"):
+        return respond(FileResponse(target))
+    if target.name != "index.html":
         raise HTTPException(status_code=404, detail="File not found")
+    if unbuilt:
+        # The raw Vite index.html points at /src/main.jsx and renders blank outside the dev server.
+        return respond(_placeholder("Not built yet", "This project has a build step and no up-to-date <code>dist/</code>. "
+                                    "It is built when a run finishes; ask for a follow-up run to build it."))
+    return respond(_placeholder("Nothing to preview yet", "This project has no <code>index.html</code>. "
+                                "If a run is in progress, refresh once the agents finish writing files."))
 
-    return FileResponse(resolved_file)
+
+def workspace_dir(workspace: str) -> Path:
+    """A project folder under one of the project roots; anything else is a 400."""
+    root = Path(resolve_workspace(workspace)).resolve()
+    if root.is_dir() and any(root != base and root.parent == base for base in project_roots()):
+        return root
+    raise HTTPException(status_code=400, detail="Not a project folder.")
+
+
+@app.get("/projects/info")
+async def project_info(workspace: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Project id (for preview URLs) and what to open: the preview for web projects, else the main file."""
+    verify_shared_secret(x_api_key, token)
+    root = workspace_dir(workspace)
+    return {"project_id": root.name, "workspace": workspace, "entry": await asyncio.to_thread(project_entry, root)}
+
+
+MAX_VIEW_BYTES = 512 * 1024
+
+
+@app.get("/files/content")
+async def file_content(workspace: str, path: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """One file's text for the viewer: sandboxed, size-capped, binary files reported but not sent."""
+    verify_shared_secret(x_api_key, token)
+    sandbox = Sandbox(workspace_dir(workspace))
+    try:
+        target = sandbox.resolve_path(path)
+    except SandboxEscapeError:
+        raise HTTPException(status_code=403, detail="Path escapes the project")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    size = target.stat().st_size
+    with target.open("rb") as f:
+        data = f.read(MAX_VIEW_BYTES)
+    if b"\0" in data[:8192]:
+        return {"path": path, "size": size, "binary": True, "truncated": False, "content": ""}
+    return {"path": path, "size": size, "binary": False, "truncated": size > MAX_VIEW_BYTES,
+            "content": data.decode("utf-8", errors="replace")}
+
+
+class RunFileRequest(BaseModel):
+    workspace: str
+    path: str
+
+
+@app.post("/projects/run-file")
+async def run_file(req: RunFileRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Run a project's Python or Node script in the sandbox, streaming its output as server-sent events:
+    {"command"}, then one {"line"} per printed line, then {"exit_code"} (or {"error"})."""
+    verify_shared_secret(x_api_key, token)
+    from fastapi.responses import StreamingResponse
+    sandbox = Sandbox(workspace_dir(req.workspace))
+    try:
+        target = sandbox.resolve_path(req.path)
+    except SandboxEscapeError:
+        raise HTTPException(status_code=403, detail="Path escapes the project")
+    if not target.is_file() or target.suffix not in RUNNABLE_SUFFIXES:
+        raise HTTPException(status_code=400, detail="Only .py, .js, .mjs and .cjs files can be run.")
+    rel = target.relative_to(sandbox.workspace).as_posix()
+    command = f'python "{rel}"' if target.suffix == ".py" else f'node "{rel}"'
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    def pump() -> None:
+        try:
+            for line in stream_shell(sandbox, command, 60):
+                loop.call_soon_threadsafe(queue.put_nowait, line)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    loop.run_in_executor(None, pump)
+
+    async def events():
+        yield f"data: {json.dumps({'command': command})}\n\n"
+        # stream_shell's last item is the status line; everything before it is program output.
+        previous = await queue.get()
+        while previous is not None:
+            current = await queue.get()
+            if current is None:
+                status = previous
+                if status.startswith("Exit code: "):
+                    yield f"data: {json.dumps({'exit_code': int(status.split(': ', 1)[1])})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'error': status})}\n\n"
+            else:
+                yield f"data: {json.dumps({'line': previous})}\n\n"
+            previous = current
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+
+SHORT_TASK_CHARS = 200
+
+
+def planner_config(model: str | None, task: str) -> ExecutionConfig:
+    """Planner chain shared by /plan and /runs so plans match: the user's model first, then the
+    strongest reasoning models; a short single-deliverable task plans with the fast tier instead."""
+    config = ExecutionConfig()
+    preset = "fastest" if len(task) < SHORT_TASK_CHARS and "\n" not in task.strip() else "quality"
+    config.set_model_chain(AgentRole.planner, select_chain("reasoning", preset, pinned=model))
+    return config
 
 
 @app.post("/plan")
@@ -303,15 +522,9 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
     if not task:
         raise HTTPException(status_code=400, detail="Task is required")
 
-    config = ExecutionConfig()
-    # Decomposition quality drives everything downstream: plan with the strongest reliable reasoning
-    # models from the registry, the user's selected model first.
-    config.set_model_chain(AgentRole.planner, select_chain("reasoning", "quality", pinned=payload.get("model")))
-
-    on_event = make_event_emitter()
-
     stack = detect_stack(task, payload.get("stack"))
-    plan, analysis = await run_analysis(task, config, history=history, on_event=on_event,
+    plan, analysis = await run_analysis(task, planner_config(payload.get("model"), task), history=history,
+                                        on_event=make_event_emitter(workspace=payload.get("workspace")),
                                         guidance=planning_guidance(stack))
 
     return {
@@ -351,196 +564,304 @@ def execution_report(result: RunResult, strategy: str, agents: int, estimate: di
     }
 
 
-@app.post("/run", response_model=RunResult)
-async def run_task(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Execute a task through the multi-agent pipeline."""
-    verify_shared_secret(x_api_key, token)
+def confirmed_plan(items: list[dict]) -> Plan:
+    """Subtasks the user confirmed in the plan review UI."""
+    subtasks = []
+    for item in items:
+        subtasks.append(Subtask(
+            id=str(item.get("id", f"t{len(subtasks)+1}")),
+            role=AgentRole(item.get("role", "coder")),
+            group=int(item.get("group", 1)),
+            instruction=str(item.get("instruction", "")),
+            depends_on=[str(d) for d in item.get("depends_on") or []],
+            capability=item.get("capability"),
+            size=item.get("size"),
+        ))
+    return Plan(subtasks=subtasks)
+
+
+def start_run(request: RunRequest) -> runs.Run:
+    """Validate the request, pick the workspace and start the job in the background."""
+    if request.strategy and request.strategy not in PRESETS:
+        raise HTTPException(status_code=400, detail=f"Unknown strategy '{request.strategy}'")
+    if not request.task.strip():
+        raise HTTPException(status_code=400, detail="Task is required")
+    if request.callback_url and not request.callback_url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="callback_url must be an http(s) URL")
+    try:
+        plan = confirmed_plan(request.subtasks) if request.subtasks else None
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid subtasks: {e}")
+
     workspace = request.workspace
     # The shared projects root means "new project": give it its own folder so projects never mix files.
+    # Anything else must be an existing project folder; a client cannot point a run at any path on disk.
     if Path(resolve_workspace(workspace)) == PROJECTS_ROOT:
         folder = new_project_dir(PROJECTS_ROOT, request.task)
         workspace = f"./workspace_output/{folder.name}"
-    try:
-        sandbox = Sandbox(resolve_workspace(workspace))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    stack = detect_stack(request.task, request.stack)
+        sandbox = Sandbox(folder)
+    else:
+        sandbox = Sandbox(workspace_dir(workspace))
 
-    config = ExecutionConfig()
+    run = runs.create(workspace, request.task)
+    run.job = asyncio.create_task(execute_run(run, request, sandbox, plan, follow_up=Path(resolve_workspace(request.workspace)) != PROJECTS_ROOT))
+    return run
+
+
+def previous_summary(workspace: str) -> str | None:
+    """What the project's last finished run reported, for follow-up runs in the same folder."""
+    for item in list_runs(workspace, limit=5):
+        stored = load_run(item["run_id"])
+        synthesis = ((stored or {}).get("result") or {}).get("synthesis")
+        if synthesis:
+            return synthesis
+    return None
+
+
+async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan: Plan | None,
+                      follow_up: bool = False) -> RunResult:
+    """The whole job: plan (unless confirmed), run the graph, persist, announce completion."""
+    CURRENT_RUN.set(run.id)
+    logger.info("Run started in %s: %s", run.workspace, request.task[:200])
+    on_event = make_event_emitter(run)
+    # Follow-up work: the agents see what the previous run in this project did (the files are already there).
+    agent_task = request.task
+    previous = await asyncio.to_thread(previous_summary, run.workspace) if follow_up else None
+    if previous:
+        agent_task = (f"{request.task}\n\nThis is a follow-up in an existing project; read the existing files "
+                      f"before changing them. What the previous run reported:\n{previous[:4000]}")
+        on_event(LogEntry(type="info", role=AgentRole.planner, message="Follow-up: previous run summary added as context"))
+    # The project shows up in the dashboard (and survives a refresh) while its first run is still going.
+    await asyncio.to_thread(save_session, run.workspace, request.task, RunStatus.executing)
+    await sessions_changed()
+    stack = detect_stack(request.task, request.stack)
+    config = planner_config(request.model, request.task)
     if request.model:
         for r in AgentRole:
-            config.set_model_chain(r, [request.model] + [m for m in config.get_model_chain(r) if m != request.model])
+            if r != AgentRole.planner:
+                config.set_model_chain(r, [request.model] + [m for m in config.get_model_chain(r) if m != request.model])
 
-    # Build event emitter for real-time WebSocket streaming
-    on_event = make_event_emitter()
+    try:
+        if plan:
+            on_event(LogEntry(type="info", role=AgentRole.planner,
+                              message=f"Using user-confirmed plan: {len(plan.subtasks)} subtasks"))
+        elif request.plan_file:
+            plan = load_manual_plan(request.plan_file)
+            on_event(LogEntry(type="info", role=AgentRole.planner,
+                              message=f"Loaded manual plan: {len(plan.subtasks)} subtasks"))
+        else:
+            plan, _ = await run_analysis(agent_task, config, on_event=on_event, guidance=planning_guidance(stack))
 
-    # Step 1: Generate or load plan — user-confirmed subtasks take priority
-    if request.subtasks:
-        # User confirmed these subtasks from the plan review UI — use them directly
-        from agentcli.schemas import Subtask as SubtaskSchema
-        confirmed_subtasks = []
-        for item in request.subtasks:
-            confirmed_subtasks.append(SubtaskSchema(
-                id=str(item.get("id", f"t{len(confirmed_subtasks)+1}")),
-                role=AgentRole(item.get("role", "coder")),
-                group=int(item.get("group", 1)),
-                instruction=str(item.get("instruction", "")),
-                depends_on=[str(d) for d in item.get("depends_on") or []],
-                capability=item.get("capability"),
-                size=item.get("size"),
-            ))
-        plan = Plan(subtasks=confirmed_subtasks)
-        on_event(LogEntry(
-            type="info",
-            role=AgentRole.planner,
-            message=f"Using user-confirmed plan: {len(plan.subtasks)} subtasks",
-        ))
-    elif request.plan_file:
-        plan = load_manual_plan(request.plan_file)
-        on_event(LogEntry(
-            type="info",
-            role=AgentRole.planner,
-            message=f"Loaded manual plan: {len(plan.subtasks)} subtasks",
-        ))
-    else:
-        plan = await generate_plan(
-            task=request.task,
-            config=config,
-            on_event=on_event,
-            guidance=planning_guidance(stack),
-        )
+        estimate = None
+        if request.strategy:
+            agents = max(1, min(request.agent_count or 1, MAX_AGENTS))
+            config.max_concurrent_agents = agents
+            plan = Plan(subtasks=build_strategy(plan.subtasks, request.strategy))
+            estimate = estimate_strategy(plan.subtasks, agents, request.strategy)
+            on_event(LogEntry(type="info", role=AgentRole.planner,
+                              message=f"Strategy {request.strategy}: {agents} concurrent agent(s), {len(plan.subtasks)} subtasks"))
 
-    estimate = None
-    if request.strategy:
-        if request.strategy not in PRESETS:
-            raise HTTPException(status_code=400, detail=f"Unknown strategy '{request.strategy}'")
-        agents = max(1, min(request.agent_count or 1, MAX_AGENTS))
-        config.max_concurrent_agents = agents
-        plan = Plan(subtasks=build_strategy(plan.subtasks, request.strategy))
-        estimate = estimate_strategy(plan.subtasks, agents, request.strategy)
-        on_event(LogEntry(
-            type="info",
-            role=AgentRole.planner,
-            message=f"Strategy {request.strategy}: {agents} concurrent agent(s), {len(plan.subtasks)} subtasks",
-        ))
+        run.status = "executing"
+        run.subtasks = [st.model_dump() for st in plan.subtasks]
+        await publish(run, {"type": "plan", "subtasks": run.subtasks})
 
-    # Broadcast plan to WebSocket clients
-    await manager.broadcast({
-        "type": "plan",
-        "workspace": workspace,
-        "subtasks": [st.model_dump() for st in plan.subtasks],
-    })
+        design = ""
+        if is_web_task(request.task, plan):
+            starter = apply_template(stack, sandbox.workspace)
+            design = design_context(stack, starter)
+            on_event(LogEntry(type="info", role=AgentRole.planner,
+                              message=f"Web project: {stack} stack" + (f", starter files {', '.join(starter)}" if starter else "")))
 
-    design = ""
-    if is_web_task(request.task, plan):
-        starter = apply_template(stack, sandbox.workspace)
-        design = design_context(stack, starter)
-        on_event(LogEntry(
-            type="info",
-            role=AgentRole.planner,
-            message=f"Web project: {stack} stack" + (f", starter files {', '.join(starter)}" if starter else ""),
-        ))
+        # Workers -> synthesis -> verification -> repair
+        result = await run_graph(agent_task, plan, config, sandbox, on_event,
+                                 preset=request.strategy or "balanced", design=design)
+        if estimate:
+            result.report = execution_report(result, request.strategy, config.max_concurrent_agents, estimate)
+    except asyncio.CancelledError:
+        killed = await asyncio.to_thread(kill_processes, sandbox.workspace)
+        on_event(LogEntry(type="error", role=AgentRole.planner,
+                          message="Run cancelled" + (f", stopped {killed} running command(s)" if killed else "")))
+        result = RunResult(subtasks=[Subtask(**st) for st in run.subtasks], status=RunStatus.cancelled,
+                           error="Cancelled by user")
+    except Exception as e:
+        logger.exception("Run %s failed", run.id)
+        on_event(LogEntry(type="error", role=AgentRole.planner, message=f"Run failed: {e}"))
+        result = RunResult(subtasks=[Subtask(**st) for st in run.subtasks], status=RunStatus.error, error=str(e))
 
-    # Step 2: Execute through the LangGraph workflow (workers -> synthesis -> verification -> repair)
-    result = await run_graph(request.task, plan, config, sandbox, on_event,
-                             preset=request.strategy or "balanced", design=design)
-    result.workspace = workspace
-    if estimate:
-        result.report = execution_report(result, request.strategy, config.max_concurrent_agents, estimate)
-
-    # Step 3: Persist session
-    save_run_result(workspace, request.task, result)
-
-    # Broadcast completion
-    await manager.broadcast({
-        "type": "complete",
-        "result": result.model_dump(),
-    })
-
+    result.workspace = run.workspace
+    result.run_id = run.id
+    storage = next((i for i in INTEGRATIONS_STORE.values()
+                    if i["type"] == "supabase_storage" and i["status"] == "connected"), None)
+    if storage and result.status != RunStatus.cancelled:
+        from agentcli.db_supabase import supabase_upload_signed
+        data = await asyncio.to_thread(build_workspace_zip, sandbox.workspace)
+        result.artifact_url = await asyncio.to_thread(
+            supabase_upload_signed, f"{sandbox.workspace.name}/{run.id}.zip", data, storage["config"]["bucket"])
+        on_event(LogEntry(type="info", role=AgentRole.planner,
+                          message="Project zip uploaded to Supabase Storage" if result.artifact_url
+                          else "Supabase Storage upload failed (see server log)"))
+    # Let log events queued from worker threads reach run.logs before they are persisted.
+    await asyncio.sleep(0)
+    await asyncio.to_thread(save_run_result, run.workspace, request.task, result, list(run.logs))
+    await sessions_changed()
+    run.result = result.model_dump()
+    run.subtasks = run.result["subtasks"]
+    run.status = result.status.value
+    runs.prune()
+    await publish(run, {"type": "complete", "result": run.result})
+    if request.callback_url:
+        await post_callback(request.callback_url, run.result)
     return result
 
 
-@app.post("/chat")
-async def chat_with_agent(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Direct conversational chat endpoint for single agent interaction calling real LLM model router."""
-    verify_shared_secret(x_api_key, token)
-    role_str = payload.get("role", "coder")
-    message = payload.get("message", "").strip()
-    history = payload.get("history", [])
-    model_override = payload.get("model")
-
-    if not message:
-        raise HTTPException(status_code=400, detail="Message cannot be empty.")
-
-    import datetime
-    ts = datetime.datetime.now().strftime("%I:%M:%S %p")
-
-    model_chain: list[str] = []
+async def post_callback(url: str, result: dict) -> None:
+    """Outbound webhook (n8n): POST the finished RunResult. Failures are logged, never raised."""
     try:
-        from agentcli.schemas import AgentRole as SchemaAgentRole
-        from agentcli.config import ExecutionConfig
-        from agentcli.router import call_model
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(url, json=result, headers={"X-SplitterAI-Run": result.get("run_id") or ""})
+        logger.info("Run %s callback to %s: HTTP %s", result.get("run_id"), url, resp.status_code)
+    except httpx.HTTPError as e:
+        logger.warning("Run %s callback to %s failed: %s", result.get("run_id"), url, e)
 
-        role_enum = SchemaAgentRole(role_str)
-        config = ExecutionConfig()
-        model_chain = config.get_model_chain(role_enum)
 
-        if model_override:
-            model_chain = [model_override] + [m for m in model_chain if m != model_override]
+@app.post("/runs")
+async def create_run(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Start a run in the background. Progress arrives over the WebSocket tagged with run_id."""
+    verify_shared_secret(x_api_key, token)
+    run = start_run(request)
+    return {"run_id": run.id, "workspace": run.workspace}
 
-        # Build OpenAI chat messages
-        system_prompts = {
-            "planner": "You are SplitterAI's Planner Agent. Help users break down software projects into clean tasks.",
-            "coder": "You are SplitterAI's Coder Agent. Help users write code, debug functions, and refactor applications.",
-            "auditor": "You are SplitterAI's Auditor Agent. Help users review code security, PEP8 standards, and quality.",
-            "tester": "You are SplitterAI's Tester Agent. Help users design unit tests, run verification suites, and fix bugs.",
-        }
-        sys_prompt = system_prompts.get(role_str, "You are an AI software engineering assistant.")
 
-        messages = [{"role": "system", "content": sys_prompt}]
-        for item in history[-10:]:
-          if item.get("text") and item.get("sender"):
-            messages.append({
-              "role": "user" if item["sender"] == "user" else "assistant",
-              "content": item["text"],
-            })
-        messages.append({"role": "user", "content": message})
+@app.get("/runs")
+async def get_runs(workspace: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Runs of one workspace: active ones first, then finished ones from history."""
+    verify_shared_secret(x_api_key, token)
+    live = [{k: v for k, v in r.snapshot().items() if k not in ("logs", "result", "subtasks")}
+            for r in runs.for_workspace(workspace) if r.active]
+    return live + await asyncio.to_thread(list_runs, workspace)
 
-        # Call litellm model router
-        res = await call_model(
-            messages=messages,
-            model_chain=model_chain,
-            role=role_enum,
-            config=config,
-        )
 
-        reply_content = res.get("content", "").strip()
-        if not reply_content:
-            logger.warning("Model returned empty content for role=%s, message='%s' — using fallback", role_str, message[:80])
-            reply_content = "[Fallback] The model returned an empty response. Please try again or rephrase your request."
+@app.get("/runs/{run_id}")
+async def get_run(run_id: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Status, plan, log and result of one run; used to resync after a refresh or reconnect."""
+    verify_shared_secret(x_api_key, token)
+    run = runs.get(run_id)
+    if run:
+        return run.snapshot()
+    stored = await asyncio.to_thread(load_run, run_id)
+    if not stored:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return stored
 
-        return {
-            "reply": reply_content,
-            "role": role_str,
-            "timestamp": ts,
-            "model": res.get("model"),
-        }
-    except Exception as err:
-        logger.error(
-            "Chat handler failed for role='%s' with model_chain=%s: %s",
-            role_str,
-            model_chain,
-            err,
-            exc_info=True,
-        )
-        raise HTTPException(status_code=500, detail=f"LLM Provider Error ({role_str}): {str(err)}")
+
+@app.post("/runs/{run_id}/cancel")
+async def cancel_run(run_id: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    verify_shared_secret(x_api_key, token)
+    run = runs.get(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if not run.active:
+        raise HTTPException(status_code=409, detail=f"Run already {run.status}")
+    run.job.cancel()
+    return {"run_id": run.id, "status": "cancelling"}
+
+
+@app.post("/run", response_model=RunResult)
+async def run_task(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Blocking variant for n8n and scripts: starts a run and waits for its result."""
+    verify_shared_secret(x_api_key, token)
+    run = start_run(request)
+    # A dropped HTTP connection must not cancel the run itself.
+    return await asyncio.shield(run.job)
+
+
+class IntentRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+
+
+@app.post("/intent")
+async def intent(req: IntentRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Is this console message work for the agents ("task") or a question ("chat")?"""
+    verify_shared_secret(x_api_key, token)
+    return await classify_intent(req.message)
+
+
+CHAT_SYSTEM_PROMPTS = {
+    "planner": "You are SplitterAI's Planner Agent. Help users break down software projects into clean tasks.",
+    "designer": "You are SplitterAI's Designer Agent. Help users with layout, visual hierarchy, typography, color, "
+                "accessibility and design tokens for web interfaces.",
+    "coder": "You are SplitterAI's Coder Agent. Help users write code, debug functions, and refactor applications.",
+    "auditor": "You are SplitterAI's Auditor Agent. Help users review code security, PEP8 standards, and quality.",
+    "tester": "You are SplitterAI's Tester Agent. Help users design unit tests, run verification suites, and fix bugs.",
+}
+CHAT_HANDOFF = (" You answer in chat only and cannot create or change files. When the user wants something built "
+                "or changed, say so briefly: they can press \"Run as task\" and the agents will do it.")
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    role: str = "coder"
+    model: str | None = None
+    history: list[dict] = Field(default_factory=list)
+
+
+def chat_setup(req: ChatRequest) -> tuple[AgentRole, ExecutionConfig, list[str], list[dict]]:
+    try:
+        role = AgentRole(req.role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown role '{req.role}'")
+    config = ExecutionConfig()
+    chain = config.get_model_chain(role)
+    if req.model:
+        chain = [req.model] + [m for m in chain if m != req.model]
+    messages = [{"role": "system", "content": CHAT_SYSTEM_PROMPTS.get(role.value, CHAT_SYSTEM_PROMPTS["coder"]) + CHAT_HANDOFF}]
+    for item in req.history[-10:]:
+        if item.get("text") and item.get("sender"):
+            messages.append({"role": "user" if item["sender"] == "user" else "assistant", "content": str(item["text"])})
+    messages.append({"role": "user", "content": req.message.strip()})
+    return role, config, chain, messages
+
+
+@app.post("/chat")
+async def chat_with_agent(req: ChatRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """One chat reply from a role's model chain. Chat never touches files; tasks go through /runs."""
+    verify_shared_secret(x_api_key, token)
+    import datetime
+    role, config, chain, messages = chat_setup(req)
+    try:
+        res = await call_model(messages=messages, model_chain=chain, role=role, config=config)
+    except AllModelsFailedError as err:
+        raise HTTPException(status_code=502, detail={"message": "Every model in the chain failed.", "attempts": err.attempts})
+    reply = res.get("content", "").strip() or "The model returned an empty response. Please try again or rephrase."
+    return {"reply": reply, "role": role.value, "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p"),
+            "model": res.get("model")}
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Same as /chat, streamed as server-sent events: {"delta"} tokens, then {"done", "model"} or {"error"}."""
+    verify_shared_secret(x_api_key, token)
+    from fastapi.responses import StreamingResponse
+    role, config, chain, messages = chat_setup(req)
+
+    async def events():
+        try:
+            async for item in stream_model(messages, chain, role, config):
+                payload = {"delta": item["delta"]} if "delta" in item else {"done": True, "model": item["model"]}
+                yield f"data: {json.dumps(payload)}\n\n"
+        except AllModelsFailedError as err:
+            yield f"data: {json.dumps({'error': 'Every model in the chain failed.', 'attempts': err.attempts})}\n\n"
+        except Exception as err:
+            yield f"data: {json.dumps({'error': str(err)[:300]})}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/sessions")
 async def get_sessions(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """List recent sessions for the dashboard sidebar."""
     verify_shared_secret(x_api_key, token)
-    sessions = list_sessions(limit=20)
+    sessions = await asyncio.to_thread(list_sessions, 20)
     return [s.model_dump() for s in sessions]
 
 
@@ -556,8 +877,9 @@ async def patch_session(req: RenameSessionRequest, x_api_key: str | None = Heade
     name = req.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Project name cannot be empty.")
-    if not rename_session(req.workspace, name):
+    if not await asyncio.to_thread(rename_session, req.workspace, name):
         raise HTTPException(status_code=404, detail="Project not found.")
+    await sessions_changed()
     return {"workspace": req.workspace, "name": name}
 
 
@@ -565,15 +887,16 @@ async def patch_session(req: RenameSessionRequest, x_api_key: str | None = Heade
 async def delete_session(workspace: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Delete a project's record, run history and its generated folder under workspace_output."""
     verify_shared_secret(x_api_key, token)
-    found = reset_session(workspace)
-    folder = Path(resolve_workspace(workspace))
-    # Only project folders inside the projects root are ours to remove; never the root or user paths.
-    owned = folder != PROJECTS_ROOT and PROJECTS_ROOT in folder.parents
+    found = await asyncio.to_thread(reset_session, workspace)
+    folder = Path(resolve_workspace(workspace)).resolve()
+    # Only project folders directly under a project root are ours to remove; never a root or user paths.
+    owned = any(folder.parent == base for base in project_roots())
     if owned and folder.is_dir():
-        shutil.rmtree(folder, ignore_errors=True)
+        await asyncio.to_thread(shutil.rmtree, folder, True)
         found = True
     if not found:
         raise HTTPException(status_code=404, detail="Project not found.")
+    await sessions_changed()
     return {"deleted": workspace}
 
 
@@ -586,10 +909,29 @@ async def get_agents(x_api_key: str | None = Header(None, alias="X-API-Key"), to
         {
             "role": role.value,
             "model_chain": config.get_model_chain(role),
-            "status": "idle",
         }
         for role in AgentRole
     ]
+
+
+@app.get("/models")
+async def list_models(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Models the router knows (checked against the providers' live model lists), for the model pickers."""
+    verify_shared_secret(x_api_key, token)
+    from agentcli.models import MODEL_PROFILES, all_models, get_profile
+    out = []
+    for model_id in [*MODEL_PROFILES, *(m for m in all_models() if m not in MODEL_PROFILES)]:
+        profile = get_profile(model_id)
+        name = model_id.split("/")[-1]
+        out.append({
+            "id": model_id,
+            "label": name.replace(":free", " (free)"),
+            "provider": {"openrouter": "OpenRouter", "gemini": "Google AI"}.get(profile.provider, profile.provider),
+            "tier": profile.tier,
+            "vision": profile.vision,
+            "capabilities": sorted(profile.capabilities),
+        })
+    return out
 
 
 @app.get("/agents/quota")
@@ -603,29 +945,21 @@ async def get_agent_quotas(x_api_key: str | None = Header(None, alias="X-API-Key
 
 @app.get("/agents/{role}")
 async def get_agent_detail(role: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Get detailed status, logs, and subtask metrics for a specific agent role."""
+    """A role's model chain and its real track record from the execution history (no live status here:
+    live state comes from the run the dashboard follows)."""
     verify_shared_secret(x_api_key, token)
-    valid_roles = [r.value for r in AgentRole]
-    if role not in valid_roles:
+    if role not in {r.value for r in AgentRole}:
         raise HTTPException(status_code=404, detail=f"Role '{role}' not found")
-
-    config = ExecutionConfig()
-    role_enum = AgentRole(role)
-    model_chain = config.get_model_chain(role_enum)
-    sessions = list_sessions(limit=50)
-    total_runs = sum(s.subtask_count for s in sessions if s.subtask_count > 0)
-
+    from agentcli import telemetry
+    done = [r for r in await asyncio.to_thread(telemetry.load, "subtask") if r.get("role") == role]
     return {
         "role": role,
-        "status": "idle",
-        "stepsCompleted": 0,
-        "totalRuns": max(total_runs, 1),
-        "successRate": 100,
-        "lastActive": "Just now",
-        "model": model_chain[0] if model_chain else "gemini/gemini-3.5-flash",
-        "modelChain": model_chain,
+        "modelChain": ExecutionConfig().get_model_chain(AgentRole(role)),
+        "subtasks": len(done),
+        "successRate": round(100 * sum(1 for r in done if r.get("success")) / len(done)) if done else None,
+        "steps": sum(r.get("steps", 0) for r in done),
+        "lastActive": max((r.get("ts", 0) for r in done), default=None),
         "logs": [],
-        "subtasks": [],
     }
 
 
@@ -633,8 +967,8 @@ async def get_agent_detail(role: str, x_api_key: str | None = Header(None, alias
 async def get_files(workspace: str = ".", x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Sandboxed recursive file tree (never reads outside workspace root)."""
     verify_shared_secret(x_api_key, token)
+    sb = Sandbox(workspace_dir(workspace))
     try:
-        sb = Sandbox(resolve_workspace(workspace))
         root_path = sb.resolve_path(".")
 
         def build_tree(path):
@@ -658,7 +992,7 @@ async def get_files(workspace: str = ".", x_api_key: str | None = Header(None, a
             else:
                 return {"name": name, "path": rel, "type": "file", "size": path.stat().st_size}
 
-        tree = build_tree(root_path)
+        tree = await asyncio.to_thread(build_tree, root_path)
         return tree.get("children", [])
     except Exception as e:
         from fastapi import HTTPException
@@ -684,7 +1018,10 @@ async def upload_workspace(
     try:
         from agentcli.workspace_import import extract_zip_to_workspace
 
-        ws_path, file_count = extract_zip_to_workspace(zip_bytes)
+        ws_path, file_count = await asyncio.to_thread(extract_zip_to_workspace, zip_bytes)
+        # An imported project is a project like any other: listed, openable, previewable.
+        await asyncio.to_thread(save_session, str(ws_path), f"Imported {file.filename}", RunStatus.idle)
+        await sessions_changed()
         return {"workspace": str(ws_path), "fileCount": file_count}
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))
@@ -748,7 +1085,7 @@ async def cleanup_workspaces(
     verify_shared_secret(x_api_key, token)
     try:
         from agentcli.workspace_import import cleanup_expired_workspaces
-        deleted_count, freed_bytes = cleanup_expired_workspaces(max_age_seconds=max_age_seconds)
+        deleted_count, freed_bytes = await asyncio.to_thread(cleanup_expired_workspaces, max_age_seconds=max_age_seconds)
         return {
             "success": True,
             "deletedCount": deleted_count,
@@ -788,170 +1125,215 @@ async def import_n8n_workflow(
         raise HTTPException(status_code=500, detail=f"Failed to parse n8n workflow: {str(err)}")
 
 
-# ── Integrations Endpoint (Server-Side Credential Storage & Handshake) ────────
+# ── Integrations (validated against the real service, secrets encrypted server-side) ────────
 
-# Load integrations from SQLite on startup (survives restarts)
+# Loaded once; agents read the same dict (agentcli.integrations.REGISTRY).
 INTEGRATIONS_STORE = load_all_integrations()
+agent_integrations.REGISTRY = INTEGRATIONS_STORE
+ALL_ROLES = [r.value for r in AgentRole if r != AgentRole.unassigned]
+
+
+async def _supabase_bucket_check(bucket: str) -> None:
+    if not is_supabase_enabled():
+        raise IntegrationError("Supabase is not configured (SUPABASE_URL / SUPABASE_KEY) or the client failed to start.")
+    from agentcli.db_supabase import get_supabase_client
+    try:
+        await asyncio.to_thread(lambda: get_supabase_client().storage.from_(bucket).list())
+    except Exception as e:
+        raise IntegrationError(f"Supabase Storage bucket '{bucket}': {e}")
+
+
+async def _validate(itype: str, payload: dict, secret: str | None) -> tuple[str, dict, list[str]]:
+    """Talk to the service. Returns (display name, config, scopes) or raises IntegrationError."""
+    if itype == "github":
+        if not secret:
+            raise IntegrationError("A GitHub access token is required.")
+        info = await agent_integrations.github_validate(secret, payload.get("repo") or None)
+        name = f"GitHub ({info['repo'] or info['login']})"
+        return name, {"login": info["login"], "repo": info["repo"]}, info["scopes"]
+    if itype == "mcp":
+        config = agent_integrations.mcp_config(payload.get("url") or "")
+        config["tools"] = await agent_integrations.mcp_list_tools(config)
+        return payload.get("name") or "MCP server", config, ["mcp:tools"]
+    if itype == "supabase_storage":
+        from agentcli.db_supabase import get_storage_bucket_name
+        bucket = payload.get("bucket") or get_storage_bucket_name()
+        await _supabase_bucket_check(bucket)
+        return payload.get("name") or "Supabase Storage", {"bucket": bucket}, ["storage:upload", "storage:sign"]
+    raise IntegrationError(f"Unknown integration type '{itype}'. Supported: github, mcp, supabase_storage.")
+
 
 @app.get("/integrations")
-async def get_integrations(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Get all connected integrations without raw secrets."""
+async def get_integrations(type: str | None = None, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Connected integrations, never with their secrets."""
     verify_shared_secret(x_api_key, token)
-    return list(INTEGRATIONS_STORE.values())
+    return [i for i in INTEGRATIONS_STORE.values() if not type or i["type"] == type]
+
 
 @app.post("/integrations/connect")
 async def connect_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Validate server-side connection and store credentials securely server-side."""
+    """Validate against the service, store the secret encrypted, return the integration (without it)."""
     verify_shared_secret(x_api_key, token)
-    itype = payload.get("type")
-    name = payload.get("name", "Custom Integration")
-    int_token = payload.get("token")
-    url = payload.get("url")
-    repo = payload.get("repo")
-    allowed_roles = payload.get("allowedRoles", ["planner", "coder", "auditor", "tester"])
+    itype = payload.get("type") or ""
+    roles = [r for r in payload.get("allowedRoles") or ALL_ROLES if r in ALL_ROLES]
+    secret = (payload.get("token") or "").strip() or None
+    try:
+        name, config, scopes = await _validate(itype, payload, secret)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     import datetime
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    iid = f"int-{int(datetime.datetime.now().timestamp() * 1000)}"
+    now = datetime.datetime.now()
+    integration = {
+        "id": f"int-{int(now.timestamp() * 1000)}",
+        "type": itype,
+        "name": name,
+        "status": "connected",
+        "connectedAt": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "config": config,
+        "scopes": scopes,
+        "allowedRoles": roles,
+        "lastError": None,
+    }
+    if secret:
+        await asyncio.to_thread(save_integration_secret, integration["id"], secret)
+    INTEGRATIONS_STORE[integration["id"]] = integration
+    await asyncio.to_thread(save_integration, integration)
+    return integration
 
-    # Server-Side Handshake & Validation
-    if itype == "mcp":
-        if not url:
-            raise HTTPException(status_code=400, detail="MCP Server URL is required.")
-        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("sse://") or url.startswith("stdio://")):
-            raise HTTPException(status_code=400, detail="Invalid MCP Server URL schema.")
 
-        # Real reachability check for HTTP/HTTPS MCP servers
-        mcp_status = "connected"
-        mcp_error = None
-        if url.startswith("http://") or url.startswith("https://"):
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.head(url)
-                    if resp.status_code >= 400:
-                        mcp_status = "error"
-                        mcp_error = f"MCP server returned HTTP {resp.status_code}"
-            except Exception as e:
-                mcp_status = "error"
-                mcp_error = f"Cannot reach MCP server: {str(e)[:200]}"
-        elif url.startswith("sse://") or url.startswith("stdio://"):
-            mcp_status = "pending_verification"
-            mcp_error = "Non-HTTP transport — reachability not verified automatically"
+def _integration(iid: str) -> dict:
+    integration = INTEGRATIONS_STORE.get(iid or "")
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found.")
+    return integration
 
-        integration_obj = {
-            "id": iid,
-            "type": "mcp",
-            "name": name,
-            "status": mcp_status,
-            "connectedAt": now_str,
-            "config": {"url": url, "transport": "sse" if "sse" in url else "http"},
-            "scopes": ["mcp:tools", "mcp:resources"],
-            "allowedRoles": allowed_roles,
-            "lastError": mcp_error,
-        }
-    elif itype == "github":
-        if not int_token and not repo:
-            raise HTTPException(status_code=400, detail="GitHub access token or repository is required.")
 
-        repo_name = repo or "Prateekiiitg56/SplitterAi"
+@app.post("/integrations/test")
+async def test_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Re-check a connection now; updates its status and last error."""
+    verify_shared_secret(x_api_key, token)
+    integration = _integration(payload.get("id"))
+    secret = await asyncio.to_thread(get_integration_secret, integration["id"])
+    retest = {**integration.get("config", {}), "name": integration["name"]}
+    try:
+        _, config, scopes = await _validate(integration["type"], retest, secret)
+        integration.update(status="connected", lastError=None, config=config, scopes=scopes)
+    except IntegrationError as e:
+        integration.update(status="error", lastError=str(e))
+    await asyncio.to_thread(save_integration, integration)
+    return integration
 
-        # Validate GitHub token by calling the API
-        gh_status = "connected"
-        gh_error = None
-        if int_token:
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    gh_resp = await client.get(
-                        f"https://api.github.com/repos/{repo_name}",
-                        headers={
-                            "Authorization": f"Bearer {int_token}",
-                            "Accept": "application/vnd.github+json",
-                        },
-                    )
-                    if gh_resp.status_code == 401:
-                        raise HTTPException(status_code=400, detail="GitHub token is invalid or expired.")
-                    elif gh_resp.status_code == 404:
-                        raise HTTPException(status_code=400, detail=f"GitHub repo '{repo_name}' not found or token lacks access.")
-                    elif gh_resp.status_code >= 400:
-                        gh_status = "error"
-                        gh_error = f"GitHub API returned HTTP {gh_resp.status_code}"
-            except HTTPException:
-                raise
-            except Exception as e:
-                gh_status = "error"
-                gh_error = f"Cannot reach GitHub API: {str(e)[:200]}"
-
-        integration_obj = {
-            "id": iid,
-            "type": "github",
-            "name": f"GitHub ({repo_name})",
-            "status": gh_status,
-            "connectedAt": now_str,
-            "config": {"repo": repo_name, "org": repo_name.split("/")[0]},
-            "scopes": ["repo", "read:org", "workflow"],
-            "allowedRoles": allowed_roles,
-            "lastError": gh_error,
-        }
-    elif itype == "supabase_storage":
-        # Verify Supabase connection using existing env vars
-        sp_status = "connected" if is_supabase_enabled() else "error"
-        sp_error = None if is_supabase_enabled() else "Supabase credentials not configured or client failed to initialize"
-
-        from agentcli.db_supabase import get_storage_bucket_name
-        bucket = payload.get("bucket") or get_storage_bucket_name()
-        sp_url = os.getenv("SUPABASE_URL", "").strip()
-
-        integration_obj = {
-            "id": iid,
-            "type": "supabase_storage",
-            "name": name or "Supabase Storage",
-            "status": sp_status,
-            "connectedAt": now_str,
-            "config": {"bucket": bucket, "supabase_url": sp_url, "description": "Supabase Storage Bucket"},
-            "scopes": ["storage:upload", "storage:download", "storage:list"],
-            "allowedRoles": allowed_roles,
-            "lastError": sp_error,
-        }
-    else:
-        integration_obj = {
-            "id": iid,
-            "type": itype or "oauth_generic",
-            "name": name,
-            "status": "connected",
-            "connectedAt": now_str,
-            "config": {"description": "Custom Connector"},
-            "scopes": ["read", "write"],
-            "allowedRoles": allowed_roles,
-            "lastError": None,
-        }
-
-    INTEGRATIONS_STORE[iid] = integration_obj
-    save_integration(integration_obj)  # Persist to SQLite
-    return integration_obj
 
 @app.post("/integrations/disconnect")
 async def disconnect_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Revoke and delete stored credentials server-side."""
+    """Forget the integration and delete its stored secret."""
     verify_shared_secret(x_api_key, token)
     iid = payload.get("id")
-    if iid in INTEGRATIONS_STORE:
-        del INTEGRATIONS_STORE[iid]
-        db_delete_integration(iid)  # Remove from SQLite
-        return {"success": True, "message": "Integration disconnected and credentials revoked."}
-    return {"success": True, "message": "Already disconnected."}
+    _integration(iid)
+    del INTEGRATIONS_STORE[iid]
+    await asyncio.to_thread(db_delete_integration, iid)
+    return {"success": True, "message": "Integration disconnected and its stored credentials deleted."}
+
 
 @app.post("/integrations/reconfigure")
 async def reconfigure_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Update scopes or allowed roles for an integration."""
+    """Change which agent roles may use an integration."""
     verify_shared_secret(x_api_key, token)
-    iid = payload.get("id")
-    allowed_roles = payload.get("allowedRoles")
-    if iid in INTEGRATIONS_STORE:
-        if allowed_roles is not None:
-            INTEGRATIONS_STORE[iid]["allowedRoles"] = allowed_roles
-            update_integration_roles(iid, allowed_roles)  # Persist to SQLite
-        return INTEGRATIONS_STORE[iid]
-    raise HTTPException(status_code=404, detail="Integration not found.")
+    integration = _integration(payload.get("id"))
+    roles = payload.get("allowedRoles")
+    if roles is not None:
+        integration["allowedRoles"] = [r for r in roles if r in ALL_ROLES]
+        await asyncio.to_thread(update_integration_roles, integration["id"], integration["allowedRoles"])
+    return integration
+
+
+def _github() -> tuple[dict, str]:
+    github = next((i for i in INTEGRATIONS_STORE.values() if i["type"] == "github"), None)
+    secret = get_integration_secret(github["id"]) if github else None
+    if not github or not secret:
+        raise HTTPException(status_code=400, detail="Connect GitHub on the Integrations page first.")
+    return github, secret
+
+
+@app.get("/integrations/github/repos")
+async def github_repos(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    verify_shared_secret(x_api_key, token)
+    _, secret = await asyncio.to_thread(_github)
+    try:
+        return await agent_integrations.github_repos(secret)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class GithubImportRequest(BaseModel):
+    repo: str
+
+
+@app.post("/integrations/github/import")
+async def github_import(req: GithubImportRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Clone a repository into a new project (next to uploaded projects)."""
+    verify_shared_secret(x_api_key, token)
+    _, secret = await asyncio.to_thread(_github)
+    from agentcli.workspace_import import DEFAULT_WORKSPACES_ROOT
+    import uuid
+    root = DEFAULT_WORKSPACES_ROOT.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    dest = root / f"{req.repo.split('/')[-1][:40]}-{uuid.uuid4().hex[:6]}"
+    try:
+        await asyncio.to_thread(agent_integrations.git_clone, req.repo, dest, secret)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await asyncio.to_thread(save_session, str(dest), f"Imported {req.repo}", RunStatus.idle)
+    await sessions_changed()
+    return {"workspace": str(dest)}
+
+
+class GithubPushRequest(BaseModel):
+    workspace: str
+    branch: str = Field(min_length=1, max_length=200)
+    message: str = Field(default="Update from SplitterAI", min_length=1, max_length=500)
+    repo: str | None = None
+
+
+@app.post("/integrations/github/push")
+async def github_push(req: GithubPushRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Commit the project and push it as a branch of the connected (or given) repository."""
+    verify_shared_secret(x_api_key, token)
+    root = workspace_dir(req.workspace)
+    github, secret = await asyncio.to_thread(_github)
+    repo = req.repo or github["config"].get("repo")
+    if not repo:
+        raise HTTPException(status_code=400, detail="Pick a repository: the GitHub connection has none.")
+    try:
+        message = await asyncio.to_thread(agent_integrations.git_commit_and_push, root, repo, req.branch, req.message, secret)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": message, "url": f"https://github.com/{repo}/tree/{req.branch}"}
+
+
+class GithubDeployRequest(BaseModel):
+    workspace: str
+    repo: str | None = None
+
+
+@app.post("/integrations/github/deploy")
+async def github_deploy(req: GithubDeployRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Publish a web project with GitHub Pages: its site (dist/ when built) replaces the gh-pages branch."""
+    verify_shared_secret(x_api_key, token)
+    root = workspace_dir(req.workspace)
+    github, secret = await asyncio.to_thread(_github)
+    repo = req.repo or github["config"].get("repo")
+    if not repo:
+        raise HTTPException(status_code=400, detail="Pick a repository: the GitHub connection has none.")
+    try:
+        site = agent_integrations.site_dir(root)
+        await asyncio.to_thread(agent_integrations.git_publish_pages, site, repo, secret)
+        url = await agent_integrations.github_enable_pages(secret, repo)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"url": url, "branch": agent_integrations.PAGES_BRANCH,
+            "message": f"Deployed to {url} (GitHub can take a minute to publish the first time)"}
 
 
 # ── Supabase Storage Status Endpoint ──────────────────────────────
