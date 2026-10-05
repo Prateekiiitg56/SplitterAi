@@ -8,7 +8,7 @@
 
 export type AgentRole = 'planner' | 'coder' | 'auditor' | 'tester' | 'designer' | 'unassigned'
 export type SubtaskStatus = 'pending' | 'running' | 'success' | 'error' | 'queued' | 'working' | 'completed' | 'failed' | 'stopped'
-export type RunStatus = 'idle' | 'planning' | 'executing' | 'done' | 'error'
+export type RunStatus = 'idle' | 'planning' | 'executing' | 'done' | 'unverified' | 'error' | 'cancelled'
 export type ConnectionStatus = 'connecting' | 'open' | 'closed'
 export type AgentStatus = 'idle' | 'queued' | 'working' | 'paused' | 'completed' | 'failed' | 'stopped'
 

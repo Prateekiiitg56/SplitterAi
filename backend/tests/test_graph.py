@@ -224,3 +224,24 @@ def test_run_python_runs_multiline_scripts_without_touching_workspace(tmp_path):
     out = execute_tool(Sandbox(tmp_path), "run_python", {"code": code})
     assert out.startswith("Exit code: 0") and "a" in out and "b" in out
     assert sorted(p.name for p in tmp_path.iterdir()) == ["books.json"]
+
+
+async def test_missing_verdict_is_unverified_not_done():
+    result, _ = await execute(["MAYBE"])
+    assert result.verification["verdict"] == "unknown"
+    assert result.status == RunStatus.unverified
+
+
+async def test_failed_last_repair_is_an_error():
+    verdicts, seen = ["FAIL", "PASS"], []
+    base = fake_run(verdicts, seen)
+
+    async def run(self, subtask):
+        subtask = await base(self, subtask)
+        if subtask.id.startswith("repair"):
+            subtask.status = SubtaskStatus.error
+        return subtask
+
+    with tempfile.TemporaryDirectory() as tmp, patch.object(AgentWorker, "run", run):
+        result = await run_graph("make app", plan(), ExecutionConfig(), Sandbox(Path(tmp)))
+    assert result.status == RunStatus.error

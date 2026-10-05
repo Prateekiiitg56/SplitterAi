@@ -14,7 +14,15 @@ import { ExternalLink, Play, Loader2, Download } from 'lucide-react'
 import { API_BASE, DEFAULT_WORKSPACE } from '../config'
 import { workspaceExportUrl } from '../lib/api'
 
-const RUN_LABEL = { idle: 'Ready', planning: 'Planning', executing: 'Running', done: 'Completed', error: 'Failed' } as const
+const RUN_LABEL = {
+  idle: 'Ready',
+  planning: 'Planning',
+  executing: 'Running',
+  done: 'Completed',
+  unverified: 'Finished, not verified',
+  error: 'Failed',
+  cancelled: 'Cancelled',
+} as const
 const DONE = new Set(['completed', 'success', 'done'])
 const FAILED = new Set(['error', 'failed'])
 
@@ -28,7 +36,7 @@ const segState = (st: Subtask) => {
 export default function ProjectOverviewPage() {
   const location = useLocation()
 
-  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, runReport, runOutcome } = useApp()
+  const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, cancelRun, runReport, runOutcome } = useApp()
   const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
 
   const [taskInput, setTaskInput] = useState('')
@@ -128,7 +136,7 @@ export default function ProjectOverviewPage() {
         {errorMessage && (
           <div role="alert" className="mx-6 mt-4 px-4 py-3 rounded-[10px] border border-[var(--bad)] bg-[var(--bad-quiet)] text-[var(--bad)] text-meta flex items-center justify-between gap-4 flex-shrink-0">
             <span>
-              <strong>Run failed.</strong> {errorMessage}
+              <strong>{runStatus === 'cancelled' ? 'Run cancelled.' : 'Run failed.'}</strong> {errorMessage}
             </span>
             <button type="button" onClick={clearError} className="font-semibold hover:underline flex-shrink-0">
               Dismiss
@@ -157,6 +165,11 @@ export default function ProjectOverviewPage() {
                 <span className="hint">
                   <kbd>Enter</kbd> to run, <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line
                 </span>
+                {isBusy && (
+                  <Button variant="ghost" size="sm" onClick={cancelRun}>
+                    Cancel
+                  </Button>
+                )}
                 <Button
                   variant="primary"
                   size="sm"

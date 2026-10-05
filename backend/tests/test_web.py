@@ -135,14 +135,14 @@ def test_run_with_projects_root_creates_new_project_and_preview_serves_it(monkey
         (sandbox.workspace / "app.js").write_text("// built")
         return RunResult(subtasks=[])
 
-    async def fake_plan(**kwargs):
+    async def fake_plan(task, config, **kwargs):
         seen["guidance"] = kwargs.get("guidance", "")
-        return Plan(subtasks=[Subtask(id="d", role=AgentRole.designer, group=1, instruction="design")])
+        return Plan(subtasks=[Subtask(id="d", role=AgentRole.designer, group=1, instruction="design")]), {}
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp).resolve()
         with patch.object(server, "PROJECTS_ROOT", root), patch.object(server, "run_graph", fake_graph), \
-                patch.object(server, "generate_plan", fake_plan), patch.object(server, "save_run_result", lambda *a: None), \
+                patch.object(server, "run_analysis", fake_plan), patch.object(server, "save_run_result", lambda *a: None), \
                 patch.object(server, "resolve_workspace", lambda w: str(root if w == "./workspace_output" else root / Path(w).name)):
             client = TestClient(server.app)
             body = client.post("/run", json={"task": "build a calculator", "workspace": "./workspace_output"}).json()

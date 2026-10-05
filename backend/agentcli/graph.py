@@ -228,11 +228,21 @@ async def run_graph(
         st.instruction = STAGE_LABELS[st.id.split("-")[0]]
     all_subtasks = [*workers_done, *stages]
 
-    failed = any(st.status == SubtaskStatus.error for st in workers_done) or state["verdict"] == "fail"
+    failed = (
+        any(st.status == SubtaskStatus.error for st in workers_done)
+        or state["verdict"] == "fail"
+        or (state["repairs"] and state["repairs"][-1].status == SubtaskStatus.error)
+    )
+    if failed:
+        status = RunStatus.error
+    elif state["verdict"] == "unknown":
+        status = RunStatus.unverified
+    else:
+        status = RunStatus.done
     return RunResult(
         subtasks=all_subtasks,
         results={st.id: st.output or st.error or "" for st in all_subtasks},
-        status=RunStatus.error if failed else RunStatus.done,
+        status=status,
         total_duration_ms=(time.time() - state["started_at"]) * 1000,
         synthesis=state["synthesis"].output,
         verification={"verdict": state["verdict"], "issues": state["issues"], "repair_rounds": len(state["repairs"])},

@@ -33,7 +33,9 @@ class RunStatus(str, Enum):
     planning = "planning"
     executing = "executing"
     done = "done"
+    unverified = "unverified"  # finished, but the verifier gave no verdict
     error = "error"
+    cancelled = "cancelled"
 
 
 class LogType(str, Enum):
@@ -91,6 +93,8 @@ class RunResult(BaseModel):
     synthesis: Optional[str] = None
     verification: Optional[dict] = None  # {"verdict": pass|fail|unknown, "issues": str, "repair_rounds": int}
     workspace: Optional[str] = None  # where the run wrote its files (a new project folder for new projects)
+    run_id: Optional[str] = None
+    error: Optional[str] = None  # why the run stopped before finishing (planning crash, all models failed...)
 
 
 class LogEntry(BaseModel):
@@ -105,6 +109,8 @@ class LogEntry(BaseModel):
     model: Optional[str] = None
     message: str
     detail: Optional[str] = None
+    run_id: Optional[str] = None
+    workspace: Optional[str] = None
 
 
 # ── Session / Persistence ─────────────────────────────────────────

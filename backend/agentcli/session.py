@@ -72,6 +72,17 @@ def _get_connection() -> sqlite3.Connection:
             name TEXT NOT NULL DEFAULT ''
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS runs (
+            run_id TEXT PRIMARY KEY,
+            workspace TEXT NOT NULL,
+            task TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'done',
+            result_json TEXT NOT NULL DEFAULT '{}',
+            logs_json TEXT NOT NULL DEFAULT '[]',
+            created_at REAL NOT NULL DEFAULT 0
+        )
+    """)
     conn.commit()
     _run_migrations(conn)
     return conn
@@ -158,6 +169,7 @@ def reset_session(workspace: str) -> bool:
     conn = _get_connection()
     try:
         cursor = conn.execute("DELETE FROM sessions WHERE workspace = ?", (workspace,))
+        conn.execute("DELETE FROM runs WHERE workspace = ?", (workspace,))
         conn.commit()
         return (cursor.rowcount > 0) or sp_deleted
     finally:
@@ -232,8 +244,8 @@ def list_sessions(limit: int = 20) -> list[SessionEntry]:
         conn.close()
 
 
-def save_run_result(workspace: str, task: str, result: RunResult) -> None:
-    """Save a completed run result as a session."""
+def save_run_result(workspace: str, task: str, result: RunResult, logs: list[dict] | None = None) -> None:
+    """Save a completed run as the workspace's session, and in run history when it has a run id."""
     save_session(
         workspace=workspace,
         task=task,
@@ -241,4 +253,47 @@ def save_run_result(workspace: str, task: str, result: RunResult) -> None:
         messages=[st.model_dump() for st in result.subtasks],
         subtask_count=len(result.subtasks),
     )
+    if not result.run_id:
+        return
+    conn = _get_connection()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO runs (run_id, workspace, task, status, result_json, logs_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (result.run_id, workspace, task, result.status.value, result.model_dump_json(),
+             json.dumps(logs or []), time.time()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
+
+def load_run(run_id: str) -> Optional[dict]:
+    """A finished run in the same shape as the live run snapshot."""
+    conn = _get_connection()
+    try:
+        row = conn.execute(
+            "SELECT run_id, workspace, task, status, result_json, logs_json, created_at FROM runs WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return None
+    result = json.loads(row[4])
+    return {"run_id": row[0], "workspace": row[1], "task": row[2], "status": row[3],
+            "subtasks": result.get("subtasks", []), "logs": json.loads(row[5]), "result": result,
+            "created_at": row[6]}
+
+
+def list_runs(workspace: str, limit: int = 20) -> list[dict]:
+    """Finished runs of one workspace, newest first, without logs."""
+    conn = _get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT run_id, task, status, created_at FROM runs WHERE workspace = ? ORDER BY created_at DESC LIMIT ?",
+            (workspace, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [{"run_id": r[0], "workspace": workspace, "task": r[1], "status": r[2], "created_at": r[3]} for r in rows]

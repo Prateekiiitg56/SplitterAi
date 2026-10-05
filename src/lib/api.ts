@@ -116,6 +116,8 @@ export interface SubtaskResult {
 }
 
 export interface RunResult {
+  run_id?: string
+  error?: string | null
   subtasks: SubtaskResult[]
   results: Record<string, string>
   status: string
@@ -136,6 +138,19 @@ export interface LogEvent {
   model?: string
   message: string
   detail?: string
+  run_id?: string | null
+  workspace?: string | null
+}
+
+/** GET /runs/{id}: live state of an active run, or the stored record of a finished one. */
+export interface RunSnapshot {
+  run_id: string
+  workspace: string
+  task: string
+  status: string
+  subtasks: SubtaskResult[]
+  logs: LogEvent[]
+  result: RunResult | null
 }
 
 export interface SessionInfo {
@@ -197,17 +212,29 @@ export async function planTask(
   return res.json()
 }
 
-export async function runTask(request: RunRequest): Promise<RunResult> {
-  const res = await fetchWithTimeout(`${API_BASE}/run`, {
+/** Starts a run in the background; progress arrives over the WebSocket tagged with run_id. */
+export async function startRun(request: RunRequest): Promise<{ run_id: string; workspace: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...request, stack: request.stack === 'auto' ? undefined : request.stack }),
-  }, 900000) // multi-agent runs routinely exceed a few minutes
+  })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: `Run failed: ${res.status} ${res.statusText}` }))
     throw new Error(err.detail || `Run failed (${res.status})`)
   }
   return res.json()
+}
+
+export async function fetchRun(runId: string): Promise<RunSnapshot> {
+  const res = await fetchWithTimeout(`${API_BASE}/runs/${encodeURIComponent(runId)}`, {}, 10000)
+  if (!res.ok) throw new Error(`Could not load run (HTTP ${res.status})`)
+  return res.json()
+}
+
+export async function cancelRun(runId: string): Promise<void> {
+  const res = await fetchWithTimeout(`${API_BASE}/runs/${encodeURIComponent(runId)}/cancel`, { method: 'POST' }, 10000)
+  if (!res.ok && res.status !== 409) throw await sessionError(res, 'Could not cancel run')
 }
 
 // Throws on failure so callers can tell "no projects" apart from "backend down".
@@ -387,8 +414,8 @@ export async function healthCheck(): Promise<boolean> {
 // ── WebSocket Client ───────────────────────────────────────────
 
 export type EventHandler = (event: LogEvent) => void
-export type PlanHandler = (subtasks: SubtaskResult[], workspace?: string) => void
-export type CompleteHandler = (result: RunResult) => void
+export type PlanHandler = (subtasks: SubtaskResult[], runId?: string) => void
+export type CompleteHandler = (result: RunResult, runId?: string) => void
 
 interface WebSocketHandlers {
   onEvent?: EventHandler
@@ -425,9 +452,9 @@ export class AgentWebSocket {
           const data = JSON.parse(event.data)
 
           if (data.type === 'plan' && data.subtasks) {
-            this.handlers.onPlan?.(data.subtasks, data.workspace)
+            this.handlers.onPlan?.(data.subtasks, data.run_id)
           } else if (data.type === 'complete' && data.result) {
-            this.handlers.onComplete?.(data.result)
+            this.handlers.onComplete?.(data.result, data.run_id)
           } else {
             // It's a LogEntry event
             this.handlers.onEvent?.(data as LogEvent)

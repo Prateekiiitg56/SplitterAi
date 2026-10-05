@@ -19,9 +19,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, H
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 
+from agentcli import runs
 from agentcli.config import ExecutionConfig
 from agentcli.graph import run_graph
-from agentcli.planner import generate_plan, load_manual_plan
+from agentcli.planner import load_manual_plan
 from agentcli.analysis import run_analysis
 from agentcli.allocation import MAX_AGENTS, PRESETS, build_strategy, estimate as estimate_strategy
 from agentcli.telemetry import record_run, record_subtask
@@ -41,7 +42,7 @@ from agentcli.schemas import (
 from pydantic import BaseModel, Field
 
 from agentcli.web import apply_template, design_context, detect_stack, is_web_task, new_project_dir, planning_guidance
-from agentcli.session import list_sessions, rename_session, reset_session, save_run_result
+from agentcli.session import list_runs, list_sessions, load_run, rename_session, reset_session, save_run_result
 from agentcli.integrations_store import (
     load_all_integrations,
     save_integration,
@@ -233,16 +234,40 @@ def verify_shared_secret(x_api_key: str | None = Header(None, alias="X-API-Key")
 
 # ── Event Broadcasting Helper ────────────────────────────────────
 
-def make_event_emitter():
-    """Create an on_event callback that broadcasts to WebSocket clients."""
-    loop = asyncio.get_event_loop()
+def make_event_emitter(run: runs.Run | None = None, workspace: str | None = None):
+    """on_event callback: tags every LogEntry with its run and workspace, keeps it on the run, broadcasts it.
+
+    Safe to call from worker threads as well as the event loop thread.
+    """
+    loop = asyncio.get_running_loop()
+
+    def deliver(data: dict[str, Any]) -> None:
+        if run:
+            run.logs.append(data)
+        _spawn(manager.broadcast(data))
 
     def on_event(entry: LogEntry):
-        data = entry.model_dump()
-        # Fire-and-forget broadcast
-        asyncio.run_coroutine_threadsafe(manager.broadcast(data), loop)
+        data = entry.model_copy(update={
+            "run_id": run.id if run else None,
+            "workspace": run.workspace if run else workspace,
+        }).model_dump()
+        loop.call_soon_threadsafe(deliver, data)
 
     return on_event
+
+
+_background: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> None:
+    """Fire-and-forget task that is not garbage collected before it finishes."""
+    task = asyncio.get_running_loop().create_task(coro)
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+
+
+async def publish(run: runs.Run, data: dict[str, Any]) -> None:
+    await manager.broadcast({**data, "run_id": run.id, "workspace": run.workspace})
 
 
 # ── Routes ────────────────────────────────────────────────────────
@@ -294,6 +319,14 @@ async def preview_workspace(file_name: str = ""):
     return FileResponse(resolved_file)
 
 
+def planner_config(model: str | None) -> ExecutionConfig:
+    """Decomposition quality drives everything downstream: plan with the strongest reliable reasoning
+    models from the registry, the user's selected model first. /plan and /runs share it so plans match."""
+    config = ExecutionConfig()
+    config.set_model_chain(AgentRole.planner, select_chain("reasoning", "quality", pinned=model))
+    return config
+
+
 @app.post("/plan")
 async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Generate an execution plan without executing it — for plan-review-confirm flow."""
@@ -303,15 +336,9 @@ async def plan_task(payload: dict, x_api_key: str | None = Header(None, alias="X
     if not task:
         raise HTTPException(status_code=400, detail="Task is required")
 
-    config = ExecutionConfig()
-    # Decomposition quality drives everything downstream: plan with the strongest reliable reasoning
-    # models from the registry, the user's selected model first.
-    config.set_model_chain(AgentRole.planner, select_chain("reasoning", "quality", pinned=payload.get("model")))
-
-    on_event = make_event_emitter()
-
     stack = detect_stack(task, payload.get("stack"))
-    plan, analysis = await run_analysis(task, config, history=history, on_event=on_event,
+    plan, analysis = await run_analysis(task, planner_config(payload.get("model")), history=history,
+                                        on_event=make_event_emitter(workspace=payload.get("workspace")),
                                         guidance=planning_guidance(stack))
 
     return {
@@ -351,10 +378,33 @@ def execution_report(result: RunResult, strategy: str, agents: int, estimate: di
     }
 
 
-@app.post("/run", response_model=RunResult)
-async def run_task(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Execute a task through the multi-agent pipeline."""
-    verify_shared_secret(x_api_key, token)
+def confirmed_plan(items: list[dict]) -> Plan:
+    """Subtasks the user confirmed in the plan review UI."""
+    subtasks = []
+    for item in items:
+        subtasks.append(Subtask(
+            id=str(item.get("id", f"t{len(subtasks)+1}")),
+            role=AgentRole(item.get("role", "coder")),
+            group=int(item.get("group", 1)),
+            instruction=str(item.get("instruction", "")),
+            depends_on=[str(d) for d in item.get("depends_on") or []],
+            capability=item.get("capability"),
+            size=item.get("size"),
+        ))
+    return Plan(subtasks=subtasks)
+
+
+def start_run(request: RunRequest) -> runs.Run:
+    """Validate the request, pick the workspace and start the job in the background."""
+    if request.strategy and request.strategy not in PRESETS:
+        raise HTTPException(status_code=400, detail=f"Unknown strategy '{request.strategy}'")
+    if not request.task.strip():
+        raise HTTPException(status_code=400, detail="Task is required")
+    try:
+        plan = confirmed_plan(request.subtasks) if request.subtasks else None
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid subtasks: {e}")
+
     workspace = request.workspace
     # The shared projects root means "new project": give it its own folder so projects never mix files.
     if Path(resolve_workspace(workspace)) == PROJECTS_ROOT:
@@ -364,100 +414,129 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
         sandbox = Sandbox(resolve_workspace(workspace))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    stack = detect_stack(request.task, request.stack)
 
-    config = ExecutionConfig()
+    run = runs.create(workspace, request.task)
+    run.job = asyncio.create_task(execute_run(run, request, sandbox, plan))
+    return run
+
+
+async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan: Plan | None) -> RunResult:
+    """The whole job: plan (unless confirmed), run the graph, persist, announce completion."""
+    on_event = make_event_emitter(run)
+    stack = detect_stack(request.task, request.stack)
+    config = planner_config(request.model)
     if request.model:
         for r in AgentRole:
-            config.set_model_chain(r, [request.model] + [m for m in config.get_model_chain(r) if m != request.model])
+            if r != AgentRole.planner:
+                config.set_model_chain(r, [request.model] + [m for m in config.get_model_chain(r) if m != request.model])
 
-    # Build event emitter for real-time WebSocket streaming
-    on_event = make_event_emitter()
+    try:
+        if plan:
+            on_event(LogEntry(type="info", role=AgentRole.planner,
+                              message=f"Using user-confirmed plan: {len(plan.subtasks)} subtasks"))
+        elif request.plan_file:
+            plan = load_manual_plan(request.plan_file)
+            on_event(LogEntry(type="info", role=AgentRole.planner,
+                              message=f"Loaded manual plan: {len(plan.subtasks)} subtasks"))
+        else:
+            plan, _ = await run_analysis(request.task, config, on_event=on_event, guidance=planning_guidance(stack))
 
-    # Step 1: Generate or load plan — user-confirmed subtasks take priority
-    if request.subtasks:
-        # User confirmed these subtasks from the plan review UI — use them directly
-        from agentcli.schemas import Subtask as SubtaskSchema
-        confirmed_subtasks = []
-        for item in request.subtasks:
-            confirmed_subtasks.append(SubtaskSchema(
-                id=str(item.get("id", f"t{len(confirmed_subtasks)+1}")),
-                role=AgentRole(item.get("role", "coder")),
-                group=int(item.get("group", 1)),
-                instruction=str(item.get("instruction", "")),
-                depends_on=[str(d) for d in item.get("depends_on") or []],
-                capability=item.get("capability"),
-                size=item.get("size"),
-            ))
-        plan = Plan(subtasks=confirmed_subtasks)
-        on_event(LogEntry(
-            type="info",
-            role=AgentRole.planner,
-            message=f"Using user-confirmed plan: {len(plan.subtasks)} subtasks",
-        ))
-    elif request.plan_file:
-        plan = load_manual_plan(request.plan_file)
-        on_event(LogEntry(
-            type="info",
-            role=AgentRole.planner,
-            message=f"Loaded manual plan: {len(plan.subtasks)} subtasks",
-        ))
-    else:
-        plan = await generate_plan(
-            task=request.task,
-            config=config,
-            on_event=on_event,
-            guidance=planning_guidance(stack),
-        )
+        estimate = None
+        if request.strategy:
+            agents = max(1, min(request.agent_count or 1, MAX_AGENTS))
+            config.max_concurrent_agents = agents
+            plan = Plan(subtasks=build_strategy(plan.subtasks, request.strategy))
+            estimate = estimate_strategy(plan.subtasks, agents, request.strategy)
+            on_event(LogEntry(type="info", role=AgentRole.planner,
+                              message=f"Strategy {request.strategy}: {agents} concurrent agent(s), {len(plan.subtasks)} subtasks"))
 
-    estimate = None
-    if request.strategy:
-        if request.strategy not in PRESETS:
-            raise HTTPException(status_code=400, detail=f"Unknown strategy '{request.strategy}'")
-        agents = max(1, min(request.agent_count or 1, MAX_AGENTS))
-        config.max_concurrent_agents = agents
-        plan = Plan(subtasks=build_strategy(plan.subtasks, request.strategy))
-        estimate = estimate_strategy(plan.subtasks, agents, request.strategy)
-        on_event(LogEntry(
-            type="info",
-            role=AgentRole.planner,
-            message=f"Strategy {request.strategy}: {agents} concurrent agent(s), {len(plan.subtasks)} subtasks",
-        ))
+        run.status = "executing"
+        run.subtasks = [st.model_dump() for st in plan.subtasks]
+        await publish(run, {"type": "plan", "subtasks": run.subtasks})
 
-    # Broadcast plan to WebSocket clients
-    await manager.broadcast({
-        "type": "plan",
-        "workspace": workspace,
-        "subtasks": [st.model_dump() for st in plan.subtasks],
-    })
+        design = ""
+        if is_web_task(request.task, plan):
+            starter = apply_template(stack, sandbox.workspace)
+            design = design_context(stack, starter)
+            on_event(LogEntry(type="info", role=AgentRole.planner,
+                              message=f"Web project: {stack} stack" + (f", starter files {', '.join(starter)}" if starter else "")))
 
-    design = ""
-    if is_web_task(request.task, plan):
-        starter = apply_template(stack, sandbox.workspace)
-        design = design_context(stack, starter)
-        on_event(LogEntry(
-            type="info",
-            role=AgentRole.planner,
-            message=f"Web project: {stack} stack" + (f", starter files {', '.join(starter)}" if starter else ""),
-        ))
+        # Workers -> synthesis -> verification -> repair
+        result = await run_graph(request.task, plan, config, sandbox, on_event,
+                                 preset=request.strategy or "balanced", design=design)
+        if estimate:
+            result.report = execution_report(result, request.strategy, config.max_concurrent_agents, estimate)
+    except asyncio.CancelledError:
+        on_event(LogEntry(type="error", role=AgentRole.planner, message="Run cancelled"))
+        result = RunResult(subtasks=[Subtask(**st) for st in run.subtasks], status=RunStatus.cancelled,
+                           error="Cancelled by user")
+    except Exception as e:
+        logger.exception("Run %s failed", run.id)
+        on_event(LogEntry(type="error", role=AgentRole.planner, message=f"Run failed: {e}"))
+        result = RunResult(subtasks=[Subtask(**st) for st in run.subtasks], status=RunStatus.error, error=str(e))
 
-    # Step 2: Execute through the LangGraph workflow (workers -> synthesis -> verification -> repair)
-    result = await run_graph(request.task, plan, config, sandbox, on_event,
-                             preset=request.strategy or "balanced", design=design)
-    result.workspace = workspace
-    if estimate:
-        result.report = execution_report(result, request.strategy, config.max_concurrent_agents, estimate)
-
-    # Step 3: Persist session
-    save_run_result(workspace, request.task, result)
-
-    # Broadcast completion
-    await manager.broadcast({
-        "type": "complete",
-        "result": result.model_dump(),
-    })
-
+    result.workspace = run.workspace
+    result.run_id = run.id
+    # Let log events queued from worker threads reach run.logs before they are persisted.
+    await asyncio.sleep(0)
+    await asyncio.to_thread(save_run_result, run.workspace, request.task, result, list(run.logs))
+    run.result = result.model_dump()
+    run.subtasks = run.result["subtasks"]
+    run.status = result.status.value
+    runs.prune()
+    await publish(run, {"type": "complete", "result": run.result})
     return result
+
+
+@app.post("/runs")
+async def create_run(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Start a run in the background. Progress arrives over the WebSocket tagged with run_id."""
+    verify_shared_secret(x_api_key, token)
+    run = start_run(request)
+    return {"run_id": run.id, "workspace": run.workspace}
+
+
+@app.get("/runs")
+async def get_runs(workspace: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Runs of one workspace: active ones first, then finished ones from history."""
+    verify_shared_secret(x_api_key, token)
+    live = [{k: v for k, v in r.snapshot().items() if k not in ("logs", "result", "subtasks")}
+            for r in runs.for_workspace(workspace) if r.active]
+    return live + await asyncio.to_thread(list_runs, workspace)
+
+
+@app.get("/runs/{run_id}")
+async def get_run(run_id: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Status, plan, log and result of one run; used to resync after a refresh or reconnect."""
+    verify_shared_secret(x_api_key, token)
+    run = runs.get(run_id)
+    if run:
+        return run.snapshot()
+    stored = await asyncio.to_thread(load_run, run_id)
+    if not stored:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return stored
+
+
+@app.post("/runs/{run_id}/cancel")
+async def cancel_run(run_id: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    verify_shared_secret(x_api_key, token)
+    run = runs.get(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if not run.active:
+        raise HTTPException(status_code=409, detail=f"Run already {run.status}")
+    run.job.cancel()
+    return {"run_id": run.id, "status": "cancelling"}
+
+
+@app.post("/run", response_model=RunResult)
+async def run_task(request: RunRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Blocking variant for n8n and scripts: starts a run and waits for its result."""
+    verify_shared_secret(x_api_key, token)
+    run = start_run(request)
+    # A dropped HTTP connection must not cancel the run itself.
+    return await asyncio.shield(run.job)
 
 
 @app.post("/chat")
