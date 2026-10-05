@@ -180,19 +180,35 @@ def test_project_info_and_file_content(roots):
     assert client.get("/projects/info", params={"workspace": str(Path(tempfile.gettempdir()))}).status_code == 400
 
 
-def test_run_file_executes_a_script(roots):
+def _events(res):
+    return [json.loads(line[len("data: "):]) for line in res.iter_lines() if line.startswith("data: ")]
+
+
+def test_run_file_streams_a_script(roots):
     generated, _ = roots
     write(generated, "primes-2/primes.py", "print([p for p in range(2, 30) if all(p % d for d in range(2, p))])")
     client = TestClient(server.app)
     seen = []
 
-    def fake_shell(sandbox, command, timeout=30, max_output=10240):
+    def fake_stream(sandbox, command, timeout=60):
         seen.append((sandbox.workspace.name, command))
-        return "Exit code: 0\n[2, 3, 5, 7]"
+        yield "[2, 3, 5, 7]"
+        yield "done"
+        yield "Exit code: 0"
 
-    with patch.object(server, "run_shell", fake_shell):
-        body = client.post("/projects/run-file", json={"workspace": "./workspace_output/primes-2", "path": "primes.py"}).json()
-    assert body["exit_code"] == 0 and body["output"] == "[2, 3, 5, 7]"
+    with patch.object(server, "stream_shell", fake_stream), \
+            client.stream("POST", "/projects/run-file", json={"workspace": "./workspace_output/primes-2", "path": "primes.py"}) as res:
+        events = _events(res)
+    assert events == [{"command": 'python "primes.py"'}, {"line": "[2, 3, 5, 7]"}, {"line": "done"}, {"exit_code": 0}]
     assert seen == [("primes-2", 'python "primes.py"')]
     bad = client.post("/projects/run-file", json={"workspace": "./workspace_output/primes-2", "path": "index.html"})
     assert bad.status_code == 400
+
+
+def test_run_file_really_runs_and_reports_errors(roots):
+    generated, _ = roots
+    write(generated, "count/count.py", "for i in range(3):\n    print(i)\nraise SystemExit(3)")
+    with TestClient(server.app).stream("POST", "/projects/run-file", json={"workspace": "./workspace_output/count", "path": "count.py"}) as res:
+        events = _events(res)
+    assert [e["line"] for e in events if "line" in e] == ["0", "1", "2"]
+    assert events[-1] == {"exit_code": 3}

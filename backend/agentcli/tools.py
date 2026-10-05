@@ -21,7 +21,7 @@ import tempfile
 import threading
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .browser import TOOL_DEFINITION as BROWSER_CHECK_TOOL, browser_check
 from .sandbox import Sandbox, SandboxEscapeError
@@ -120,6 +120,7 @@ _BWRAP_BASE = [
     "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
     "--clearenv", "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin", "--setenv", "HOME", "/tmp",
     "--setenv", "LANG", "C.UTF-8", "--setenv", "npm_config_cache", "/npm-cache", "--setenv", "CI", "1",
+    "--setenv", "PYTHONUNBUFFERED", "1",
     "--unshare-all", "--share-net", "--die-with-parent", "--new-session",
 ]
 
@@ -202,11 +203,8 @@ def kill_processes(workspace: Path) -> int:
     return len(procs)
 
 
-def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int = 10240) -> str:
-    """Execute a shell command strictly within the sandbox workspace.
-
-    FR-18: timeout + output truncation + environment isolation.
-    """
+def _prepare(sandbox: Sandbox, command: str) -> tuple[str | list[str], dict[str, str], str | None] | str:
+    """Checks plus how to launch the command: (args, env, cwd), or the refusal message to return instead."""
     # 1. Check for suspicious SSRF / cloud metadata endpoint probes and paths outside the workspace
     for pattern in BLOCKED_PROBE_PATTERNS:
         if pattern in command:
@@ -221,8 +219,7 @@ def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int
             "the workspace. Run `npm init -y` first if the task really needs packages."
         )
 
-    mode = _sandbox_mode()
-    if mode == "none":
+    if _sandbox_mode() == "none":
         # 2. Unsandboxed: sanitized environment (strip host secrets & keys).
         # Home/temp/app-data point at a per-workspace scratch dir outside the workspace, so tool
         # caches (npm, jest, pip) neither pollute the deliverable nor touch the host profile.
@@ -241,40 +238,60 @@ def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int
             "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
             "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
             "PATHEXT": os.environ.get("PATHEXT", ""),
+            "PYTHONUNBUFFERED": "1",
         }
-        args: str | list[str] = command
-        cwd = str(sandbox.workspace)
-    else:
-        prefix = _bwrap_prefix()
-        if not _bwrap_works(tuple(prefix)):
-            return (
-                "Error: the shell sandbox (bubblewrap" + (" in WSL" if os.name == "nt" else "") + ") is not "
-                "available, so shell commands are disabled. Set SPLITTER_SANDBOX=none to run them unsandboxed."
-            )
-        args = [*prefix, *_BWRAP_BASE, "--bind", _linux_path(sandbox.workspace), "/workspace",
-                "--bind-try", NPM_CACHE_DIR, "/npm-cache", "--chdir", "/workspace", "--", "/bin/bash", "-c", command]
-        # wsl.exe and bwrap need only the basics; nothing from the server's environment reaches the command.
-        env = {k: os.environ[k] for k in ("PATH", "SYSTEMROOT", "WINDIR", "PATHEXT", "COMSPEC") if k in os.environ}
-        cwd = None
-    env = {k: v for k, v in env.items() if v}
+        return command, {k: v for k, v in env.items() if v}, str(sandbox.workspace)
 
-    # 3. Execute in its own process group so a timeout or cancel kills the whole tree (npm -> node -> vite)
-    try:
-        proc = subprocess.Popen(
-            args,
-            shell=isinstance(args, str),
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            start_new_session=os.name != "nt",
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+    prefix = _bwrap_prefix()
+    if not _bwrap_works(tuple(prefix)):
+        return (
+            "Error: the shell sandbox (bubblewrap" + (" in WSL" if os.name == "nt" else "") + ") is not "
+            "available, so shell commands are disabled. Set SPLITTER_SANDBOX=none to run them unsandboxed."
         )
-        with _PROCESSES_LOCK:
-            _PROCESSES.setdefault(sandbox.workspace, set()).add(proc)
+    args = [*prefix, *_BWRAP_BASE, "--bind", _linux_path(sandbox.workspace), "/workspace",
+            "--bind-try", NPM_CACHE_DIR, "/npm-cache", "--chdir", "/workspace", "--", "/bin/bash", "-c", command]
+    # wsl.exe and bwrap need only the basics; nothing from the server's environment reaches the command.
+    env = {k: os.environ[k] for k in ("PATH", "SYSTEMROOT", "WINDIR", "PATHEXT", "COMSPEC") if os.environ.get(k)}
+    return args, env, None
+
+
+def _start(sandbox: Sandbox, args: str | list[str], env: dict[str, str], cwd: str | None,
+           merge_stderr: bool = False) -> subprocess.Popen:
+    """Launch in its own process group (a timeout or cancel kills the whole tree: npm -> node -> vite)
+    and register it so kill_processes() can stop it."""
+    proc = subprocess.Popen(
+        args,
+        shell=isinstance(args, str),
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        start_new_session=os.name != "nt",
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+    )
+    with _PROCESSES_LOCK:
+        _PROCESSES.setdefault(sandbox.workspace, set()).add(proc)
+    return proc
+
+
+def _finish(sandbox: Sandbox, proc: subprocess.Popen) -> None:
+    with _PROCESSES_LOCK:
+        _PROCESSES.get(sandbox.workspace, set()).discard(proc)
+
+
+def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int = 10240) -> str:
+    """Execute a shell command strictly within the sandbox workspace.
+
+    FR-18: timeout + output truncation + environment isolation.
+    """
+    prepared = _prepare(sandbox, command)
+    if isinstance(prepared, str):
+        return prepared
+    try:
+        proc = _start(sandbox, *prepared)
         try:
             stdout_data, stderr_data = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -282,8 +299,7 @@ def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int
             proc.communicate()
             return f"Error: Command timed out after {timeout}s: {command}"
         finally:
-            with _PROCESSES_LOCK:
-                _PROCESSES.get(sandbox.workspace, set()).discard(proc)
+            _finish(sandbox, proc)
 
         output_parts = []
         if stdout_data:
@@ -304,6 +320,35 @@ def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int
         raise
     except Exception as e:
         return f"Error executing command: {e}"
+
+
+def stream_shell(sandbox: Sandbox, command: str, timeout: int = 60, max_lines: int = 5000) -> Iterator[str]:
+    """Like run_shell, but yields output lines (stdout and stderr merged) as they are printed, then a
+    final "Exit code: N" (or the timeout / refusal message)."""
+    prepared = _prepare(sandbox, command)
+    if isinstance(prepared, str):
+        yield prepared
+        return
+    proc = _start(sandbox, *prepared, merge_stderr=True)
+    fired = threading.Event()
+
+    def on_timeout() -> None:
+        fired.set()
+        _kill_tree(proc)
+
+    timer = threading.Timer(timeout, on_timeout)
+    timer.start()
+    try:
+        for count, line in enumerate(proc.stdout, 1):
+            if count <= max_lines:
+                yield line.rstrip("\n")
+            elif count == max_lines + 1:
+                yield f"... [output truncated after {max_lines} lines]"
+        proc.wait()
+    finally:
+        timer.cancel()
+        _finish(sandbox, proc)
+    yield f"Error: Command timed out after {timeout}s" if fired.is_set() else f"Exit code: {proc.returncode}"
 
 
 def run_python(sandbox: Sandbox, code: str, timeout: int = 30, max_output: int = 10240) -> str:

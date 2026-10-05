@@ -18,7 +18,7 @@ export function FileViewer({ workspace, path, version }: FileViewerProps) {
   const [html, setHtml] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
-  const [runResult, setRunResult] = useState<{ command: string; exit_code: number | null; output: string } | null>(null)
+  const [runResult, setRunResult] = useState<{ command: string; exit_code: number | null; output: string; error?: string } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -47,10 +47,20 @@ export function FileViewer({ workspace, path, version }: FileViewerProps) {
 
   const run = async () => {
     setRunning(true)
+    setRunResult({ command: path, exit_code: null, output: '' })
     try {
-      setRunResult(await runProjectFile(workspace, path))
+      // Lines are shown as the program prints them.
+      await runProjectFile(workspace, path, (event) => {
+        setRunResult((prev) => {
+          const current = prev ?? { command: path, exit_code: null, output: '' }
+          if ('command' in event) return { ...current, command: event.command }
+          if ('line' in event) return { ...current, output: current.output + event.line + '\n' }
+          if ('exit_code' in event) return { ...current, exit_code: event.exit_code }
+          return { ...current, error: event.error }
+        })
+      })
     } catch (err: any) {
-      setRunResult({ command: path, exit_code: null, output: err?.message || 'Run failed' })
+      setRunResult((prev) => ({ command: prev?.command ?? path, exit_code: null, output: prev?.output ?? '', error: err?.message || 'Run failed' }))
     } finally {
       setRunning(false)
     }
@@ -95,6 +105,8 @@ export function FileViewer({ workspace, path, version }: FileViewerProps) {
             {runResult.exit_code !== null && <span className={runResult.exit_code === 0 ? ' text-[var(--good)]' : ' text-[var(--bad)]'}> (exit {runResult.exit_code})</span>}
           </div>
           <pre className="m-0 whitespace-pre-wrap text-[var(--text-2)]">{runResult.output}</pre>
+          {running && <div className="text-[var(--faint)]">running…</div>}
+          {runResult.error && <div className="text-[var(--bad)]">{runResult.error}</div>}
         </div>
       )}
     </div>

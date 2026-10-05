@@ -137,3 +137,14 @@ def test_bwrap_sandbox_resolves_dns(tmp_path, monkeypatch):
     assert "registry.npmjs.org" in out
     assert "wsl" in out or "No such file" in out  # at most the resolver file, never host drives
     assert "/mnt/c" not in out and "\nc\n" not in out
+
+
+def test_stream_shell_yields_lines_as_printed_and_stops_at_the_timeout(tmp_path):
+    sandbox = Sandbox(tmp_path)
+    started = time.time()
+    seen = []
+    for line in tools.stream_shell(sandbox, f'"{sys.executable}" -c "import time; print(1); time.sleep(30)"', timeout=3):
+        seen.append((line, time.time() - started))
+    assert seen[0][0] == "1" and seen[0][1] < 3  # arrived before the process ended
+    assert seen[-1][0] == "Error: Command timed out after 3s" and time.time() - started < 20
+    assert not tools._PROCESSES.get(sandbox.workspace)

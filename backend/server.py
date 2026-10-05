@@ -48,7 +48,7 @@ from agentcli.web import (
     RUNNABLE_SUFFIXES, apply_template, design_context, detect_stack, is_web_task, needs_build, new_project_dir,
     planning_guidance, project_entry,
 )
-from agentcli.tools import kill_processes, run_shell, sandbox_status
+from agentcli.tools import kill_processes, run_shell, sandbox_status, stream_shell
 from agentcli.session import list_runs, list_sessions, load_run, rename_session, reset_session, save_run_result, save_session
 from agentcli import integrations as agent_integrations
 from agentcli.integrations import IntegrationError
@@ -456,8 +456,10 @@ class RunFileRequest(BaseModel):
 
 @app.post("/projects/run-file")
 async def run_file(req: RunFileRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Run a project's Python or Node script in the sandbox and return its output."""
+    """Run a project's Python or Node script in the sandbox, streaming its output as server-sent events:
+    {"command"}, then one {"line"} per printed line, then {"exit_code"} (or {"error"})."""
     verify_shared_secret(x_api_key, token)
+    from fastapi.responses import StreamingResponse
     sandbox = Sandbox(workspace_dir(req.workspace))
     try:
         target = sandbox.resolve_path(req.path)
@@ -467,10 +469,36 @@ async def run_file(req: RunFileRequest, x_api_key: str | None = Header(None, ali
         raise HTTPException(status_code=400, detail="Only .py, .js, .mjs and .cjs files can be run.")
     rel = target.relative_to(sandbox.workspace).as_posix()
     command = f'python "{rel}"' if target.suffix == ".py" else f'node "{rel}"'
-    output = await asyncio.to_thread(run_shell, sandbox, command, 60)
-    exit_line, _, rest = output.partition("\n")
-    exit_code = int(exit_line.split(":")[1]) if exit_line.startswith("Exit code:") else None
-    return {"command": command, "exit_code": exit_code, "output": rest if exit_code is not None else output}
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    def pump() -> None:
+        try:
+            for line in stream_shell(sandbox, command, 60):
+                loop.call_soon_threadsafe(queue.put_nowait, line)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    loop.run_in_executor(None, pump)
+
+    async def events():
+        yield f"data: {json.dumps({'command': command})}\n\n"
+        # stream_shell's last item is the status line; everything before it is program output.
+        previous = await queue.get()
+        while previous is not None:
+            current = await queue.get()
+            if current is None:
+                status = previous
+                if status.startswith("Exit code: "):
+                    yield f"data: {json.dumps({'exit_code': int(status.split(': ', 1)[1])})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'error': status})}\n\n"
+            else:
+                yield f"data: {json.dumps({'line': previous})}\n\n"
+            previous = current
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 SHORT_TASK_CHARS = 200

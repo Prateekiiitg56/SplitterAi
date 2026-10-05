@@ -372,14 +372,33 @@ export async function fetchFileContent(workspace: string, path: string): Promise
   return res.json()
 }
 
-export async function runProjectFile(workspace: string, path: string): Promise<{ command: string; exit_code: number | null; output: string }> {
+export type RunFileEvent = { command: string } | { line: string } | { exit_code: number } | { error: string }
+
+/** Read a server-sent event stream, calling onEvent for each JSON payload. */
+async function readEvents(res: Response, onEvent: (event: any) => void): Promise<void> {
+  if (!res.body) return
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const events = buffer.split('\n\n')
+    buffer = events.pop() || ''
+    for (const raw of events) if (raw.startsWith('data: ')) onEvent(JSON.parse(raw.slice(6)))
+  }
+}
+
+/** Runs a project's .py/.js file in the sandbox; output arrives line by line while it runs. */
+export async function runProjectFile(workspace: string, path: string, onEvent: (event: RunFileEvent) => void): Promise<void> {
   const res = await fetchWithTimeout(`${API_BASE}/projects/run-file`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workspace, path }),
   }, 90000)
   if (!res.ok) throw await sessionError(res, 'Could not run file')
-  return res.json()
+  await readEvents(res, onEvent)
 }
 
 export async function fetchFiles(workspace: string): Promise<any[]> {
@@ -433,31 +452,20 @@ export async function streamChatMessage(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ role, message, model: model || undefined, history }),
   }, 180000)
-  if (!res.ok || !res.body) {
+  if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to send chat message' }))
     throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to send chat message')
   }
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const events = buffer.split('\n\n')
-    buffer = events.pop() || ''
-    for (const raw of events) {
-      if (!raw.startsWith('data: ')) continue
-      const event = JSON.parse(raw.slice(6))
-      if (event.delta) onDelta(event.delta)
-      if (event.error) {
-        const tried = (event.attempts || []).map((a: any) => `${a.model}: ${a.error}`).join('; ')
-        throw new Error(tried ? `${event.error} ${tried}` : event.error)
-      }
-      if (event.done) return { model: event.model }
+  let answeredBy: string | undefined
+  await readEvents(res, (event) => {
+    if (event.delta) onDelta(event.delta)
+    if (event.error) {
+      const tried = (event.attempts || []).map((a: any) => `${a.model}: ${a.error}`).join('; ')
+      throw new Error(tried ? `${event.error} ${tried}` : event.error)
     }
-  }
-  return {}
+    if (event.done) answeredBy = event.model
+  })
+  return { model: answeredBy }
 }
 
 // Throws on failure so the UI can show "backend unreachable" instead of "nothing connected".
