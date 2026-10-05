@@ -25,6 +25,12 @@ export function ResultPane({ workspace, runStatus, changedFiles }: ResultPanePro
   const [reload, setReload] = useState(0)
   const busy = BUSY.has(runStatus)
   const wasBusy = useRef(busy)
+  // A tab the user picked is kept; only a finished run switches it automatically.
+  const userPicked = useRef(false)
+  const pick = (next: 'preview' | 'files') => {
+    userPicked.current = true
+    setTab(next)
+  }
 
   // Re-read what to open on project switch and whenever a run settles.
   useEffect(() => {
@@ -40,6 +46,8 @@ export function ResultPane({ workspace, runStatus, changedFiles }: ResultPanePro
         if (cancelled) return
         setInfo(next)
         setReload((n) => n + 1)
+        if (userPicked.current && !finished) return
+        userPicked.current = false
         if (next.entry.kind === 'web') setTab('preview')
         else {
           setTab('files')
@@ -52,7 +60,10 @@ export function ResultPane({ workspace, runStatus, changedFiles }: ResultPanePro
     }
   }, [workspace, busy]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => setOpenFile(null), [workspace])
+  useEffect(() => {
+    setOpenFile(null)
+    userPicked.current = false
+  }, [workspace])
 
   const isWeb = info?.entry.kind === 'web'
   const url = info ? previewUrl(info.project_id) : null
@@ -65,7 +76,7 @@ export function ResultPane({ workspace, runStatus, changedFiles }: ResultPanePro
           role="tab"
           aria-selected={tab === 'preview'}
           disabled={!isWeb}
-          onClick={() => setTab('preview')}
+          onClick={() => pick('preview')}
           className={cx('inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-micro', tab === 'preview' ? 'bg-[var(--panel-3)] text-[var(--text)]' : 'text-[var(--dim)] disabled:opacity-40')}
         >
           <Globe size={12} /> Preview
@@ -74,7 +85,7 @@ export function ResultPane({ workspace, runStatus, changedFiles }: ResultPanePro
           type="button"
           role="tab"
           aria-selected={tab === 'files'}
-          onClick={() => setTab('files')}
+          onClick={() => pick('files')}
           className={cx('inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-micro', tab === 'files' ? 'bg-[var(--panel-3)] text-[var(--text)]' : 'text-[var(--dim)]')}
         >
           <FolderTree size={12} /> Files

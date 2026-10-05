@@ -37,3 +37,17 @@ describe('ResultPane', () => {
     expect(screen.queryByTitle('Project preview')).toBeNull()
   })
 })
+
+describe('ResultPane tab choice', () => {
+  it('keeps the tab the user picked when the project info arrives', async () => {
+    let resolve: (v: any) => void = () => {}
+    api.fetchProjectInfo.mockReturnValue(new Promise((r) => { resolve = r }))
+    render(<ResultPane workspace="/imports/repo-1" runStatus="idle" changedFiles={[]} />)
+    screen.getByRole('tab', { name: /Files/ }).click()
+    resolve({ project_id: 'repo-1', workspace: '/imports/repo-1', entry: { kind: 'web', path: 'index.html' } })
+    await waitFor(() => expect(api.fetchProjectInfo).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByTitle('Project preview')).toBeNull()
+    expect(screen.getByText(/explorer open=/)).toBeTruthy()
+  })
+})

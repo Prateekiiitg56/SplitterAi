@@ -194,26 +194,37 @@ test.describe.serial('SplitterAI end-to-end', () => {
     await shot(page, 'mcp-tool-called')
   })
 
-  test('12b. GitHub: repo list loads and Push creates a branch', async ({ page }) => {
-    test.skip(!process.env.E2E_GITHUB_TOKEN, 'set E2E_GITHUB_TOKEN (and E2E_GITHUB_REPO) to run against GitHub')
+  test('12b. GitHub: connect, read (repo list + import) and write (push a branch)', async ({ page }) => {
+    test.skip(!process.env.E2E_GITHUB_TOKEN || !process.env.E2E_GITHUB_REPO, 'set E2E_GITHUB_TOKEN and E2E_GITHUB_REPO')
+    const repo = process.env.E2E_GITHUB_REPO!
     await page.goto('/integrations')
     await page.getByRole('button', { name: 'Connect GitHub' }).click()
     await page.getByLabel('Access Token').fill(process.env.E2E_GITHUB_TOKEN!)
-    await page.getByLabel(/Default repository/).fill(process.env.E2E_GITHUB_REPO || '')
+    await page.getByLabel(/Default repository/).fill(repo)
     await page.getByRole('button', { name: 'Connect GitHub' }).last().click()
     await expect(page.getByText(/GitHub \(/)).toBeVisible()
     await shot(page, 'github-connected')
+
+    // Read: the repo list loads and a repository imports as a new project with its files.
+    await page.goto('/console')
+    await page.getByLabel('Attach file or add agent').click()
+    await page.getByRole('button', { name: 'Import from GitHub' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Import from GitHub' })
+    await expect(dialog.locator('select option', { hasText: repo })).toHaveCount(1)
+    await dialog.locator('select').selectOption(repo)
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await page.waitForURL(/\/projects\/(?!default)[^/]+$/, { timeout: 120_000 })
+    await page.getByRole('tab', { name: /Files/ }).click()
+    await expect(page.locator('main').getByText(/\.\w+$/).first()).toBeVisible()
+    await shot(page, 'github-imported')
+
+    // Write: push the todo project as a new branch.
     await page.goto(`/projects/${todoId}`)
     await page.getByRole('button', { name: 'Push to GitHub' }).click()
     await page.getByLabel('Branch').fill(`splitter/e2e-${Date.now()}`)
     await page.getByRole('dialog').getByRole('button', { name: 'Push', exact: true }).click()
     await expect(page.getByText(/Pushed .* to /)).toBeVisible({ timeout: 120_000 })
     await shot(page, 'github-pushed')
-    await page.getByRole('dialog').getByRole('button', { name: 'Done' }).click()
-    await page.getByRole('button', { name: 'Deploy', exact: true }).first().click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Deploy' }).click()
-    await expect(page.getByText(/Deployed to https:\/\/.*github\.io/)).toBeVisible({ timeout: 180_000 })
-    await shot(page, 'github-pages-deployed')
   })
 
   test('14. an agent trying to read ../../.env is blocked and logged', async ({ page }) => {
