@@ -28,7 +28,7 @@ from agentcli.intent import classify_intent
 from agentcli.allocation import MAX_AGENTS, PRESETS, build_strategy, estimate as estimate_strategy
 from agentcli.telemetry import record_run, record_subtask
 from agentcli.models import select_chain
-from agentcli.sandbox import Sandbox
+from agentcli.sandbox import Sandbox, SandboxEscapeError
 from agentcli.schemas import (
     AgentRole,
     HealthResponse,
@@ -42,7 +42,11 @@ from agentcli.schemas import (
 )
 from pydantic import BaseModel, Field
 
-from agentcli.web import apply_template, design_context, detect_stack, is_web_task, new_project_dir, planning_guidance
+from agentcli.web import (
+    RUNNABLE_SUFFIXES, apply_template, design_context, detect_stack, is_web_task, needs_build, new_project_dir,
+    planning_guidance, project_entry,
+)
+from agentcli.tools import run_shell
 from agentcli.session import list_runs, list_sessions, load_run, rename_session, reset_session, save_run_result, save_session
 from agentcli.integrations_store import (
     load_all_integrations,
@@ -286,38 +290,143 @@ async def health():
 
 
 
-@app.get("/preview")
-@app.get("/preview/{file_name:path}")
-async def preview_workspace(file_name: str = ""):
-    """Serve generated website files from workspace_output; /preview/<project>/ serves one project."""
-    resolved_ws = PROJECTS_ROOT
-    resolved_file = (resolved_ws / file_name).resolve()
-    try:
-        resolved_file.relative_to(resolved_ws)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Forbidden: path escapes workspace")
-    if resolved_file == resolved_ws or (resolved_file.parent == resolved_ws and resolved_file.is_file()):
-        # The root is not a project; loose files there are leftovers from old runs.
-        resolved_file = resolved_ws / "__no_project__" / "index.html"
-    elif resolved_file.is_dir():
-        if file_name and not file_name.endswith("/"):
-            # Relative links (styles.css, app.js) only resolve inside the project with a trailing slash.
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url=f"/preview/{file_name}/")
-        # A Vite project previews its build output.
-        built = resolved_file / "dist" / "index.html"
-        resolved_file = built if built.exists() else resolved_file / "index.html"
+def project_roots() -> tuple[Path, Path]:
+    """Every project lives directly under one of these: generated ones and imported/uploaded ones."""
+    from agentcli.workspace_import import DEFAULT_WORKSPACES_ROOT
+    return PROJECTS_ROOT, DEFAULT_WORKSPACES_ROOT.resolve()
 
-    if not resolved_file.exists():
-        if resolved_file.name == "index.html":
-            return HTMLResponse("""<!DOCTYPE html>
+
+def project_dir(project_id: str) -> Path | None:
+    """The folder of a project id (its folder name), or None when no such project exists."""
+    if not project_id or project_id in (".", "..") or "/" in project_id or "\\" in project_id:
+        return None
+    for base in project_roots():
+        folder = base / project_id
+        if folder.is_dir():
+            return folder
+    return None
+
+
+def _placeholder(title: str, body: str, status_code: int = 200) -> HTMLResponse:
+    return HTMLResponse(f"""<!DOCTYPE html>
 <html>
-<head><title>Workspace Preview</title><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0b0f19;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;} .box{background:#1e293b;padding:30px;border-radius:12px;text-align:center;max-width:500px;} h2{color:#60a5fa;}</style></head>
-<body><div class="box"><h2>Nothing to preview yet</h2><p>This project has no <code>index.html</code> yet. If a run is in progress, refresh once the agents finish writing files.</p></div></body>
-</html>""")
-        raise HTTPException(status_code=404, detail="File not found")
+<head><title>{title}</title><style>body{{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0b0f19;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}} .box{{background:#1e293b;padding:30px;border-radius:12px;text-align:center;max-width:500px;}} h2{{color:#60a5fa;}}</style></head>
+<body><div class="box"><h2>{title}</h2><p>{body}</p></div></body>
+</html>""", status_code=status_code)
 
-    return FileResponse(resolved_file)
+
+PREVIEW_COOKIE = "splitter_preview_token"
+
+
+@app.get("/preview")
+@app.get("/preview/{project_id}")
+@app.get("/preview/{project_id}/{file_name:path}")
+async def preview_project(request: Request, project_id: str = "", file_name: str = "", token: str | None = Query(None)):
+    """Serve one project's site: /preview/<project id>/ (dist/ when the project has a build).
+
+    With SHARED_SECRET set, the first request needs ?token=; it sets a cookie so the page's own
+    scripts, styles and images load without it.
+    """
+    secret = os.getenv("SHARED_SECRET")
+    provided = token or request.cookies.get(PREVIEW_COOKIE)
+    if secret and provided != secret:
+        raise HTTPException(status_code=401, detail="Invalid or missing shared secret token.")
+
+    def respond(response):
+        if secret and token == secret:
+            response.set_cookie(PREVIEW_COOKIE, secret, httponly=True, samesite="lax", path="/preview")
+        return response
+
+    if not project_id:
+        return respond(_placeholder("No project selected", "Open a project to preview it."))
+    root = project_dir(project_id)
+    if not root:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if request.url.path.rstrip("/") == f"/preview/{project_id}" and not request.url.path.endswith("/"):
+        # Relative links (styles.css, app.js) only resolve inside the project with a trailing slash.
+        from fastapi.responses import RedirectResponse
+        return respond(RedirectResponse(url=f"/preview/{project_id}/" + (f"?token={token}" if token else "")))
+
+    base = root / "dist" if (root / "dist" / "index.html").is_file() else root
+    target = (base / file_name).resolve()
+    if not target.is_relative_to(root.resolve()):
+        raise HTTPException(status_code=403, detail="Forbidden: path escapes the project")
+    if target.is_dir():
+        target = target / "index.html"
+    unbuilt = base == root and needs_build(root)
+    if target.is_file() and not (unbuilt and target == root.resolve() / "index.html"):
+        return respond(FileResponse(target))
+    if target.name != "index.html":
+        raise HTTPException(status_code=404, detail="File not found")
+    if unbuilt:
+        # The raw Vite index.html points at /src/main.jsx and renders blank outside the dev server.
+        return respond(_placeholder("Not built yet", "This project has a build step and no up-to-date <code>dist/</code>. "
+                                    "It is built when a run finishes; ask for a follow-up run to build it."))
+    return respond(_placeholder("Nothing to preview yet", "This project has no <code>index.html</code>. "
+                                "If a run is in progress, refresh once the agents finish writing files."))
+
+
+def workspace_dir(workspace: str) -> Path:
+    """A project folder under one of the project roots; anything else is a 400."""
+    root = Path(resolve_workspace(workspace)).resolve()
+    if root.is_dir() and any(root != base and root.parent == base for base in project_roots()):
+        return root
+    raise HTTPException(status_code=400, detail="Not a project folder.")
+
+
+@app.get("/projects/info")
+async def project_info(workspace: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Project id (for preview URLs) and what to open: the preview for web projects, else the main file."""
+    verify_shared_secret(x_api_key, token)
+    root = workspace_dir(workspace)
+    return {"project_id": root.name, "workspace": workspace, "entry": await asyncio.to_thread(project_entry, root)}
+
+
+MAX_VIEW_BYTES = 512 * 1024
+
+
+@app.get("/files/content")
+async def file_content(workspace: str, path: str, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """One file's text for the viewer: sandboxed, size-capped, binary files reported but not sent."""
+    verify_shared_secret(x_api_key, token)
+    sandbox = Sandbox(workspace_dir(workspace))
+    try:
+        target = sandbox.resolve_path(path)
+    except SandboxEscapeError:
+        raise HTTPException(status_code=403, detail="Path escapes the project")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    size = target.stat().st_size
+    with target.open("rb") as f:
+        data = f.read(MAX_VIEW_BYTES)
+    if b"\0" in data[:8192]:
+        return {"path": path, "size": size, "binary": True, "truncated": False, "content": ""}
+    return {"path": path, "size": size, "binary": False, "truncated": size > MAX_VIEW_BYTES,
+            "content": data.decode("utf-8", errors="replace")}
+
+
+class RunFileRequest(BaseModel):
+    workspace: str
+    path: str
+
+
+@app.post("/projects/run-file")
+async def run_file(req: RunFileRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Run a project's Python or Node script in the sandbox and return its output."""
+    verify_shared_secret(x_api_key, token)
+    sandbox = Sandbox(workspace_dir(req.workspace))
+    try:
+        target = sandbox.resolve_path(req.path)
+    except SandboxEscapeError:
+        raise HTTPException(status_code=403, detail="Path escapes the project")
+    if not target.is_file() or target.suffix not in RUNNABLE_SUFFIXES:
+        raise HTTPException(status_code=400, detail="Only .py, .js, .mjs and .cjs files can be run.")
+    rel = target.relative_to(sandbox.workspace).as_posix()
+    command = f'python "{rel}"' if target.suffix == ".py" else f'node "{rel}"'
+    output = await asyncio.to_thread(run_shell, sandbox, command, 60)
+    exit_line, _, rest = output.partition("\n")
+    exit_code = int(exit_line.split(":")[1]) if exit_line.startswith("Exit code:") else None
+    return {"command": command, "exit_code": exit_code, "output": rest if exit_code is not None else output}
 
 
 def planner_config(model: str | None) -> ExecutionConfig:

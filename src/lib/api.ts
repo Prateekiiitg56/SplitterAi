@@ -328,6 +328,53 @@ export function workspaceExportUrl(workspace: string): string {
   return withToken(`${API_BASE}/workspaces/export?workspace=${encodeURIComponent(workspace)}`)
 }
 
+export interface ProjectEntry {
+  kind: 'web' | 'file' | 'none'
+  path: string | null
+}
+
+export interface ProjectInfo {
+  project_id: string
+  workspace: string
+  entry: ProjectEntry
+}
+
+export async function fetchProjectInfo(workspace: string): Promise<ProjectInfo> {
+  const res = await fetchWithTimeout(`${API_BASE}/projects/info?workspace=${encodeURIComponent(workspace)}`, {}, 10000)
+  if (!res.ok) throw await sessionError(res, 'Could not load project')
+  return res.json()
+}
+
+/** Preview of a project, by the project id the backend returned (works for generated and imported projects). */
+export function previewUrl(projectId: string): string {
+  return withToken(`${API_BASE}/preview/${encodeURIComponent(projectId)}/`)
+}
+
+export interface FileContent {
+  path: string
+  size: number
+  binary: boolean
+  truncated: boolean
+  content: string
+}
+
+export async function fetchFileContent(workspace: string, path: string): Promise<FileContent> {
+  const q = `workspace=${encodeURIComponent(workspace)}&path=${encodeURIComponent(path)}`
+  const res = await fetchWithTimeout(`${API_BASE}/files/content?${q}`, {}, 10000)
+  if (!res.ok) throw await sessionError(res, 'Could not read file')
+  return res.json()
+}
+
+export async function runProjectFile(workspace: string, path: string): Promise<{ command: string; exit_code: number | null; output: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/projects/run-file`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace, path }),
+  }, 90000)
+  if (!res.ok) throw await sessionError(res, 'Could not run file')
+  return res.json()
+}
+
 export async function fetchFiles(workspace: string): Promise<any[]> {
   const res = await fetchWithTimeout(`${API_BASE}/files?workspace=${encodeURIComponent(workspace)}`, {}, 10000)
   if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch file tree`)

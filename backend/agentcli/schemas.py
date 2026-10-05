@@ -50,6 +50,7 @@ class LogType(str, Enum):
     subtask_start = "subtask_start"
     subtask_end = "subtask_end"
     sandbox_block = "sandbox_block"
+    file_written = "file_written"  # detail is the workspace-relative path
     info = "info"
     error = "error"
 

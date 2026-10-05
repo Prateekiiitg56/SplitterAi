@@ -308,6 +308,13 @@ class AgentWorker:
 
                         if tool_name == "write_file" and result.startswith("Successfully wrote"):
                             wrote_files = True
+                            self._emit(LogEntry(
+                                type=LogType.file_written,
+                                role=self.role,
+                                subtask_id=subtask.id,
+                                message=f"wrote {args['path']}",
+                                detail=self.sandbox.resolve_path(args["path"]).relative_to(self.sandbox.workspace).as_posix(),
+                            ))
                             if self.board:
                                 self.board.post(subtask.id, f"wrote {args['path']}", to=COORDINATOR, file=args["path"])
 

@@ -12,6 +12,8 @@ export default defineConfig({
   ],
   test: {
     environment: 'jsdom',
+    // Lets Testing Library register its automatic cleanup between tests.
+    globals: true,
     include: ['src/**/*.test.{ts,tsx}'],
   },
   server: {

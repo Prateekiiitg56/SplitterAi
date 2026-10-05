@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import FileExplorer from '../components/FileExplorer'
+import { ResultPane } from '../components/ResultPane'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
 import { fmtTime, fmtTokens, range } from '../components/StrategyPanel'
@@ -10,8 +10,8 @@ import { Button } from '../components/primitives/Button'
 import { AVAILABLE_MODELS } from '../data'
 import type { Subtask } from '../types'
 import { StatusBadge, RoleBadge } from '../components/Badges'
-import { ExternalLink, Play, Loader2, Download } from 'lucide-react'
-import { API_BASE, DEFAULT_WORKSPACE, projectIdOf } from '../config'
+import { Play, Loader2, Download } from 'lucide-react'
+import { DEFAULT_WORKSPACE, projectIdOf } from '../config'
 import { workspaceExportUrl } from '../lib/api'
 
 const RUN_LABEL = {
@@ -68,8 +68,7 @@ export default function ProjectOverviewPage() {
   const completedCount = subtasks.filter((st) => DONE.has(String(st.status || ''))).length
   const agentCount = new Set(subtasks.map((st) => st.role)).size
 
-  // Projects live in workspace_output/<folder>; the bare root means no project yet, so nothing to preview.
-  const folder = currentWorkspace.split('\\').join('/').split('workspace_output/')[1]?.replace(/\/+$/, '')
+  const changedFiles = Array.from(new Set(logs.filter((l) => l.type === 'file_written' && l.detail).map((l) => l.detail as string)))
 
   // Follow-up work runs in this project's folder; on /projects/default it starts a new project.
   const run = async () => {
@@ -115,16 +114,6 @@ export default function ProjectOverviewPage() {
               </button>
             </div>
 
-            <Button
-              variant={runStatus === 'done' ? 'primary' : 'ghost'}
-              size="sm"
-              icon={<ExternalLink size={12} />}
-              disabled={!folder}
-              title={folder ? `Open ${folder} in a new tab` : 'Preview is available once the project has its own folder'}
-              onClick={() => folder && window.open(`${API_BASE}/preview/${encodeURIComponent(folder)}/`, '_blank')}
-            >
-              Preview
-            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -342,7 +331,7 @@ export default function ProjectOverviewPage() {
           </div>
 
           <div className="ov-pane !p-0 !gap-0 min-h-0">
-            <FileExplorer workspace={currentWorkspace} />
+            <ResultPane workspace={currentWorkspace} runStatus={runStatus} changedFiles={changedFiles} />
           </div>
         </div>
       </div>

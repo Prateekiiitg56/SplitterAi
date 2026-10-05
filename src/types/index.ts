@@ -58,6 +58,7 @@ export interface LogEntry {
     | 'agent_stopped'
     | 'task_assigned'
     | 'file_created'
+    | 'file_written'
     | 'file_modified'
     | 'file_deleted'
     | 'command_executed'
