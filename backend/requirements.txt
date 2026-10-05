@@ -10,3 +10,5 @@ supabase>=2.4.0
 langgraph>=0.2.0
 playwright==1.63.0
 tzdata>=2024.1
+mcp>=2.3,<3
+cryptography>=42

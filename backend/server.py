@@ -48,10 +48,14 @@ from agentcli.web import (
 )
 from agentcli.tools import kill_processes, run_shell, sandbox_status
 from agentcli.session import list_runs, list_sessions, load_run, rename_session, reset_session, save_run_result, save_session
+from agentcli import integrations as agent_integrations
+from agentcli.integrations import IntegrationError
 from agentcli.integrations_store import (
     load_all_integrations,
     save_integration,
     delete_integration as db_delete_integration,
+    get_secret as get_integration_secret,
+    save_secret as save_integration_secret,
     update_integration_roles,
 )
 from agentcli.db_supabase import is_supabase_enabled
@@ -528,6 +532,8 @@ def start_run(request: RunRequest) -> runs.Run:
         raise HTTPException(status_code=400, detail=f"Unknown strategy '{request.strategy}'")
     if not request.task.strip():
         raise HTTPException(status_code=400, detail="Task is required")
+    if request.callback_url and not request.callback_url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="callback_url must be an http(s) URL")
     try:
         plan = confirmed_plan(request.subtasks) if request.subtasks else None
     except (ValueError, TypeError) as e:
@@ -609,6 +615,16 @@ async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan
 
     result.workspace = run.workspace
     result.run_id = run.id
+    storage = next((i for i in INTEGRATIONS_STORE.values()
+                    if i["type"] == "supabase_storage" and i["status"] == "connected"), None)
+    if storage and result.status != RunStatus.cancelled:
+        from agentcli.db_supabase import supabase_upload_signed
+        data = await asyncio.to_thread(build_workspace_zip, sandbox.workspace)
+        result.artifact_url = await asyncio.to_thread(
+            supabase_upload_signed, f"{sandbox.workspace.name}/{run.id}.zip", data, storage["config"]["bucket"])
+        on_event(LogEntry(type="info", role=AgentRole.planner,
+                          message="Project zip uploaded to Supabase Storage" if result.artifact_url
+                          else "Supabase Storage upload failed (see server log)"))
     # Let log events queued from worker threads reach run.logs before they are persisted.
     await asyncio.sleep(0)
     await asyncio.to_thread(save_run_result, run.workspace, request.task, result, list(run.logs))
@@ -617,7 +633,19 @@ async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan
     run.status = result.status.value
     runs.prune()
     await publish(run, {"type": "complete", "result": run.result})
+    if request.callback_url:
+        await post_callback(request.callback_url, run.result)
     return result
+
+
+async def post_callback(url: str, result: dict) -> None:
+    """Outbound webhook (n8n): POST the finished RunResult. Failures are logged, never raised."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(url, json=result, headers={"X-SplitterAI-Run": result.get("run_id") or ""})
+        logger.info("Run %s callback to %s: HTTP %s", result.get("run_id"), url, resp.status_code)
+    except httpx.HTTPError as e:
+        logger.warning("Run %s callback to %s failed: %s", result.get("run_id"), url, e)
 
 
 @app.post("/runs")
@@ -1012,170 +1040,190 @@ async def import_n8n_workflow(
         raise HTTPException(status_code=500, detail=f"Failed to parse n8n workflow: {str(err)}")
 
 
-# ── Integrations Endpoint (Server-Side Credential Storage & Handshake) ────────
+# ── Integrations (validated against the real service, secrets encrypted server-side) ────────
 
-# Load integrations from SQLite on startup (survives restarts)
+# Loaded once; agents read the same dict (agentcli.integrations.REGISTRY).
 INTEGRATIONS_STORE = load_all_integrations()
+agent_integrations.REGISTRY = INTEGRATIONS_STORE
+ALL_ROLES = [r.value for r in AgentRole if r != AgentRole.unassigned]
+
+
+async def _supabase_bucket_check(bucket: str) -> None:
+    if not is_supabase_enabled():
+        raise IntegrationError("Supabase is not configured (SUPABASE_URL / SUPABASE_KEY) or the client failed to start.")
+    from agentcli.db_supabase import get_supabase_client
+    try:
+        await asyncio.to_thread(lambda: get_supabase_client().storage.from_(bucket).list())
+    except Exception as e:
+        raise IntegrationError(f"Supabase Storage bucket '{bucket}': {e}")
+
+
+async def _validate(itype: str, payload: dict, secret: str | None) -> tuple[str, dict, list[str]]:
+    """Talk to the service. Returns (display name, config, scopes) or raises IntegrationError."""
+    if itype == "github":
+        if not secret:
+            raise IntegrationError("A GitHub access token is required.")
+        info = await agent_integrations.github_validate(secret, payload.get("repo") or None)
+        name = f"GitHub ({info['repo'] or info['login']})"
+        return name, {"login": info["login"], "repo": info["repo"]}, info["scopes"]
+    if itype == "mcp":
+        config = agent_integrations.mcp_config(payload.get("url") or "")
+        config["tools"] = await agent_integrations.mcp_list_tools(config)
+        return payload.get("name") or "MCP server", config, ["mcp:tools"]
+    if itype == "supabase_storage":
+        from agentcli.db_supabase import get_storage_bucket_name
+        bucket = payload.get("bucket") or get_storage_bucket_name()
+        await _supabase_bucket_check(bucket)
+        return payload.get("name") or "Supabase Storage", {"bucket": bucket}, ["storage:upload", "storage:sign"]
+    raise IntegrationError(f"Unknown integration type '{itype}'. Supported: github, mcp, supabase_storage.")
+
 
 @app.get("/integrations")
-async def get_integrations(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Get all connected integrations without raw secrets."""
+async def get_integrations(type: str | None = None, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Connected integrations, never with their secrets."""
     verify_shared_secret(x_api_key, token)
-    return list(INTEGRATIONS_STORE.values())
+    return [i for i in INTEGRATIONS_STORE.values() if not type or i["type"] == type]
+
 
 @app.post("/integrations/connect")
 async def connect_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Validate server-side connection and store credentials securely server-side."""
+    """Validate against the service, store the secret encrypted, return the integration (without it)."""
     verify_shared_secret(x_api_key, token)
-    itype = payload.get("type")
-    name = payload.get("name", "Custom Integration")
-    int_token = payload.get("token")
-    url = payload.get("url")
-    repo = payload.get("repo")
-    allowed_roles = payload.get("allowedRoles", ["planner", "coder", "auditor", "tester"])
+    itype = payload.get("type") or ""
+    roles = [r for r in payload.get("allowedRoles") or ALL_ROLES if r in ALL_ROLES]
+    secret = (payload.get("token") or "").strip() or None
+    try:
+        name, config, scopes = await _validate(itype, payload, secret)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     import datetime
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    iid = f"int-{int(datetime.datetime.now().timestamp() * 1000)}"
+    now = datetime.datetime.now()
+    integration = {
+        "id": f"int-{int(now.timestamp() * 1000)}",
+        "type": itype,
+        "name": name,
+        "status": "connected",
+        "connectedAt": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "config": config,
+        "scopes": scopes,
+        "allowedRoles": roles,
+        "lastError": None,
+    }
+    if secret:
+        await asyncio.to_thread(save_integration_secret, integration["id"], secret)
+    INTEGRATIONS_STORE[integration["id"]] = integration
+    await asyncio.to_thread(save_integration, integration)
+    return integration
 
-    # Server-Side Handshake & Validation
-    if itype == "mcp":
-        if not url:
-            raise HTTPException(status_code=400, detail="MCP Server URL is required.")
-        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("sse://") or url.startswith("stdio://")):
-            raise HTTPException(status_code=400, detail="Invalid MCP Server URL schema.")
 
-        # Real reachability check for HTTP/HTTPS MCP servers
-        mcp_status = "connected"
-        mcp_error = None
-        if url.startswith("http://") or url.startswith("https://"):
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    resp = await client.head(url)
-                    if resp.status_code >= 400:
-                        mcp_status = "error"
-                        mcp_error = f"MCP server returned HTTP {resp.status_code}"
-            except Exception as e:
-                mcp_status = "error"
-                mcp_error = f"Cannot reach MCP server: {str(e)[:200]}"
-        elif url.startswith("sse://") or url.startswith("stdio://"):
-            mcp_status = "pending_verification"
-            mcp_error = "Non-HTTP transport — reachability not verified automatically"
+def _integration(iid: str) -> dict:
+    integration = INTEGRATIONS_STORE.get(iid or "")
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found.")
+    return integration
 
-        integration_obj = {
-            "id": iid,
-            "type": "mcp",
-            "name": name,
-            "status": mcp_status,
-            "connectedAt": now_str,
-            "config": {"url": url, "transport": "sse" if "sse" in url else "http"},
-            "scopes": ["mcp:tools", "mcp:resources"],
-            "allowedRoles": allowed_roles,
-            "lastError": mcp_error,
-        }
-    elif itype == "github":
-        if not int_token and not repo:
-            raise HTTPException(status_code=400, detail="GitHub access token or repository is required.")
 
-        repo_name = repo or "Prateekiiitg56/SplitterAi"
+@app.post("/integrations/test")
+async def test_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Re-check a connection now; updates its status and last error."""
+    verify_shared_secret(x_api_key, token)
+    integration = _integration(payload.get("id"))
+    secret = await asyncio.to_thread(get_integration_secret, integration["id"])
+    retest = {**integration.get("config", {}), "name": integration["name"]}
+    try:
+        _, config, scopes = await _validate(integration["type"], retest, secret)
+        integration.update(status="connected", lastError=None, config=config, scopes=scopes)
+    except IntegrationError as e:
+        integration.update(status="error", lastError=str(e))
+    await asyncio.to_thread(save_integration, integration)
+    return integration
 
-        # Validate GitHub token by calling the API
-        gh_status = "connected"
-        gh_error = None
-        if int_token:
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    gh_resp = await client.get(
-                        f"https://api.github.com/repos/{repo_name}",
-                        headers={
-                            "Authorization": f"Bearer {int_token}",
-                            "Accept": "application/vnd.github+json",
-                        },
-                    )
-                    if gh_resp.status_code == 401:
-                        raise HTTPException(status_code=400, detail="GitHub token is invalid or expired.")
-                    elif gh_resp.status_code == 404:
-                        raise HTTPException(status_code=400, detail=f"GitHub repo '{repo_name}' not found or token lacks access.")
-                    elif gh_resp.status_code >= 400:
-                        gh_status = "error"
-                        gh_error = f"GitHub API returned HTTP {gh_resp.status_code}"
-            except HTTPException:
-                raise
-            except Exception as e:
-                gh_status = "error"
-                gh_error = f"Cannot reach GitHub API: {str(e)[:200]}"
-
-        integration_obj = {
-            "id": iid,
-            "type": "github",
-            "name": f"GitHub ({repo_name})",
-            "status": gh_status,
-            "connectedAt": now_str,
-            "config": {"repo": repo_name, "org": repo_name.split("/")[0]},
-            "scopes": ["repo", "read:org", "workflow"],
-            "allowedRoles": allowed_roles,
-            "lastError": gh_error,
-        }
-    elif itype == "supabase_storage":
-        # Verify Supabase connection using existing env vars
-        sp_status = "connected" if is_supabase_enabled() else "error"
-        sp_error = None if is_supabase_enabled() else "Supabase credentials not configured or client failed to initialize"
-
-        from agentcli.db_supabase import get_storage_bucket_name
-        bucket = payload.get("bucket") or get_storage_bucket_name()
-        sp_url = os.getenv("SUPABASE_URL", "").strip()
-
-        integration_obj = {
-            "id": iid,
-            "type": "supabase_storage",
-            "name": name or "Supabase Storage",
-            "status": sp_status,
-            "connectedAt": now_str,
-            "config": {"bucket": bucket, "supabase_url": sp_url, "description": "Supabase Storage Bucket"},
-            "scopes": ["storage:upload", "storage:download", "storage:list"],
-            "allowedRoles": allowed_roles,
-            "lastError": sp_error,
-        }
-    else:
-        integration_obj = {
-            "id": iid,
-            "type": itype or "oauth_generic",
-            "name": name,
-            "status": "connected",
-            "connectedAt": now_str,
-            "config": {"description": "Custom Connector"},
-            "scopes": ["read", "write"],
-            "allowedRoles": allowed_roles,
-            "lastError": None,
-        }
-
-    INTEGRATIONS_STORE[iid] = integration_obj
-    save_integration(integration_obj)  # Persist to SQLite
-    return integration_obj
 
 @app.post("/integrations/disconnect")
 async def disconnect_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Revoke and delete stored credentials server-side."""
+    """Forget the integration and delete its stored secret."""
     verify_shared_secret(x_api_key, token)
     iid = payload.get("id")
-    if iid in INTEGRATIONS_STORE:
-        del INTEGRATIONS_STORE[iid]
-        db_delete_integration(iid)  # Remove from SQLite
-        return {"success": True, "message": "Integration disconnected and credentials revoked."}
-    return {"success": True, "message": "Already disconnected."}
+    _integration(iid)
+    del INTEGRATIONS_STORE[iid]
+    await asyncio.to_thread(db_delete_integration, iid)
+    return {"success": True, "message": "Integration disconnected and its stored credentials deleted."}
+
 
 @app.post("/integrations/reconfigure")
 async def reconfigure_integration(payload: dict, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
-    """Update scopes or allowed roles for an integration."""
+    """Change which agent roles may use an integration."""
     verify_shared_secret(x_api_key, token)
-    iid = payload.get("id")
-    allowed_roles = payload.get("allowedRoles")
-    if iid in INTEGRATIONS_STORE:
-        if allowed_roles is not None:
-            INTEGRATIONS_STORE[iid]["allowedRoles"] = allowed_roles
-            update_integration_roles(iid, allowed_roles)  # Persist to SQLite
-        return INTEGRATIONS_STORE[iid]
-    raise HTTPException(status_code=404, detail="Integration not found.")
+    integration = _integration(payload.get("id"))
+    roles = payload.get("allowedRoles")
+    if roles is not None:
+        integration["allowedRoles"] = [r for r in roles if r in ALL_ROLES]
+        await asyncio.to_thread(update_integration_roles, integration["id"], integration["allowedRoles"])
+    return integration
+
+
+def _github() -> tuple[dict, str]:
+    github = next((i for i in INTEGRATIONS_STORE.values() if i["type"] == "github"), None)
+    secret = get_integration_secret(github["id"]) if github else None
+    if not github or not secret:
+        raise HTTPException(status_code=400, detail="Connect GitHub on the Integrations page first.")
+    return github, secret
+
+
+@app.get("/integrations/github/repos")
+async def github_repos(x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    verify_shared_secret(x_api_key, token)
+    _, secret = await asyncio.to_thread(_github)
+    try:
+        return await agent_integrations.github_repos(secret)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class GithubImportRequest(BaseModel):
+    repo: str
+
+
+@app.post("/integrations/github/import")
+async def github_import(req: GithubImportRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Clone a repository into a new project (next to uploaded projects)."""
+    verify_shared_secret(x_api_key, token)
+    _, secret = await asyncio.to_thread(_github)
+    from agentcli.workspace_import import DEFAULT_WORKSPACES_ROOT
+    import uuid
+    root = DEFAULT_WORKSPACES_ROOT.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    dest = root / f"{req.repo.split('/')[-1][:40]}-{uuid.uuid4().hex[:6]}"
+    try:
+        await asyncio.to_thread(agent_integrations.git_clone, req.repo, dest, secret)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await asyncio.to_thread(save_session, str(dest), f"Imported {req.repo}", RunStatus.idle)
+    return {"workspace": str(dest)}
+
+
+class GithubPushRequest(BaseModel):
+    workspace: str
+    branch: str = Field(min_length=1, max_length=200)
+    message: str = Field(default="Update from SplitterAI", min_length=1, max_length=500)
+    repo: str | None = None
+
+
+@app.post("/integrations/github/push")
+async def github_push(req: GithubPushRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Commit the project and push it as a branch of the connected (or given) repository."""
+    verify_shared_secret(x_api_key, token)
+    root = workspace_dir(req.workspace)
+    github, secret = await asyncio.to_thread(_github)
+    repo = req.repo or github["config"].get("repo")
+    if not repo:
+        raise HTTPException(status_code=400, detail="Pick a repository: the GitHub connection has none.")
+    try:
+        message = await asyncio.to_thread(agent_integrations.git_commit_and_push, root, repo, req.branch, req.message, secret)
+    except IntegrationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"message": message, "url": f"https://github.com/{repo}/tree/{req.branch}"}
 
 
 # ── Supabase Storage Status Endpoint ──────────────────────────────

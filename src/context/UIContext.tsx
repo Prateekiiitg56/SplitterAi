@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState } from 'react'
 import { AVAILABLE_MODELS } from '../data'
-import { useMCPServers } from '../hooks/useMCPServers'
-import type { AgentRole, ModelOption, ExecutionMode, MCPServer } from '../types'
+import type { AgentRole, ModelOption, ExecutionMode } from '../types'
 import { Layers, Zap, Search, ShieldCheck } from 'lucide-react'
 
 export const executionModes: ExecutionMode[] = [
@@ -27,9 +26,6 @@ interface UIContextType {
   setLogFilter: React.Dispatch<React.SetStateAction<string | null>>
   multiMode: boolean
   setMultiMode: React.Dispatch<React.SetStateAction<boolean>>
-  mcpServers: MCPServer[]
-  toggleMCPServer: (id: string) => void
-  addMCPServer: (name: string, command: string) => void
 }
 
 const UIContext = createContext<UIContextType | undefined>(undefined)
@@ -42,8 +38,6 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   const [selectedMode, setSelectedMode] = useState<ExecutionMode>(executionModes[0])
   const [logFilter, setLogFilter] = useState<string | null>(null)
   const [multiMode, setMultiMode] = useState(true)
-
-  const { mcpServers, toggleMCPServer, addMCPServer } = useMCPServers()
 
   const toggleSidebar = () => setSidebarCollapsed((prev) => !prev)
 
@@ -65,9 +59,6 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         setLogFilter,
         multiMode,
         setMultiMode,
-        mcpServers,
-        toggleMCPServer,
-        addMCPServer,
       }}
     >
       {children}

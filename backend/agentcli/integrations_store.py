@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional
 
 
+from . import vault
 from .db_supabase import (
     supabase_save_integration,
     supabase_load_all_integrations,
@@ -70,6 +71,13 @@ def _get_connection() -> sqlite3.Connection:
             scopes_json TEXT NOT NULL DEFAULT '[]',
             allowed_roles_json TEXT NOT NULL DEFAULT '[]',
             last_error TEXT
+        )
+    """)
+    # Secrets stay local and encrypted; they are never synced to Supabase or returned by the API.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS integration_secrets (
+            id TEXT PRIMARY KEY,
+            secret_enc TEXT NOT NULL
         )
     """)
     conn.commit()
@@ -157,6 +165,7 @@ def delete_integration(integration_id: str) -> bool:
     conn = _get_connection()
     try:
         cursor = conn.execute("DELETE FROM integrations WHERE id = ?", (integration_id,))
+        conn.execute("DELETE FROM integration_secrets WHERE id = ?", (integration_id,))
         conn.commit()
         return (cursor.rowcount > 0) or sp_deleted
     finally:
@@ -186,3 +195,22 @@ def update_integration_roles(integration_id: str, allowed_roles: list[str]) -> O
     finally:
         conn.close()
 
+
+
+def save_secret(integration_id: str, secret: str) -> None:
+    conn = _get_connection()
+    try:
+        conn.execute("INSERT OR REPLACE INTO integration_secrets (id, secret_enc) VALUES (?, ?)",
+                     (integration_id, vault.encrypt(secret)))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_secret(integration_id: str) -> Optional[str]:
+    conn = _get_connection()
+    try:
+        row = conn.execute("SELECT secret_enc FROM integration_secrets WHERE id = ?", (integration_id,)).fetchone()
+    finally:
+        conn.close()
+    return vault.decrypt(row[0]) if row else None

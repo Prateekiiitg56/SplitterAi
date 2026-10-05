@@ -26,7 +26,7 @@ interface AppContextType {
   resetRun: () => void
   executeTask: (newTask: string, workspace?: string, model?: string) => Promise<StartedRun | null>
   runReport: RunReport | null
-  runOutcome: { synthesis: string | null; verification: Verification | null } | null
+  runOutcome: { synthesis: string | null; verification: Verification | null; artifactUrl?: string | null } | null
   executeTaskWithPlan: (
     newTask: string,
     initialSubtasks: Subtask[],

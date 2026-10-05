@@ -24,6 +24,7 @@ from .prompts import get_system_prompt
 from .router import AllModelsFailedError, call_model
 from .sandbox import Sandbox, SandboxEscapeError
 from .schemas import AgentRole, LogEntry, LogType, Subtask, SubtaskStatus
+from .integrations import AgentIntegrations
 from .tools import TOOL_DEFINITIONS, execute_tool
 
 logger = logging.getLogger(__name__)
@@ -123,6 +124,8 @@ class AgentWorker:
         self.on_event = on_event
         self.model_chain = config.get_model_chain(role)
         self.max_steps = config.max_steps
+        # Connected GitHub / MCP servers this role is allowed to use.
+        self.integrations = AgentIntegrations(role.value) if self.use_tools else None
 
     def _emit(self, entry: LogEntry) -> None:
         """Emit a log event if callback is registered."""
@@ -168,6 +171,8 @@ class AgentWorker:
             )},
         ]
         tools = TOOL_DEFINITIONS if self.use_tools else None
+        if tools and self.integrations and self.integrations.definitions:
+            tools = [*tools, *self.integrations.definitions]
         if tools and self.board:
             tools = [*tools, POST_NOTE_TOOL]
         # Coders deliver files. Some models answer with code as chat text instead of calling
@@ -275,6 +280,8 @@ class AgentWorker:
                                     "replaces the whole file, so read_file it first, then write back the complete "
                                     "updated content (existing parts included)."
                                 )
+                            elif self.integrations and self.integrations.handles(tool_name):
+                                result = await self.integrations.call(self.sandbox, tool_name, args)
                             else:
                                 # Off the event loop: parallel workers and the coordinator keep running
                                 # while a shell command or browser check blocks.

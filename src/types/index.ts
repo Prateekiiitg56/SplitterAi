@@ -148,16 +148,6 @@ export interface QuotaInfo {
   resets_at: number | null
 }
 
-export interface MCPServer {
-  id: string
-  name: string
-  transport: 'stdio' | 'sse'
-  status: 'active' | 'lazy' | 'disconnected'
-  description: string
-  toolsCount: number
-  category: string
-}
-
 export interface ExecutionMode {
   id: string
   label: string
@@ -173,7 +163,7 @@ export interface ModelOption {
 
 /* ── Integration Entity ─────────────────────────────────────────── */
 
-export type IntegrationType = 'mcp' | 'github' | 'supabase_storage' | 'oauth_generic'
+export type IntegrationType = 'mcp' | 'github' | 'supabase_storage'
 export type IntegrationStatus = 'not_connected' | 'connecting' | 'connected' | 'error'
 
 export interface IntegrationConfig {
@@ -184,6 +174,9 @@ export interface IntegrationConfig {
   transport?: 'sse' | 'stdio' | 'http'
   bucket?: string
   supabase_url?: string
+  login?: string
+  command?: string
+  tools?: Array<{ name: string; description?: string }>
 }
 
 export interface Integration {

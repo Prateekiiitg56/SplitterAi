@@ -96,6 +96,7 @@ class RunResult(BaseModel):
     workspace: Optional[str] = None  # where the run wrote its files (a new project folder for new projects)
     run_id: Optional[str] = None
     error: Optional[str] = None  # why the run stopped before finishing (planning crash, all models failed...)
+    artifact_url: Optional[str] = None  # signed download link of the project zip (Supabase Storage integration)
 
 
 class LogEntry(BaseModel):
@@ -142,6 +143,7 @@ class RunRequest(BaseModel):
     agent_count: Optional[int] = None  # Concurrent agents chosen from the strategy table
     strategy: Optional[str] = None  # cost | balanced | fastest | quality; None keeps the legacy single-chain run
     stack: Optional[str] = None  # tailwind | plain | react; None picks from the task text
+    callback_url: Optional[str] = None  # POSTed the RunResult when the run ends (n8n outbound webhook)
 
 
 class HealthResponse(BaseModel):

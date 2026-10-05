@@ -4,6 +4,7 @@ import {
   connectIntegration,
   disconnectIntegration,
   reconfigureIntegration,
+  testIntegration,
   fetchHealth,
 } from '../lib/api'
 import type { HealthStatus } from '../lib/api'
@@ -39,14 +40,15 @@ export function useIntegrations() {
   }, [loadIntegrations])
 
   const connect = async (payload: {
-    type: 'mcp' | 'github' | 'supabase_storage' | 'oauth_generic'
-    name: string
+    type: 'mcp' | 'github' | 'supabase_storage'
+    name?: string
     token?: string
     url?: string
     repo?: string
+    bucket?: string
     allowedRoles?: AgentRole[]
   }) => {
-    setConnectingId(payload.name)
+    setConnectingId(payload.name ?? payload.type)
     try {
       const newInt = await connectIntegration(payload)
       setIntegrations((prev) => [...prev.filter((i) => i.id !== newInt.id), newInt])
@@ -66,9 +68,16 @@ export function useIntegrations() {
     setIntegrations((prev) => prev.map((i) => (i.id === id ? updated : i)))
   }
 
+  const test = async (id: string) => {
+    const updated = await testIntegration(id)
+    setIntegrations((prev) => prev.map((i) => (i.id === id ? updated : i)))
+    return updated
+  }
+
   return {
     integrations,
     loading,
+    test,
     error,
     connectingId,
     health,

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ResultPane } from '../components/ResultPane'
+import { GithubPushDialog } from '../components/GithubDialogs'
+import { useIntegrations } from '../hooks/useIntegrations'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
 import { fmtTime, fmtTokens, range } from '../components/StrategyPanel'
@@ -41,6 +43,9 @@ export default function ProjectOverviewPage() {
   const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
 
   const [taskInput, setTaskInput] = useState('')
+  const [pushOpen, setPushOpen] = useState(false)
+  const { integrations } = useIntegrations()
+  const githubConnected = integrations.some((i) => i.type === 'github' && i.status === 'connected')
   const termRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -124,6 +129,16 @@ export default function ProjectOverviewPage() {
             >
               Export .zip
             </Button>
+            {githubConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={currentWorkspace === DEFAULT_WORKSPACE || isBusy}
+                onClick={() => setPushOpen(true)}
+              >
+                Push to GitHub
+              </Button>
+            )}
           </div>
         </div>
 
@@ -240,6 +255,11 @@ export default function ProjectOverviewPage() {
                       <MarkdownRenderer content={runOutcome.synthesis} />
                     </div>
                   )}
+                  {runOutcome.artifactUrl && (
+                    <a href={runOutcome.artifactUrl} target="_blank" rel="noreferrer" className="text-micro text-[var(--accent)] underline">
+                      Download the project zip (Supabase Storage)
+                    </a>
+                  )}
                   {runOutcome.verification?.verdict === 'fail' && runOutcome.verification.issues && (
                     <pre className="text-micro text-[var(--bad)] whitespace-pre-wrap font-mono">{runOutcome.verification.issues}</pre>
                   )}
@@ -335,6 +355,7 @@ export default function ProjectOverviewPage() {
           </div>
         </div>
       </div>
+      <GithubPushDialog open={pushOpen} onClose={() => setPushOpen(false)} workspace={currentWorkspace} />
     </ProjectTabShell>
   )
 }

@@ -118,6 +118,7 @@ export interface SubtaskResult {
 export interface RunResult {
   run_id?: string
   error?: string | null
+  artifact_url?: string | null
   subtasks: SubtaskResult[]
   results: Record<string, string>
   status: string
@@ -462,6 +463,42 @@ export async function connectIntegration(payload: any): Promise<any> {
     const err = await res.json().catch(() => ({ detail: 'Failed to connect integration' }))
     throw new Error(err.detail || 'Connection failed')
   }
+  return res.json()
+}
+
+export async function testIntegration(id: string): Promise<any> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  }, 90000)
+  if (!res.ok) throw await sessionError(res, 'Could not test the connection')
+  return res.json()
+}
+
+export async function fetchGithubRepos(): Promise<Array<{ full_name: string; private: boolean; default_branch?: string }>> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/github/repos`, {}, 20000)
+  if (!res.ok) throw await sessionError(res, 'Could not load repositories')
+  return res.json()
+}
+
+export async function importGithubRepo(repo: string): Promise<{ workspace: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/github/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ repo }),
+  }, 180000)
+  if (!res.ok) throw await sessionError(res, 'Could not import the repository')
+  return res.json()
+}
+
+export async function pushToGithub(workspace: string, branch: string, message: string, repo?: string): Promise<{ message: string; url: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/integrations/github/push`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace, branch, message, repo: repo || undefined }),
+  }, 180000)
+  if (!res.ok) throw await sessionError(res, 'Push failed')
   return res.json()
 }
 

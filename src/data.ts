@@ -16,7 +16,6 @@ export type {
   FileNode,
   File,
   QuotaInfo,
-  MCPServer,
   ExecutionMode,
   ModelOption,
   SubtaskResult,

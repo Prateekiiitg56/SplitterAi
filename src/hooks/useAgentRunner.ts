@@ -90,7 +90,7 @@ export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
   const [taskTitle, setTaskTitle] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [runReport, setRunReport] = useState<RunReport | null>(null)
-  const [runOutcome, setRunOutcome] = useState<{ synthesis: string | null; verification: Verification | null } | null>(null)
+  const [runOutcome, setRunOutcome] = useState<{ synthesis: string | null; verification: Verification | null; artifactUrl?: string | null } | null>(null)
 
   const setRunId = (id: string | null) => {
     runIdRef.current = id
@@ -101,7 +101,7 @@ export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
     setRunStatus((result.status as RunStatus) || 'done')
     if (result.subtasks?.length) setSubtasks(result.subtasks.map((st) => toSubtask(st, 'success')))
     setRunReport(result.report ?? null)
-    setRunOutcome({ synthesis: result.synthesis ?? null, verification: result.verification ?? null })
+    setRunOutcome({ synthesis: result.synthesis ?? null, verification: result.verification ?? null, artifactUrl: result.artifact_url })
     setErrorMessage(result.error ?? null)
     writeActiveRun(null)
   }, [])

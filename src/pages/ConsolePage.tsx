@@ -32,6 +32,7 @@ import { cx } from '../lib/cx'
 import { useIntegrations } from '../hooks/useIntegrations'
 import { ModelFusionIcon } from '../components/BrandIcons'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
+import { GithubImportDialog } from '../components/GithubDialogs'
 
 /* ── Types ──────────────────────────────────────────────────────── */
 
@@ -141,6 +142,7 @@ export default function ConsolePage() {
   const [draftPlan, setDraftPlan] = useState<DraftPlan | null>(null)
   const [strategy, setStrategy] = useState<StrategySelection | null>(null)
   const [attachMenuOpen, setAttachMenuOpen] = useState(false)
+  const [githubImportOpen, setGithubImportOpen] = useState(false)
 
   const hasMessages = chatMessages.length > 0
   const inChatView = hasMessages || !!draftPlan
@@ -445,6 +447,15 @@ export default function ConsolePage() {
                     >
                       <Upload size={14} /> Upload workspace (.zip)
                     </button>
+                    {integrations.some((i) => i.type === 'github' && i.status === 'connected') && (
+                      <button
+                        type="button"
+                        onClick={() => { setGithubImportOpen(true); setAttachMenuOpen(false) }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-[12px] text-white/60 hover:text-white hover:bg-white/[0.06] transition-colors"
+                      >
+                        <Upload size={14} /> Import from GitHub
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => { handleImportN8n(); setAttachMenuOpen(false) }}
@@ -936,6 +947,16 @@ export default function ConsolePage() {
           </div>
         )}
 
+
+      <GithubImportDialog
+        open={githubImportOpen}
+        onClose={() => setGithubImportOpen(false)}
+        onImported={async (workspace) => {
+          await refetchSessions()
+          openProject(workspace)
+          navigate(`/projects/${projectIdOf(workspace)}`)
+        }}
+      />
 
       {/* ── Add-agent dialog ───────────────────────────────────── */}
       <Modal
