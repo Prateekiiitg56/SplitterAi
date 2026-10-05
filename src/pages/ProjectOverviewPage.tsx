@@ -72,6 +72,30 @@ export default function ProjectOverviewPage() {
     }
   }, [currentWorkspace, runStatus])
 
+  // The one motion moment: when a run settles, its steps fill in order and the result rises into view.
+  const segRef = useRef<HTMLDivElement>(null)
+  const resultRef = useRef<HTMLElement>(null)
+  const wasBusy = useRef(false)
+  useEffect(() => {
+    const busyNow = runStatus === 'planning' || runStatus === 'executing'
+    const finished = wasBusy.current && !busyNow
+    wasBusy.current = busyNow
+    if (!finished || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let cancelled = false
+    import('animejs').then(({ animate, stagger }) => {
+      if (cancelled) return
+      if (segRef.current) {
+        animate(segRef.current.children, { scaleX: [0, 1], duration: 420, delay: stagger(70), ease: 'outCubic' })
+      }
+      if (resultRef.current) {
+        animate(resultRef.current, { opacity: [0, 1], translateY: [10, 0], duration: 500, delay: 200, ease: 'outQuart' })
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [runStatus])
+
   // Follow the newest log line while a run streams.
   useEffect(() => {
     const el = termRef.current
@@ -94,7 +118,7 @@ export default function ProjectOverviewPage() {
 
   // Follow-up work runs in this project's folder; on /projects/default it starts a new project.
   const run = async () => {
-    const taskToRun = taskInput.trim() || taskTitle.trim()
+    const taskToRun = taskInput.trim()
     if (!taskToRun || isBusy) return
     setTaskInput('')
     // Solo: one coder does the whole task with one agent; Team: the planner splits it across roles.
@@ -193,7 +217,7 @@ export default function ProjectOverviewPage() {
         <div className="ov-split">
           <div className="ov-pane">
             <div className="ov-composer">
-              <label htmlFor="ov-task">{subtasks.length ? 'Next instruction for this project' : 'What should the agents build?'}</label>
+              <label htmlFor="ov-task">{currentWorkspace === DEFAULT_WORKSPACE ? 'What should the agents build?' : 'Ask for a change to this project'}</label>
               <textarea
                 id="ov-task"
                 rows={2}
@@ -205,7 +229,9 @@ export default function ProjectOverviewPage() {
                     run()
                   }
                 }}
-                placeholder={taskTitle || 'e.g. Build a recipe site with search and a favourites list'}
+                placeholder={currentWorkspace === DEFAULT_WORKSPACE
+                  ? 'e.g. Build a recipe site with search and a favourites list'
+                  : 'e.g. Add a clear-completed button. The agents work in this project and read its files first.'}
               />
               <div className="foot">
                 <span className="hint">
@@ -219,7 +245,7 @@ export default function ProjectOverviewPage() {
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={isBusy || !(taskInput.trim() || taskTitle.trim())}
+                  disabled={isBusy || !taskInput.trim()}
                   onClick={run}
                   icon={isBusy ? <Loader2 size={13} className="animate-spin" /> : <Play size={12} fill="currentColor" />}
                 >
@@ -237,7 +263,7 @@ export default function ProjectOverviewPage() {
                   </span>
                   <span className="cap">steps complete</span>
                 </div>
-                <div className="seg-bar" aria-hidden="true">
+                <div className="seg-bar" aria-hidden="true" ref={segRef}>
                   {subtasks.map((st) => (
                     <span key={st.id} className={segState(st)} />
                   ))}
@@ -269,7 +295,7 @@ export default function ProjectOverviewPage() {
             )}
 
             {runOutcome && (runOutcome.synthesis || runOutcome.verification) && (
-              <section>
+              <section ref={resultRef}>
                 <div className="ov-section-title">
                   <h3>Result</h3>
                   {runOutcome.verification && (

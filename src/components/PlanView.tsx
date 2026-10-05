@@ -76,10 +76,6 @@ export default function PlanView({
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-micro font-mono font-bold uppercase tracking-wider text-[var(--accent)]">
-                ACTIVE AGENT PLAN
-              </span>
-              <span className="text-[var(--faint)]">·</span>
               <StatusBadge status={runStatus} />
             </div>
             <h2 className="text-strong md:text-title font-bold text-[var(--text)] leading-snug tracking-tight truncate max-w-3xl">
@@ -89,12 +85,12 @@ export default function PlanView({
 
           <div className="flex items-center gap-3 flex-shrink-0 self-start md:self-auto">
             <div className="px-3 py-1.5 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-right">
-              <p className="text-micro font-mono text-[var(--faint)] uppercase">PARALLEL NODES</p>
-              <p className="text-meta font-mono font-bold text-[var(--text)]">{subtasks.length} Subtasks</p>
+              <p className="text-micro text-[var(--faint)]">Subtasks</p>
+              <p className="text-meta font-bold text-[var(--text)]">{subtasks.length}</p>
             </div>
             <div className="px-3 py-1.5 rounded-control bg-[var(--bg-inset)] border border-[var(--border)] text-right">
-              <p className="text-micro font-mono text-[var(--faint)] uppercase">LANES</p>
-              <p className="text-meta font-mono font-bold text-[var(--accent)]">{groupNums.length} Groups</p>
+              <p className="text-micro text-[var(--faint)]">Steps</p>
+              <p className="text-meta font-bold text-[var(--accent)]">{groupNums.length}</p>
             </div>
           </div>
         </div>
@@ -105,14 +101,11 @@ export default function PlanView({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Activity size={18} className="text-[var(--accent)]" />
-            <h2 className="text-ui md:text-strong font-bold text-[var(--text)]">Execution DAG Workflow Graph</h2>
-            <span className="text-micro font-mono px-2.5 py-0.5 rounded-control bg-[var(--accent-quiet)] text-[var(--accent)] border border-[var(--accent-edge)] font-semibold">
-              Parallel Execution DAG
-            </span>
+            <h2 className="text-ui md:text-strong font-bold text-[var(--text)]">Who does what, in which order</h2>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-meta font-mono text-[var(--dim)] hidden sm:inline">
-              Hover nodes to trace dependency flow
+              Subtasks in the same step run at the same time
             </span>
           </div>
         </div>
@@ -139,7 +132,7 @@ export default function PlanView({
               </div>
               <div className="text-center font-mono">
                 <p className="text-meta font-bold text-[var(--text)]">Planner</p>
-                <p className="text-micro text-[var(--faint)]">Root Dispatcher</p>
+                <p className="text-micro text-[var(--faint)]">Splits the task</p>
               </div>
             </div>
 
@@ -156,10 +149,10 @@ export default function PlanView({
                     <div className="flex flex-col gap-3.5 p-3 rounded-panel bg-[var(--panel-2)]/40 border border-[var(--border)] min-w-[200px]">
                       <div className="flex items-center justify-between border-b border-[var(--border)] pb-2 px-1">
                         <span className="text-micro font-mono font-bold text-[var(--accent)] uppercase tracking-wider">
-                          Group {groupNum}
+                          Step {groupNum}
                         </span>
                         <span className="text-micro font-mono text-[var(--faint)]">
-                          {groupSubtasks.length > 1 ? 'Parallel' : 'Seq'}
+                          {groupSubtasks.length > 1 ? 'At the same time' : 'One agent'}
                         </span>
                       </div>
 
@@ -249,7 +242,7 @@ export default function PlanView({
 
       {/* ── 3. DETAILED SUBTASK BREAKDOWN & CARDS ─────────────────── */}
       <div className="rounded-panel border border-[var(--border)] bg-[var(--panel)] p-5 shadow-sm space-y-4">
-        <h2 className="text-ui md:text-strong font-bold text-[var(--text)]">Subtask Execution Breakdown</h2>
+        <h2 className="text-ui md:text-strong font-bold text-[var(--text)]">Each subtask in detail</h2>
 
         {runStatus === 'planning' && (
           <div className="flex items-center gap-3 p-4 rounded-control border border-[var(--border)] bg-[var(--bg-inset)]">
@@ -274,7 +267,7 @@ export default function PlanView({
                   <div className="flex items-center gap-2.5">
                     {isGroupExpanded ? <ChevronDown size={14} className="text-[var(--dim)]" /> : <ChevronRight size={14} className="text-[var(--dim)]" />}
                     <span className="text-meta font-bold uppercase tracking-wider text-[var(--text)]">
-                      Group {groupNum}
+                      Step {groupNum}
                     </span>
                     <span className="text-micro font-mono px-2.5 py-0.5 rounded-full bg-[var(--bg-inset)] border border-[var(--border)] text-[var(--dim)]">
                       {groupSubtasks.length > 1 ? `${groupSubtasks.length} parallel workers` : '1 worker'}
@@ -296,7 +289,7 @@ export default function PlanView({
                               <div className="flex items-center gap-3 mt-1 text-micro font-mono text-[var(--dim)]">
                                 <span>Model: {st.model}</span>
                                 <span>·</span>
-                                <span>Group {st.group}</span>
+                                <span>Step {st.group}</span>
                               </div>
                             </div>
                           </div>

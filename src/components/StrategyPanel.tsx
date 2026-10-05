@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { AlertTriangle, Check, Minus, Plus } from 'lucide-react'
 import { cx } from '../lib/cx'
 import type { Confidence, ExecutionEstimate, PlanAnalysis, StrategyId } from '../lib/api'
@@ -45,18 +46,36 @@ export function StrategyPanel({ analysis, selection, onSelect, stale }: Props) {
   const overProvisioned = selection.custom && selection.agents > analysis.max_parallel
   const confidence = analysis.strategies.find((s) => s.id === analysis.recommended)?.confidence ?? 'low'
 
+  // Most people keep the recommendation: show it as one line, details on request.
+  const [open, setOpen] = useState(false)
+  const chosen = selection.custom ? null : analysis.strategies.find((s) => s.id === selection.id)
+  const chosenEstimate = chosen ?? customEstimate
+
   const setCustomAgents = (agents: number) =>
     onSelect({ id: 'balanced', agents: Math.max(1, Math.min(MAX_CUSTOM_AGENTS, agents)), custom: true })
 
   return (
     <div className="px-4 py-3 border-t border-white/[0.06] space-y-3">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Execution strategy</span>
-        <span className="h-px flex-1 bg-white/[0.06]" />
-        <span className={cx('h-5 px-2 rounded-full text-[10px] font-medium inline-flex items-center', CONFIDENCE_STYLE[confidence])}>
-          {confidence} confidence
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[12.5px] text-white/80">
+          <span className="text-white/45">Speed and cost:</span>{' '}
+          {chosen ? chosen.label : 'Custom'}, {selection.agents} agent{selection.agents === 1 ? '' : 's'}, about{' '}
+          {range(chosenEstimate.time_s, fmtTime)}
         </span>
+        <span className={cx('h-5 px-2 rounded-full text-[10px] font-medium inline-flex items-center', CONFIDENCE_STYLE[confidence])}>
+          {confidence} confidence estimate
+        </span>
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="ml-auto text-[11.5px] text-[#E6BE7A] hover:underline"
+        >
+          {open ? 'Hide options' : 'Change'}
+        </button>
       </div>
+      {open && (
+      <>
 
       <dl className="grid grid-cols-3 gap-2">
         {[
@@ -165,6 +184,11 @@ export function StrategyPanel({ analysis, selection, onSelect, stale }: Props) {
           ))}
         </ul>
       </div>
+      </>
+      )}
+      {!open && stale && (
+        <p className="text-[11.5px] text-white/40">You edited the plan. Estimates cover the original split; regenerate to refresh them.</p>
+      )}
     </div>
   )
 }

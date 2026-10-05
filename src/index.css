@@ -808,7 +808,7 @@ code, pre, kbd, samp { font-family: var(--mono); }
 .ov-progress .big small { font-size: 15px; color: var(--faint); font-weight: 500; }
 .ov-progress .cap { font-size: 12px; color: var(--dim); }
 .seg-bar { display: flex; gap: 3px; height: 6px; }
-.seg-bar span { flex: 1; border-radius: 2px; background: var(--panel-3); transition: background var(--d-base); }
+.seg-bar span { flex: 1; border-radius: 2px; background: var(--panel-3); transition: background var(--d-base); transform-origin: left center; }
 .seg-bar span.running { background: var(--accent); animation: ov-pulse 1.4s var(--e-standard) infinite; }
 .seg-bar span.done { background: var(--good); }
 .seg-bar span.error { background: var(--bad); }

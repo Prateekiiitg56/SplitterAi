@@ -24,7 +24,7 @@ function projectLabel(session: SessionEntry): string {
   return session.name || (fromWorkspace && fromWorkspace !== '.' ? fromWorkspace : '') || session.task || session.id
 }
 
-const AGENT_ROLES: AgentRole[] = ['planner', 'coder', 'auditor', 'tester']
+const AGENT_ROLES: AgentRole[] = ['planner', 'designer', 'coder', 'auditor', 'tester']
 
 export function ShellExplorer({ pathname }: { pathname: string }) {
   const { sessions, sessionsLoading, sessionsError } = useApp()
