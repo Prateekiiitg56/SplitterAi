@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { projectIdOf } from '../config'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
 import { ROLE_META } from '../data'
@@ -129,8 +130,8 @@ export default function ProjectAgentsPage() {
     }))
 
     const titleToUse = masterTitle.trim() || drafts[0]?.instruction.trim().slice(0, 40) || 'Custom Agent Plan'
-    await executeTaskWithPlan(titleToUse, subtasks, currentWorkspace)
-    navigate('/projects/default')
+    const started = await executeTaskWithPlan(titleToUse, subtasks, currentWorkspace)
+    if (started) navigate(`/projects/${projectIdOf(started.workspace)}`)
   }
 
   return (

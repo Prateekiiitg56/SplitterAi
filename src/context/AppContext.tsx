@@ -22,6 +22,8 @@ interface AppContextType {
   taskTitle: string
   errorMessage: string | null
   runId: string | null
+  runWorkspace: string | null
+  resetRun: () => void
   executeTask: (newTask: string, workspace?: string, model?: string) => Promise<StartedRun | null>
   runReport: RunReport | null
   runOutcome: { synthesis: string | null; verification: Verification | null } | null
@@ -68,6 +70,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const {
     runId,
+    runWorkspace,
     connection,
     subtasks,
     logs,
@@ -103,6 +106,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sessionsError,
         refetchSessions,
         runId,
+        runWorkspace,
+        resetRun,
         connection,
         subtasks,
         logs,

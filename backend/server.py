@@ -24,6 +24,7 @@ from agentcli.config import ExecutionConfig
 from agentcli.graph import run_graph
 from agentcli.planner import load_manual_plan
 from agentcli.analysis import run_analysis
+from agentcli.intent import classify_intent
 from agentcli.allocation import MAX_AGENTS, PRESETS, build_strategy, estimate as estimate_strategy
 from agentcli.telemetry import record_run, record_subtask
 from agentcli.models import select_chain
@@ -42,7 +43,7 @@ from agentcli.schemas import (
 from pydantic import BaseModel, Field
 
 from agentcli.web import apply_template, design_context, detect_stack, is_web_task, new_project_dir, planning_guidance
-from agentcli.session import list_runs, list_sessions, load_run, rename_session, reset_session, save_run_result
+from agentcli.session import list_runs, list_sessions, load_run, rename_session, reset_session, save_run_result, save_session
 from agentcli.integrations_store import (
     load_all_integrations,
     save_integration,
@@ -423,6 +424,8 @@ def start_run(request: RunRequest) -> runs.Run:
 async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan: Plan | None) -> RunResult:
     """The whole job: plan (unless confirmed), run the graph, persist, announce completion."""
     on_event = make_event_emitter(run)
+    # The project shows up in the dashboard (and survives a refresh) while its first run is still going.
+    await asyncio.to_thread(save_session, run.workspace, request.task, RunStatus.executing)
     stack = detect_stack(request.task, request.stack)
     config = planner_config(request.model)
     if request.model:
@@ -537,6 +540,17 @@ async def run_task(request: RunRequest, x_api_key: str | None = Header(None, ali
     run = start_run(request)
     # A dropped HTTP connection must not cancel the run itself.
     return await asyncio.shield(run.job)
+
+
+class IntentRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+
+
+@app.post("/intent")
+async def intent(req: IntentRequest, x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
+    """Is this console message work for the agents ("task") or a question ("chat")?"""
+    verify_shared_secret(x_api_key, token)
+    return await classify_intent(req.message)
 
 
 @app.post("/chat")
@@ -764,6 +778,8 @@ async def upload_workspace(
         from agentcli.workspace_import import extract_zip_to_workspace
 
         ws_path, file_count = extract_zip_to_workspace(zip_bytes)
+        # An imported project is a project like any other: listed, openable, previewable.
+        await asyncio.to_thread(save_session, str(ws_path), f"Imported {file.filename}", RunStatus.idle)
         return {"workspace": str(ws_path), "fileCount": file_count}
     except ValueError as val_err:
         raise HTTPException(status_code=400, detail=str(val_err))

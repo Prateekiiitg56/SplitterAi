@@ -8,7 +8,7 @@ import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
 import { TextField, SearchField } from '../components/primitives/Field'
 import { deleteSession, renameSession, uploadWorkspace } from '../lib/api'
-import { DEFAULT_WORKSPACE } from '../config'
+import { DEFAULT_WORKSPACE, projectIdOf } from '../config'
 import { PageHeader } from '../components/PageHeader'
 
 export default function ProjectsPage() {
@@ -105,7 +105,7 @@ export default function ProjectsPage() {
       setIsImportModalOpen(false)
       setSelectedZipFile(null)
       setIsUploading(false)
-      navigate('/projects/default')
+      navigate(`/projects/${projectIdOf(result.workspace)}`)
     } catch (err: any) {
       setIsUploading(false)
       setUploadError(err.message || 'Failed to upload and extract project zip.')

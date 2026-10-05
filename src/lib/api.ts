@@ -9,7 +9,7 @@
  * - WebSocket /ws → real-time log event streaming
  */
 
-import { API_BASE, WS_URL } from '../config'
+import { API_BASE, WS_URL, getSharedSecret } from '../config'
 import type { QuotaInfo } from '../types'
 
 // ── Types matching backend schemas ─────────────────────────────
@@ -171,12 +171,23 @@ export interface AgentConfig {
 
 // ── REST Client with Timeout & Network Resilience ────────────────
 
+/** Adds the shared secret as ?token= for URLs the browser opens directly (links, iframes, WebSocket). */
+export function withToken(url: string): string {
+  const secret = getSharedSecret()
+  if (!secret) return url
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(secret)}`
+}
+
 export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  const secret = getSharedSecret()
+  const headers = new Headers(options.headers)
+  if (secret) headers.set('X-API-Key', secret)
   try {
     const res = await fetch(url, {
       ...options,
+      headers,
       signal: controller.signal,
     })
     return res
@@ -223,6 +234,31 @@ export async function startRun(request: RunRequest): Promise<{ run_id: string; w
     const err = await res.json().catch(() => ({ detail: `Run failed: ${res.status} ${res.statusText}` }))
     throw new Error(err.detail || `Run failed (${res.status})`)
   }
+  return res.json()
+}
+
+export interface RunSummary {
+  run_id: string
+  workspace: string
+  task: string
+  status: string
+  created_at: number
+}
+
+/** Active runs of a workspace first, then finished ones, newest first. */
+export async function listRuns(workspace: string): Promise<RunSummary[]> {
+  const res = await fetchWithTimeout(`${API_BASE}/runs?workspace=${encodeURIComponent(workspace)}`, {}, 10000)
+  if (!res.ok) throw new Error(`Could not load runs (HTTP ${res.status})`)
+  return res.json()
+}
+
+export async function classifyIntent(message: string): Promise<{ intent: 'task' | 'chat'; confidence: number }> {
+  const res = await fetchWithTimeout(`${API_BASE}/intent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  }, 30000)
+  if (!res.ok) throw await sessionError(res, 'Could not classify the message')
   return res.json()
 }
 
@@ -289,7 +325,7 @@ export async function fetchAgentQuotas(): Promise<QuotaInfo[]> {
 
 /** Direct download URL; a plain link lets the browser stream the zip. */
 export function workspaceExportUrl(workspace: string): string {
-  return `${API_BASE}/workspaces/export?workspace=${encodeURIComponent(workspace)}`
+  return withToken(`${API_BASE}/workspaces/export?workspace=${encodeURIComponent(workspace)}`)
 }
 
 export async function fetchFiles(workspace: string): Promise<any[]> {
@@ -439,7 +475,7 @@ export class AgentWebSocket {
   connect(): void {
     this.shouldReconnect = true
     try {
-      const ws = new WebSocket(WS_URL)
+      const ws = new WebSocket(withToken(WS_URL))
       this.ws = ws
 
       ws.onopen = () => {

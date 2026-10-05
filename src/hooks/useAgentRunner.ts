@@ -48,15 +48,15 @@ function toLogEntry(event: LogEvent): LogEntry {
 
 const readActiveRun = () => {
   try {
-    return localStorage.getItem(ACTIVE_RUN_KEY)
+    return sessionStorage.getItem(ACTIVE_RUN_KEY)
   } catch {
     return null
   }
 }
 const writeActiveRun = (runId: string | null) => {
   try {
-    if (runId) localStorage.setItem(ACTIVE_RUN_KEY, runId)
-    else localStorage.removeItem(ACTIVE_RUN_KEY)
+    if (runId) sessionStorage.setItem(ACTIVE_RUN_KEY, runId)
+    else sessionStorage.removeItem(ACTIVE_RUN_KEY)
   } catch {
     /* storage unavailable: refresh just won't resume the run */
   }
@@ -71,7 +71,8 @@ export interface RunOptions {
 }
 
 /**
- * Drives one run at a time. The WebSocket is the single source of truth for progress; messages from
+ * Drives one run at a time. The followed run id is kept per tab (sessionStorage), so a refresh resumes it
+ * and two tabs can follow two runs. The WebSocket is the single source of truth for progress; messages from
  * other runs are ignored. `GET /runs/{id}` resyncs after a reconnect or page refresh.
  * `onWorkspace` receives the folder the run actually uses (new projects get their own).
  */
@@ -80,6 +81,8 @@ export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
   onWorkspaceRef.current = onWorkspace
   const runIdRef = useRef<string | null>(readActiveRun())
   const [runId, setRunIdState] = useState<string | null>(runIdRef.current)
+  /** Workspace of the followed run; pages show run state only for their own project. */
+  const [runWorkspace, setRunWorkspace] = useState<string | null>(null)
   const [connection, setConnection] = useState<ConnectionStatus>('connecting')
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -109,7 +112,7 @@ export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
       const snap = await fetchRun(id)
       if (runIdRef.current !== id) return
       setTaskTitle(snap.task)
-      onWorkspaceRef.current?.(snap.workspace)
+      setRunWorkspace(snap.workspace)
       setLogs(snap.logs.slice(-MAX_LOGS).map(toLogEntry))
       setSubtasks(snap.subtasks.map((st) => toSubtask(st)))
       if (snap.result) applyResult(snap.result)
@@ -164,6 +167,7 @@ export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
   /** Forget the current run so another project's state never bleeds into the next one. */
   const resetRun = useCallback(() => {
     setRunId(null)
+    setRunWorkspace(null)
     writeActiveRun(null)
     setSubtasks([])
     setLogs([])
@@ -179,6 +183,7 @@ export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
     const workspace = opts.workspace || DEFAULT_WORKSPACE
     const initial = opts.subtasks ?? []
     setRunId(null)
+    setRunWorkspace(workspace)
     setTaskTitle(task)
     setRunStatus(initial.length ? 'executing' : 'planning')
     // Nothing runs until the backend says so; later groups wait on earlier ones.
@@ -211,6 +216,7 @@ export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
       const started = await startRun(request)
       setRunId(started.run_id)
       writeActiveRun(started.run_id)
+      setRunWorkspace(started.workspace)
       onWorkspaceRef.current?.(started.workspace)
       return { runId: started.run_id, workspace: started.workspace }
     } catch (err: any) {
@@ -272,6 +278,7 @@ export function useAgentRunner(onWorkspace?: (workspace: string) => void) {
 
   return {
     runId,
+    runWorkspace,
     connection,
     subtasks,
     logs,

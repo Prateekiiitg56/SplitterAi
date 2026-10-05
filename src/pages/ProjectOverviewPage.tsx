@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import FileExplorer from '../components/FileExplorer'
 import ProjectTabShell from './ProjectTabShell'
 import { useApp } from '../context/AppContext'
@@ -11,7 +11,7 @@ import { AVAILABLE_MODELS } from '../data'
 import type { Subtask } from '../types'
 import { StatusBadge, RoleBadge } from '../components/Badges'
 import { ExternalLink, Play, Loader2, Download } from 'lucide-react'
-import { API_BASE, DEFAULT_WORKSPACE } from '../config'
+import { API_BASE, DEFAULT_WORKSPACE, projectIdOf } from '../config'
 import { workspaceExportUrl } from '../lib/api'
 
 const RUN_LABEL = {
@@ -35,6 +35,7 @@ const segState = (st: Subtask) => {
 
 export default function ProjectOverviewPage() {
   const location = useLocation()
+  const navigate = useNavigate()
 
   const { currentWorkspace, subtasks, logs, runStatus, taskTitle, errorMessage, clearError, executeTask, cancelRun, runReport, runOutcome } = useApp()
   const { multiMode, setMultiMode, selectedModel, setSelectedModel } = useUI()
@@ -70,9 +71,13 @@ export default function ProjectOverviewPage() {
   // Projects live in workspace_output/<folder>; the bare root means no project yet, so nothing to preview.
   const folder = currentWorkspace.split('\\').join('/').split('workspace_output/')[1]?.replace(/\/+$/, '')
 
-  const run = () => {
+  // Follow-up work runs in this project's folder; on /projects/default it starts a new project.
+  const run = async () => {
     const taskToRun = taskInput.trim() || taskTitle.trim()
-    if (taskToRun && !isBusy) executeTask(taskToRun, currentWorkspace, selectedModel.id)
+    if (!taskToRun || isBusy) return
+    setTaskInput('')
+    const started = await executeTask(taskToRun, currentWorkspace, selectedModel.id)
+    if (started && currentWorkspace === DEFAULT_WORKSPACE) navigate(`/projects/${projectIdOf(started.workspace)}`)
   }
 
   return (

@@ -26,7 +26,7 @@ from .db_supabase import (
 
 def _get_db_path() -> Path:
     """Get the SQLite database path (~/.agentcli/sessions.db)."""
-    base = Path.home() / ".agentcli"
+    base = Path(os.getenv("SPLITTER_DATA_DIR") or Path.home() / ".agentcli")
     base.mkdir(parents=True, exist_ok=True)
     return base / "sessions.db"
 

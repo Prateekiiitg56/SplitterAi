@@ -36,7 +36,7 @@ const result = (runId: string, status = 'done') => ({
 
 describe('useAgentRunner', () => {
   beforeEach(() => {
-    localStorage.clear()
+    sessionStorage.clear()
     vi.clearAllMocks()
   })
 
@@ -52,7 +52,7 @@ describe('useAgentRunner', () => {
     expect(started).toEqual({ runId: 'r1', workspace: './workspace_output/todo-1' })
     expect(onWorkspace).toHaveBeenCalledWith('./workspace_output/todo-1')
     expect(hook.current.runId).toBe('r1')
-    expect(localStorage.getItem('splitterai_active_run')).toBe('r1')
+    expect(sessionStorage.getItem('splitterai_active_run')).toBe('r1')
 
     act(() => {
       api.handlers.onEvent(log('r1', 'mine'))
@@ -69,11 +69,11 @@ describe('useAgentRunner', () => {
     expect(hook.current.runReport).toEqual({ agents: 1 })
     expect(hook.current.runOutcome?.synthesis).toBe('built it')
     expect(hook.current.subtasks[0].status).toBe('success')
-    expect(localStorage.getItem('splitterai_active_run')).toBeNull()
+    expect(sessionStorage.getItem('splitterai_active_run')).toBeNull()
   })
 
   it('resumes the stored run from GET /runs/{id} after a refresh', async () => {
-    localStorage.setItem('splitterai_active_run', 'r7')
+    sessionStorage.setItem('splitterai_active_run', 'r7')
     api.fetchRun.mockResolvedValue({
       run_id: 'r7',
       workspace: './workspace_output/app-7',
@@ -83,15 +83,14 @@ describe('useAgentRunner', () => {
       logs: [log('r7', 'before refresh')],
       result: null,
     })
-    const onWorkspace = vi.fn()
-    const { result: hook } = renderHook(() => useAgentRunner(onWorkspace))
+    const { result: hook } = renderHook(() => useAgentRunner())
 
     act(() => api.handlers.onConnect())
     await waitFor(() => expect(hook.current.runStatus).toBe('executing'))
     expect(api.fetchRun).toHaveBeenCalledWith('r7')
     expect(hook.current.taskTitle).toBe('make an app')
     expect(hook.current.logs.map((l) => l.message)).toEqual(['before refresh'])
-    expect(onWorkspace).toHaveBeenCalledWith('./workspace_output/app-7')
+    expect(hook.current.runWorkspace).toBe('./workspace_output/app-7')
   })
 
   it('reports a failed start without following any run', async () => {
