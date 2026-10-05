@@ -19,7 +19,7 @@ export default function ProjectTasksPage() {
           <div>
             <div className="th-title">
               <CheckSquare size={15} />
-              <span>Subtasks & Execution Steps</span>
+              <span>Plan</span>
             </div>
             <div className="th-sub">
               {taskTitle ? `Task: "${taskTitle}"` : 'Decomposed parallel worker task nodes.'}

@@ -58,7 +58,11 @@ export default function ProjectTabShell({ children, title }: ProjectTabShellProp
   const sessionTask = session?.task
   const isNew = currentWorkspace === DEFAULT_WORKSPACE
   const displayTitle = title ?? (taskTitle || sessionTask || (isNew ? 'New project' : 'Current run'))
-  const displayPath = isNew ? 'folder is created on first run' : `~/workspace/${currentWorkspace.split(/[/\\]/).pop()}`
+  // Where the files really are: generated projects live in workspace_output/, imported ones elsewhere.
+  const folderName = currentWorkspace.split(/[/\\]/).filter(Boolean).pop()
+  const displayPath = isNew
+    ? 'a folder is created on the first run'
+    : currentWorkspace.replace(/\\/g, '/').includes('workspace_output/') ? `workspace_output/${folderName}` : `imported/${folderName}`
 
   return (
     <div className="flex flex-1 flex-col min-w-0 min-h-0 bg-transparent relative z-10 font-sans text-[var(--text)] select-none">

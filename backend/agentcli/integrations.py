@@ -161,16 +161,30 @@ def git_publish_pages(site: Path, repo: str, token: str) -> None:
         _git(["push", "--force", f"https://github.com/{repo}.git", f"HEAD:refs/heads/{PAGES_BRANCH}"], stage, token)
 
 
+PAGES_PERMISSION_HINT = (
+    "The files are on the gh-pages branch, but GitHub would not switch Pages on for this token. "
+    "Either give the token Administration: Read and write and Pages: Read and write, or turn Pages on once "
+    "yourself (repository Settings > Pages > Deploy from a branch > gh-pages, / root) and deploy again."
+)
+
+
 async def github_enable_pages(token: str, repo: str) -> str:
-    """Turn on Pages for the gh-pages branch (or point existing Pages at it). Returns the site URL."""
+    """Make Pages serve the gh-pages branch (enabling it when needed). Returns the site URL."""
     source = {"source": {"branch": PAGES_BRANCH, "path": "/"}}
     async with _http() as client:
-        resp = await client.post(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token), json=source)
-        if resp.status_code == 409:  # Pages already on: update its source
-            resp = await client.put(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token), json=source)
-        if resp.status_code not in (200, 201, 204):
-            raise _gh_error(resp)
-        info = await client.get(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token))
+        current = await client.get(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token))
+        if current.status_code == 200 and (current.json().get("source") or {}).get("branch") == PAGES_BRANCH:
+            info = current  # already serving gh-pages: nothing to change (and no admin rights needed)
+        else:
+            if current.status_code == 404:
+                resp = await client.post(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token), json=source)
+            else:
+                resp = await client.put(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token), json=source)
+            if resp.status_code == 403:
+                raise IntegrationError(f"{_gh_error(resp)}. {PAGES_PERMISSION_HINT}")
+            if resp.status_code not in (200, 201, 204):
+                raise _gh_error(resp)
+            info = await client.get(f"{GITHUB_API}/repos/{repo}/pages", headers=_gh_headers(token))
     if info.status_code != 200:
         raise _gh_error(info)
     return info.json().get("html_url") or f"https://{repo.split('/')[0]}.github.io/{repo.split('/')[1]}/"

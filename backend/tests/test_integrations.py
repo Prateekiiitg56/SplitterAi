@@ -244,10 +244,10 @@ def test_deploy_publishes_the_site_to_gh_pages_and_enables_pages(client, tmp_pat
         if request.url.path == "/repos/octo/site/pages":
             pages_calls.append(request.method)
             if request.method == "POST":
-                return httpx.Response(409, json={"message": "Pages already enabled"})
-            if request.method == "PUT":
-                return httpx.Response(204)
-            return httpx.Response(200, json={"html_url": "https://octo.github.io/site/"})
+                return httpx.Response(201, json={})
+            if len(pages_calls) == 1:  # first GET: Pages not enabled yet
+                return httpx.Response(404, json={"message": "Not Found"})
+            return httpx.Response(200, json={"html_url": "https://octo.github.io/site/", "source": {"branch": "gh-pages"}})
         return ok_github(request)
 
     with github_api(ok_github):
@@ -276,7 +276,7 @@ def test_deploy_publishes_the_site_to_gh_pages_and_enables_pages(client, tmp_pat
     assert pushed["args"] == ["push", "--force", "https://github.com/octo/site.git", "HEAD:refs/heads/gh-pages"]
     assert pushed["token"] == TOKEN
     assert pushed["files"] == [".nojekyll", "assets/app.js", "index.html"]  # dist/ only
-    assert pages_calls == ["POST", "PUT", "GET"]
+    assert pages_calls == ["GET", "POST", "GET"]
 
 
 def test_deploy_needs_an_index_html(client, tmp_path, monkeypatch):
@@ -288,3 +288,26 @@ def test_deploy_needs_an_index_html(client, tmp_path, monkeypatch):
     monkeypatch.setattr(server, "workspace_dir", lambda w: project)
     res = client.post("/integrations/github/deploy", json={"workspace": "x"})
     assert res.status_code == 400 and "Nothing to deploy" in res.json()["detail"]
+
+
+async def test_pages_already_on_gh_pages_needs_no_admin_rights():
+    calls = []
+
+    def handler(request):
+        calls.append(request.method)
+        return httpx.Response(200, json={"html_url": "https://octo.github.io/site/", "source": {"branch": "gh-pages", "path": "/"}})
+
+    with github_api(handler):
+        assert await integrations.github_enable_pages(TOKEN, "octo/site") == "https://octo.github.io/site/"
+    assert calls == ["GET"]
+
+
+async def test_pages_permission_error_says_how_to_fix_it():
+    def handler(request):
+        if request.method == "GET":
+            return httpx.Response(404, json={"message": "Not Found"})
+        return httpx.Response(403, json={"message": "Resource not accessible by personal access token"})
+
+    with github_api(handler), pytest.raises(integrations.IntegrationError) as err:
+        await integrations.github_enable_pages(TOKEN, "octo/site")
+    assert "Resource not accessible" in str(err.value) and "Administration" in str(err.value) and "Settings > Pages" in str(err.value)

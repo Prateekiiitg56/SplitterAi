@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { projectIdOf } from '../config'
 import { useApp } from '../context/AppContext'
@@ -10,6 +10,7 @@ import { Modal } from '../components/primitives/Modal'
 import { Button } from '../components/primitives/Button'
 import { SearchField } from '../components/primitives/Field'
 import { PageHeader } from '../components/PageHeader'
+import { fetchAgents } from '../lib/api'
 
 export default function AgentsOverviewPage() {
   const navigate = useNavigate()
@@ -22,32 +23,21 @@ export default function AgentsOverviewPage() {
   const [modalRole, setModalRole] = useState<AgentRole>('coder')
   const [modalTask, setModalTask] = useState('')
 
+  // The real fallback chains come from the backend; until they load the card shows none.
+  const [chains, setChains] = useState<Record<string, string[]>>({})
+  useEffect(() => {
+    fetchAgents().then((list) => setChains(Object.fromEntries(list.map((a) => [a.role, a.model_chain]))))
+  }, [])
+  const chainLabel = (role: AgentRole) =>
+    (chains[role] || []).slice(0, 2).map((m) => m.split('/').pop()?.replace(':free', '')).join(' → ')
+
   const baseRoster: { role: AgentRole; title: string; desc: string; modelChain: string }[] = [
-    {
-      role: 'coder',
-      title: 'Code Writer',
-      desc: 'Writes and edits code files for your project',
-      modelChain: 'gemini-3.5-flash → nemotron-3-super',
-    },
-    {
-      role: 'auditor',
-      title: 'Code Reviewer',
-      desc: 'Checks code for bugs, security issues, and best practices',
-      modelChain: 'gemini-3.5-flash → nemotron-3-ultra',
-    },
-    {
-      role: 'tester',
-      title: 'Test Runner',
-      desc: 'Writes and runs tests to verify your code works',
-      modelChain: 'gemini-3.5-flash → grok-2-beta',
-    },
-    {
-      role: 'planner',
-      title: 'Task Planner',
-      desc: 'Breaks down your goal into smaller steps for other agents',
-      modelChain: 'gemini-3.5-flash → grok-2-beta',
-    },
-  ]
+    { role: 'planner', title: 'Task Planner', desc: 'Splits your goal into steps for the other agents' },
+    { role: 'designer', title: 'Designer', desc: 'Sets layout, colours and type for web projects' },
+    { role: 'coder', title: 'Code Writer', desc: 'Writes and edits the code files of your project' },
+    { role: 'auditor', title: 'Code Reviewer', desc: 'Checks the code for bugs, security issues and quality' },
+    { role: 'tester', title: 'Test Runner', desc: 'Writes and runs tests to verify the code works' },
+  ].map((item) => ({ ...item, role: item.role as AgentRole, modelChain: chainLabel(item.role as AgentRole) }))
 
   const agents = baseRoster.map((item) => {
     const activeSubtask = subtasks.find((s) => s.role === item.role)
@@ -180,7 +170,7 @@ export default function AgentsOverviewPage() {
                   </div>
 
                   <div className="ac-task">
-                    {agent.currentTask ? agent.currentTask : 'Waiting, ready for a task'}
+                    {agent.currentTask ? agent.currentTask : 'Not working on anything right now'}
                   </div>
 
                   <div className="ac-progress-track">
@@ -194,7 +184,7 @@ export default function AgentsOverviewPage() {
                   </div>
 
                   <div className="ac-foot">
-                    <span className="ac-model">{agent.modelChain}</span>
+                    <span className="ac-model" title="Models tried in this order">{agent.modelChain}</span>
                     <div className="ac-actions">
                       <Button
                         variant="ghost"
@@ -206,15 +196,6 @@ export default function AgentsOverviewPage() {
                       >
                         Open
                       </Button>
-                      {/* No backend pause/stop endpoint yet: shown disabled rather than faking state. */}
-                      <span className="inline-flex gap-1" title="Pausing or stopping agents is not supported by the backend yet">
-                        <Button variant="quiet" size="sm" disabled>
-                          Pause
-                        </Button>
-                        <Button variant="quiet" size="sm" disabled>
-                          Stop
-                        </Button>
-                      </span>
                     </div>
                   </div>
                 </div>

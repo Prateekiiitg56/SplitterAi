@@ -109,14 +109,6 @@ export interface RoleBadgeProps {
 
 export function RoleBadge({ role, compact = false, size = 'md', className = '' }: RoleBadgeProps) {
   const r = (role || '').toLowerCase() as AgentRole
-  const tags: Record<string, string> = {
-    planner: 'PL',
-    coder: 'CO',
-    auditor: 'AU',
-    tester: 'TE',
-    designer: 'DE',
-    unassigned: 'UA'
-  }
   const labels: Record<string, string> = {
     planner: 'Planner',
     coder: 'Coder',
@@ -125,7 +117,6 @@ export function RoleBadge({ role, compact = false, size = 'md', className = '' }
     designer: 'Designer',
     unassigned: 'Unassigned'
   }
-  const tag = tags[r] ?? r.slice(0, 2).toUpperCase()
   const label = labels[r] ?? role
 
   const roleStyles: Record<string, string> = {
@@ -152,10 +143,9 @@ export function RoleBadge({ role, compact = false, size = 'md', className = '' }
   }
 
   return (
-    <span className={`inline-flex items-center rounded border font-mono font-medium ${colorClass} ${sizeClasses} ${className}`}>
+    <span className={`inline-flex items-center rounded border font-medium ${colorClass} ${sizeClasses} ${className}`}>
       <AgentIcon role={role} size={iconSize} />
-      <span className="text-micro uppercase tracking-wider font-semibold">{tag}</span>
-      <span className="sr-only">Role: {label}</span>
+      <span className="text-micro font-semibold">{label}</span>
     </span>
   )
 }

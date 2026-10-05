@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ChevronDown,
@@ -138,6 +138,16 @@ export default function ConsolePage() {
   const [isSending, setIsSending] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const location = useLocation()
+
+  // "Run as task" from the chat panel arrives with the question to turn into work.
+  useEffect(() => {
+    const prefill = (location.state as { prefill?: string } | null)?.prefill
+    if (!prefill) return
+    setInputValue(prefill)
+    textareaRef.current?.focus()
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isPlanning, setIsPlanning] = useState(false)
   const [draftPlan, setDraftPlan] = useState<DraftPlan | null>(null)
@@ -423,9 +433,9 @@ export default function ConsolePage() {
         </div>
 
         {/* Bottom toolbar */}
-        <div className="flex items-center justify-between px-4 pb-3 pt-1">
-          {/* Left controls */}
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-end justify-between gap-2 px-4 pb-3 pt-1">
+          {/* Left controls (wrap on narrow screens instead of running off the card) */}
+          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
             {/* Attach menu */}
             <div className="relative">
               <motion.button
@@ -616,7 +626,7 @@ export default function ConsolePage() {
             <p className="mt-1 text-[12.5px] leading-relaxed text-white/45">
               Breaking <span className="text-white/85 font-medium">{draftPlan.goalLabel}</span> into{' '}
               <span className="text-white/85 font-medium">{draftPlan.subtasks.length} subtask{draftPlan.subtasks.length === 1 ? '' : 's'}</span>{' '}
-              for {rosterRoles.length} agent role{rosterRoles.length === 1 ? '' : 's'}. Steps in the same group run in parallel.
+              for {rosterRoles.length} agent role{rosterRoles.length === 1 ? '' : 's'}. Edit any instruction before you launch.
             </p>
           </div>
 
@@ -625,7 +635,7 @@ export default function ConsolePage() {
             {groupNums.map((g) => (
               <div key={g} className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-white/30">Group {g} · parallel</span>
+                  <span className="text-[11px] text-white/40">Step {g}{grouped[g].length > 1 ? ', at the same time' : ''}</span>
                   <span className="h-px flex-1 bg-white/[0.06]" />
                 </div>
                 {grouped[g].map((st) => {
@@ -727,6 +737,9 @@ export default function ConsolePage() {
   function renderAgentPills() {
     return (
       <div className="flex items-center gap-1.5 flex-wrap justify-center">
+        <span className="text-[11px] text-white/35 mr-0.5" title="Questions are answered by this agent; tasks use every agent in the plan">
+          Answers from
+        </span>
         {sessionAgents.map((r) => {
           const meta = ROLE_META[r]
           const isActive = selectedAgentRole === r
