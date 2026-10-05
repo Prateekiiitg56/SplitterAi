@@ -494,7 +494,7 @@ export async function connectIntegration(payload: any): Promise<any> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-  }, 15000)
+  }, 90000) // MCP connect starts the server (npx may download it) and lists its tools; the backend allows 60s
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to connect integration' }))
     throw new Error(err.detail || 'Connection failed')

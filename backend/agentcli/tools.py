@@ -115,6 +115,8 @@ NPM_CACHE_DIR = "/var/cache/splitter-npm"  # shared across projects so installs 
 _BWRAP_BASE = [
     "--ro-bind", "/usr", "/usr", "--symlink", "usr/bin", "/bin", "--symlink", "usr/lib", "/lib",
     "--symlink", "usr/lib64", "/lib64", "--symlink", "usr/sbin", "/sbin", "--ro-bind", "/etc", "/etc",
+    # WSL points /etc/resolv.conf at /mnt/wsl/resolv.conf; without that one file DNS fails (npm install).
+    "--ro-bind-try", "/mnt/wsl/resolv.conf", "/mnt/wsl/resolv.conf",
     "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
     "--clearenv", "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin", "--setenv", "HOME", "/tmp",
     "--setenv", "LANG", "C.UTF-8", "--setenv", "npm_config_cache", "/npm-cache", "--setenv", "CI", "1",

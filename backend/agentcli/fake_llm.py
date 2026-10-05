@@ -128,7 +128,7 @@ def _worker_actions(task: str, tool_names: set[str]) -> list[dict[str, Any]]:
                 _call("run_shell", command="python primes.py")]
     if "react" in lower or "vite" in lower:
         return [_call("read_file", path="src/App.jsx"), _call("write_file", path="src/App.jsx", content=COUNTER_APP)]
-    clear = "clear" in lower
+    clear = "clear-completed" in lower or "clear completed" in lower
     html = TODO_HTML.replace("__EXTRA__", CLEAR_BUTTON if clear else "").replace("__EXTRA_JS__", CLEAR_JS if clear else "")
     return [_call("read_file", path="index.html"), _call("write_file", path="index.html", content=html)]
 
@@ -148,14 +148,21 @@ def respond(messages: list[dict[str, Any]], role: AgentRole, tools: list[dict] |
         return {**reply, "content": "Checked the workspace against the contract.\nVERDICT: PASS"}
     if system.startswith(PLANNER_SYSTEM[:60]):
         task = last_user.strip()
-        return {**reply, "content": json.dumps([{"id": "t1", "role": "coder", "instruction": f"Implement: {task}",
-                                                "capability": "coding", "size": "s", "depends_on": []}])}
+        return {**reply, "content": json.dumps([
+            {"id": "t1", "role": "coder", "instruction": f"Implement: {task}", "capability": "coding", "size": "s",
+             "depends_on": []},
+            {"id": "t2", "role": "tester", "instruction": "Check that the result works.", "capability": "testing",
+             "size": "s", "depends_on": ["t1"]},
+        ])}
     if not tools:  # /chat and the coordinator
         return {**reply, "content": f"(fake model) You asked: {last_user[:200]}"}
 
     # Workers: replay the scripted tool calls one per step, then report.
     task = " ".join(_text(m.get("content")) for m in messages if m.get("role") == "user")
-    actions = _worker_actions(task, {t["function"]["name"] for t in tools})
+    if role in (AgentRole.auditor, AgentRole.tester):
+        actions = [_call("list_directory", path=".")]  # reviewers look, they do not rewrite the deliverable
+    else:
+        actions = _worker_actions(task, {t["function"]["name"] for t in tools})
     step = sum(1 for m in messages if m.get("role") == "assistant" and m.get("tool_calls"))
     if step < len(actions):
         return {**reply, "content": "", "tool_calls": [actions[step]]}

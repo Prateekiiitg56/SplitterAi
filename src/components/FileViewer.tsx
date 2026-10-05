@@ -65,6 +65,7 @@ export function FileViewer({ workspace, path, version }: FileViewerProps) {
             type="button"
             onClick={run}
             disabled={running}
+            aria-label={`Run ${path}`}
             className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg bg-[var(--accent)] text-[#1A1410] text-micro font-semibold disabled:opacity-50"
           >
             {running ? <Loader2 size={12} className="animate-spin" /> : <Play size={11} fill="currentColor" />} Run

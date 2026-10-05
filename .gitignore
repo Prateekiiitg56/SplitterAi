@@ -51,3 +51,8 @@ workspace_output/
 test-results/
 playwright-report/
 !.env.example
+
+# End-to-end test output
+e2e/.data/
+e2e-results/
+e2e-results-*.log

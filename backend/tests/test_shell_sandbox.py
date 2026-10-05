@@ -95,7 +95,9 @@ def test_bwrap_sandbox_hides_the_host(tmp_path, monkeypatch):
     out = tools.run_shell(sandbox, "cat in.txt; ls /mnt; env; echo made > out.txt; pwd", timeout=120)
     assert "inside" in out and "/workspace" in out
     assert "hunter2" not in out
-    assert "No such file" in out  # no host drives
+    mounts = tools.run_shell(sandbox, "ls /mnt", timeout=120).splitlines()[1:]
+    assert not {"c", "d", "e"} & set(mounts)  # no host drives; at most WSL's resolver folder
+    assert set(mounts) <= {"wsl"} or "No such file" in " ".join(mounts)
     assert (tmp_path / "out.txt").read_text().strip() == "made"
     assert "3" in tools.run_shell(sandbox, 'python -c "print(1+2)"', timeout=120)
 
@@ -126,3 +128,12 @@ def test_search_code_python_fallback(tmp_path):
 def test_search_code_uses_ripgrep(tmp_path):
     out = tools.search_code(_search_fixture(tmp_path), "total")
     assert "src/app.js:1: const Total = 1" in out and "src/app.js:2:" in out and "node_modules" not in out
+
+
+@needs_bwrap
+def test_bwrap_sandbox_resolves_dns(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPLITTER_SANDBOX", "auto")
+    out = tools.run_shell(Sandbox(tmp_path), "getent hosts registry.npmjs.org && ls /mnt", timeout=120)
+    assert "registry.npmjs.org" in out
+    assert "wsl" in out or "No such file" in out  # at most the resolver file, never host drives
+    assert "/mnt/c" not in out and "\nc\n" not in out

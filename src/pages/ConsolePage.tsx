@@ -265,6 +265,13 @@ export default function ConsolePage() {
     })
   }, [])
 
+  const editInstruction = useCallback((id: string, instruction: string) => {
+    setDraftPlan((prev) => prev && {
+      ...prev,
+      subtasks: prev.subtasks.map((s) => (s.id === id ? { ...s, instruction } : s)),
+    })
+  }, [])
+
   const removeRoleFromPlan = useCallback((role: AgentRole) => {
     setDraftPlan((prev) => {
       if (!prev) return prev
@@ -631,7 +638,13 @@ export default function ConsolePage() {
                       >
                         <AgentIcon role={st.role} size={10} /> {st.role}
                       </span>
-                      <span className="text-[12.5px] leading-relaxed text-white/70">{st.instruction}</span>
+                      <textarea
+                        value={st.instruction}
+                        onChange={(e) => editInstruction(st.id, e.target.value)}
+                        rows={Math.min(4, Math.max(1, Math.ceil(st.instruction.length / 70)))}
+                        aria-label={`Instruction for ${st.role} subtask ${st.id}`}
+                        className="flex-1 resize-y bg-transparent border border-transparent hover:border-white/[0.10] focus:border-[#D8A657]/45 rounded-md px-1.5 py-0.5 text-[12.5px] leading-relaxed text-white/70 outline-none"
+                      />
                     </div>
                   )
                 })}

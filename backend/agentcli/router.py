@@ -217,6 +217,8 @@ async def call_model(
         AllModelsFailedError: If every model in the chain fails.
     """
     if os.getenv("SPLITTER_FAKE_LLM"):
+        # Optional per-call delay so end-to-end tests can act while a run is still going.
+        await asyncio.sleep(float(os.getenv("SPLITTER_FAKE_LLM_DELAY") or 0))
         return fake_llm.respond(messages, role, tools)
 
     # Check planner cache for duplicate identical planning prompts
