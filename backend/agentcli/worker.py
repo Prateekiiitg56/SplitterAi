@@ -288,6 +288,15 @@ class AgentWorker:
                                 )
                                 if file_key and not result.startswith(("Error", "BLOCKED")):
                                     known_files.add(file_key)
+                                if result.startswith("BLOCKED"):
+                                    # execute_tool turns sandbox escapes into a BLOCKED result for the model.
+                                    self._emit(LogEntry(
+                                        type=LogType.sandbox_block,
+                                        role=self.role,
+                                        subtask_id=subtask.id,
+                                        message=f"Blocked: {tool_name}({args_summary})",
+                                        detail=result,
+                                    ))
                         except SandboxEscapeError as e:
                             result = f"BLOCKED: {e}"
                             self._emit(LogEntry(

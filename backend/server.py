@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 
 from agentcli import runs
-from agentcli.config import ExecutionConfig
+from agentcli.config import ExecutionConfig, llm_key_status
 from agentcli.graph import run_graph
 from agentcli.planner import load_manual_plan
 from agentcli.analysis import run_analysis
@@ -46,7 +46,7 @@ from agentcli.web import (
     RUNNABLE_SUFFIXES, apply_template, design_context, detect_stack, is_web_task, needs_build, new_project_dir,
     planning_guidance, project_entry,
 )
-from agentcli.tools import run_shell
+from agentcli.tools import kill_processes, run_shell, sandbox_status
 from agentcli.session import list_runs, list_sessions, load_run, rename_session, reset_session, save_run_result, save_session
 from agentcli.integrations_store import (
     load_all_integrations,
@@ -137,6 +137,9 @@ app = FastAPI(
 import os
 from fastapi import Header, Query, HTTPException, status
 
+# Credentialed CORS with a default origin list is only acceptable on a developer machine.
+if os.getenv("SPLITTER_ENV", "development").lower() != "development" and not os.getenv("ALLOWED_ORIGINS"):
+    raise RuntimeError("ALLOWED_ORIGINS must be set when SPLITTER_ENV is not 'development'.")
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173")
 allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 
@@ -283,10 +286,25 @@ async def root():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/docs")
 
-@app.get("/health", response_model=HealthResponse)
+STARTED_AT = time.time()
+
+
+@app.get("/health")
 async def health():
-    """Health check endpoint."""
-    return HealthResponse(supabase_enabled=is_supabase_enabled())
+    """Liveness plus what the dashboard needs to explain a broken setup (no secrets, no auth)."""
+    keys = llm_key_status()
+    fake = bool(os.getenv("SPLITTER_FAKE_LLM"))
+    return {
+        "status": "ok",
+        "version": app.version,
+        "uptime_s": round(time.time() - STARTED_AT),
+        "supabase_enabled": is_supabase_enabled(),
+        "llm_ready": fake or any(keys.values()),
+        "llm_keys": keys,
+        "fake_llm": fake,
+        "sandbox": await asyncio.to_thread(sandbox_status),
+        "auth_required": bool(os.getenv("SHARED_SECRET")),
+    }
 
 
 
@@ -517,13 +535,13 @@ def start_run(request: RunRequest) -> runs.Run:
 
     workspace = request.workspace
     # The shared projects root means "new project": give it its own folder so projects never mix files.
+    # Anything else must be an existing project folder; a client cannot point a run at any path on disk.
     if Path(resolve_workspace(workspace)) == PROJECTS_ROOT:
         folder = new_project_dir(PROJECTS_ROOT, request.task)
         workspace = f"./workspace_output/{folder.name}"
-    try:
-        sandbox = Sandbox(resolve_workspace(workspace))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        sandbox = Sandbox(folder)
+    else:
+        sandbox = Sandbox(workspace_dir(workspace))
 
     run = runs.create(workspace, request.task)
     run.job = asyncio.create_task(execute_run(run, request, sandbox, plan))
@@ -579,7 +597,9 @@ async def execute_run(run: runs.Run, request: RunRequest, sandbox: Sandbox, plan
         if estimate:
             result.report = execution_report(result, request.strategy, config.max_concurrent_agents, estimate)
     except asyncio.CancelledError:
-        on_event(LogEntry(type="error", role=AgentRole.planner, message="Run cancelled"))
+        killed = await asyncio.to_thread(kill_processes, sandbox.workspace)
+        on_event(LogEntry(type="error", role=AgentRole.planner,
+                          message="Run cancelled" + (f", stopped {killed} running command(s)" if killed else "")))
         result = RunResult(subtasks=[Subtask(**st) for st in run.subtasks], status=RunStatus.cancelled,
                            error="Cancelled by user")
     except Exception as e:
@@ -768,9 +788,9 @@ async def delete_session(workspace: str, x_api_key: str | None = Header(None, al
     """Delete a project's record, run history and its generated folder under workspace_output."""
     verify_shared_secret(x_api_key, token)
     found = reset_session(workspace)
-    folder = Path(resolve_workspace(workspace))
-    # Only project folders inside the projects root are ours to remove; never the root or user paths.
-    owned = folder != PROJECTS_ROOT and PROJECTS_ROOT in folder.parents
+    folder = Path(resolve_workspace(workspace)).resolve()
+    # Only project folders directly under a project root are ours to remove; never a root or user paths.
+    owned = any(folder.parent == base for base in project_roots())
     if owned and folder.is_dir():
         shutil.rmtree(folder, ignore_errors=True)
         found = True
@@ -835,8 +855,8 @@ async def get_agent_detail(role: str, x_api_key: str | None = Header(None, alias
 async def get_files(workspace: str = ".", x_api_key: str | None = Header(None, alias="X-API-Key"), token: str | None = Query(None)):
     """Sandboxed recursive file tree (never reads outside workspace root)."""
     verify_shared_secret(x_api_key, token)
+    sb = Sandbox(workspace_dir(workspace))
     try:
-        sb = Sandbox(resolve_workspace(workspace))
         root_path = sb.resolve_path(".")
 
         def build_tree(path):

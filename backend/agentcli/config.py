@@ -80,6 +80,12 @@ PROVIDER_KEYS: dict[str, tuple[str, ...]] = {
 _gemini_turn = itertools.count()
 
 
+def llm_key_status() -> dict[str, bool]:
+    """Which providers have at least one key configured (never the keys themselves)."""
+    return {provider: any(os.environ.get(n, "").strip() for n in names)
+            for provider, names in PROVIDER_KEYS.items() if provider != "grok"}
+
+
 def resolve_api_keys(role: AgentRole, model: str) -> list[str]:
     """Keys to try for a role + model, in order. Empty means litellm uses its own env defaults.
 

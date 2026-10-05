@@ -8,13 +8,17 @@ FR-18: Shell with timeout + output truncation.
 from __future__ import annotations
 
 import asyncio
+import functools
+import hashlib
 import json
 import os
 import re
-import hashlib
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -98,15 +102,115 @@ def _shell_scratch_dir(sandbox: Sandbox) -> str:
     return str(path)
 
 
+# ── Isolation ─────────────────────────────────────────────────────
+# Shell commands run under bubblewrap: only the workspace (as /workspace, read-write), a shared npm
+# cache and the read-only system dirs are visible. The repo, its .env, the session DB and the user's
+# home do not exist inside. On Windows bwrap runs in a WSL distro. SPLITTER_SANDBOX=none opts out
+# (commands then run directly on the host, as before), and "auto" refuses to run without a sandbox.
+
+WSL_DISTRO = os.getenv("SPLITTER_WSL_DISTRO", "Ubuntu")
+NPM_CACHE_DIR = "/var/cache/splitter-npm"  # shared across projects so installs reuse downloads
+
+_BWRAP_BASE = [
+    "--ro-bind", "/usr", "/usr", "--symlink", "usr/bin", "/bin", "--symlink", "usr/lib", "/lib",
+    "--symlink", "usr/lib64", "/lib64", "--symlink", "usr/sbin", "/sbin", "--ro-bind", "/etc", "/etc",
+    "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+    "--clearenv", "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin", "--setenv", "HOME", "/tmp",
+    "--setenv", "LANG", "C.UTF-8", "--setenv", "npm_config_cache", "/npm-cache", "--setenv", "CI", "1",
+    "--unshare-all", "--share-net", "--die-with-parent", "--new-session",
+]
+
+
+def _sandbox_mode() -> str:
+    return os.getenv("SPLITTER_SANDBOX", "auto").lower()
+
+
+def _bwrap_prefix() -> list[str]:
+    return ["wsl.exe", "-d", WSL_DISTRO, "--", "bwrap"] if os.name == "nt" else ["bwrap"]
+
+
+@functools.lru_cache(maxsize=4)
+def _bwrap_works(prefix: tuple[str, ...]) -> bool:
+    try:
+        probe = subprocess.run([*prefix, *_BWRAP_BASE, "--", "/bin/true"], capture_output=True, timeout=120)
+        return probe.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def sandbox_status() -> dict[str, Any]:
+    """For /health: whether shell commands are isolated, and how."""
+    mode = _sandbox_mode()
+    if mode == "none":
+        return {"mode": "none", "available": False}
+    available = _bwrap_works(tuple(_bwrap_prefix()))
+    return {"mode": "wsl-bwrap" if os.name == "nt" else "bwrap", "available": available}
+
+
+def _linux_path(path: Path) -> str:
+    """Path of a host folder as the sandbox's Linux side sees it (D:\\x -> /mnt/d/x under WSL)."""
+    if os.name != "nt":
+        return str(path)
+    drive, rest = path.drive, path.as_posix()[len(path.drive):]
+    return f"/mnt/{drive.rstrip(':').lower()}{rest}"
+
+
+def _escaping_reference(command: str) -> str | None:
+    """A path in the command that points outside the workspace (parent climbs, home, host drives)."""
+    for token in re.split(r"[\s;&|<>()'\"`=,]+", command):
+        if not token or token == sys.executable:  # the interpreter run_python uses when unsandboxed
+            continue
+        if token.startswith("~") or token.startswith("/mnt/") or re.match(r"^[A-Za-z]:[\\/]", token):
+            return token
+        depth = 0
+        for part in token.replace("\\", "/").split("/"):
+            if part == "..":
+                depth -= 1
+                if depth < 0:
+                    return token
+            elif part and part != ".":
+                depth += 1
+    return None
+
+
+# Running shell processes per workspace, so a cancelled run can stop them.
+_PROCESSES: dict[Path, set[subprocess.Popen]] = {}
+_PROCESSES_LOCK = threading.Lock()
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    if proc.poll() is not None:
+        return
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+        else:
+            os.killpg(proc.pid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        proc.kill()
+
+
+def kill_processes(workspace: Path) -> int:
+    """Kill every shell command (and its children) still running in a workspace."""
+    with _PROCESSES_LOCK:
+        procs = list(_PROCESSES.get(workspace, ()))
+    for proc in procs:
+        _kill_tree(proc)
+    return len(procs)
+
+
 def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int = 10240) -> str:
     """Execute a shell command strictly within the sandbox workspace.
 
     FR-18: timeout + output truncation + environment isolation.
     """
-    # 1. Check for suspicious SSRF / cloud metadata endpoint probes
+    # 1. Check for suspicious SSRF / cloud metadata endpoint probes and paths outside the workspace
     for pattern in BLOCKED_PROBE_PATTERNS:
         if pattern in command:
             raise SandboxEscapeError(command, str(sandbox.workspace))
+    escaping = _escaping_reference(command)
+    if escaping:
+        raise SandboxEscapeError(escaping, str(sandbox.workspace))
 
     if _NODE_INSTALL.search(command) and not (sandbox.workspace / "package.json").exists():
         return (
@@ -114,47 +218,69 @@ def run_shell(sandbox: Sandbox, command: str, timeout: int = 30, max_output: int
             "the workspace. Run `npm init -y` first if the task really needs packages."
         )
 
-    # 2. Build sanitized environment (strip host secrets & keys).
-    # Home/temp/app-data point at a per-workspace scratch dir outside the workspace, so tool
-    # caches (npm, jest, pip) neither pollute the deliverable nor touch the host profile.
-    scratch = _shell_scratch_dir(sandbox)
-    safe_env = {
-        "PATH": os.environ.get("PATH", ""),
-        "HOME": scratch,
-        "USERPROFILE": scratch,
-        "APPDATA": scratch,
-        "LOCALAPPDATA": scratch,
-        "TMP": scratch,
-        "TEMP": scratch,
-        "USER": os.environ.get("USER", "agent"),
-        "LANG": os.environ.get("LANG", "en_US.UTF-8"),
-        "SHELL": os.environ.get("SHELL", "powershell.exe" if os.name == "nt" else "/bin/sh"),
-        "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
-        "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
-        "PATHEXT": os.environ.get("PATHEXT", ""),
-    }
-    safe_env = {k: v for k, v in safe_env.items() if v}
+    mode = _sandbox_mode()
+    if mode == "none":
+        # 2. Unsandboxed: sanitized environment (strip host secrets & keys).
+        # Home/temp/app-data point at a per-workspace scratch dir outside the workspace, so tool
+        # caches (npm, jest, pip) neither pollute the deliverable nor touch the host profile.
+        scratch = _shell_scratch_dir(sandbox)
+        env = {
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": scratch,
+            "USERPROFILE": scratch,
+            "APPDATA": scratch,
+            "LOCALAPPDATA": scratch,
+            "TMP": scratch,
+            "TEMP": scratch,
+            "USER": os.environ.get("USER", "agent"),
+            "LANG": os.environ.get("LANG", "en_US.UTF-8"),
+            "SHELL": os.environ.get("SHELL", "powershell.exe" if os.name == "nt" else "/bin/sh"),
+            "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+            "COMSPEC": os.environ.get("COMSPEC", "cmd.exe"),
+            "PATHEXT": os.environ.get("PATHEXT", ""),
+        }
+        args: str | list[str] = command
+        cwd = str(sandbox.workspace)
+    else:
+        prefix = _bwrap_prefix()
+        if not _bwrap_works(tuple(prefix)):
+            return (
+                "Error: the shell sandbox (bubblewrap" + (" in WSL" if os.name == "nt" else "") + ") is not "
+                "available, so shell commands are disabled. Set SPLITTER_SANDBOX=none to run them unsandboxed."
+            )
+        args = [*prefix, *_BWRAP_BASE, "--bind", _linux_path(sandbox.workspace), "/workspace",
+                "--bind-try", NPM_CACHE_DIR, "/npm-cache", "--chdir", "/workspace", "--", "/bin/bash", "-c", command]
+        # wsl.exe and bwrap need only the basics; nothing from the server's environment reaches the command.
+        env = {k: os.environ[k] for k in ("PATH", "SYSTEMROOT", "WINDIR", "PATHEXT", "COMSPEC") if k in os.environ}
+        cwd = None
+    env = {k: v for k, v in env.items() if v}
 
-    # 3. Execute subprocess with process tree termination on timeout
+    # 3. Execute in its own process group so a timeout or cancel kills the whole tree (npm -> node -> vite)
     try:
         proc = subprocess.Popen(
-            command,
-            shell=True,
-            cwd=str(sandbox.workspace),
+            args,
+            shell=isinstance(args, str),
+            cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             errors="replace",
-            env=safe_env,
+            env=env,
+            start_new_session=os.name != "nt",
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
         )
-
+        with _PROCESSES_LOCK:
+            _PROCESSES.setdefault(sandbox.workspace, set()).add(proc)
         try:
             stdout_data, stderr_data = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            proc.kill()
+            _kill_tree(proc)
             proc.communicate()
             return f"Error: Command timed out after {timeout}s: {command}"
+        finally:
+            with _PROCESSES_LOCK:
+                _PROCESSES.get(sandbox.workspace, set()).discard(proc)
 
         output_parts = []
         if stdout_data:
@@ -181,11 +307,23 @@ def run_python(sandbox: Sandbox, code: str, timeout: int = 30, max_output: int =
     """Run a multi-line Python script with the workspace as cwd.
 
     Models routinely cram scripts into one-line `python -c` calls (a SyntaxError for loops) or
-    call interpreters the host lacks. The script file lives in the shell scratch dir, not the workspace.
+    call interpreters the host lacks. The script lives in the workspace's private .splitter folder
+    (visible inside the sandbox, left out of exports) and is deleted after it ran.
     """
-    script = Path(_shell_scratch_dir(sandbox)) / f"script-{hashlib.sha1(code.encode('utf-8')).hexdigest()[:10]}.py"
+    scripts = sandbox.workspace / ".splitter" / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    script = scripts / f"script-{uuid.uuid4().hex[:10]}.py"
     script.write_text(code, encoding="utf-8")
-    return run_shell(sandbox, f'"{sys.executable}" "{script}"', timeout=timeout, max_output=max_output)
+    python = f'"{sys.executable}"' if _sandbox_mode() == "none" else "python"
+    try:
+        return run_shell(sandbox, f"{python} .splitter/scripts/{script.name}", timeout=timeout, max_output=max_output)
+    finally:
+        script.unlink(missing_ok=True)
+        for folder in (scripts, scripts.parent):
+            try:
+                folder.rmdir()  # only when empty: leaves screenshots and other private files alone
+            except OSError:
+                break
 
 
 def search_code(sandbox: Sandbox, query: str, path: str = ".") -> str:
@@ -317,8 +455,9 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "function": {
             "name": "run_shell",
-            "description": "Execute a shell command in the workspace directory. Output is captured and returned. "
-                           "On Windows this is cmd.exe: no bash syntax (heredocs, &&-chains of bash builtins).",
+            "description": "Execute a bash command in an isolated Linux sandbox whose working directory is the "
+                           "workspace (/workspace). node, npm, npx and python are available. Nothing outside the "
+                           "workspace is reachable. Output is captured and returned.",
             "parameters": {
                 "type": "object",
                 "properties": {
