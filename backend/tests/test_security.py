@@ -70,6 +70,10 @@ def test_production_requires_explicit_origins(monkeypatch):
     monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
     with pytest.raises(RuntimeError, match="ALLOWED_ORIGINS"):
         importlib.reload(server)
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://dashboard.example")
+    monkeypatch.delenv("SHARED_SECRET", raising=False)
+    with pytest.raises(RuntimeError, match="SHARED_SECRET"):
+        importlib.reload(server)
     monkeypatch.setenv("SPLITTER_ENV", "development")
     importlib.reload(server)
 
