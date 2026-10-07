@@ -22,6 +22,7 @@ Independent subtasks run in parallel. Dependent subtasks run in sequence. The sy
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
 - [Configuration](#configuration)
+- [Deploying](#deploying)
 - [Milestones](#milestones)
 - [Risks & Open Questions](#risks--open-questions)
 - [License](#license)
@@ -351,6 +352,8 @@ SplitterAi/
 │   ├── index.css                            # Design system tokens & global styles
 │   └── main.tsx                             # React entry point
 ├── .env.example                             # Single source of truth for backend + frontend env vars
+├── Dockerfile / render.yaml                 # Backend image and its Render Blueprint (see Deploying)
+├── vercel.json                              # Dashboard on Vercel (SPA fallback, asset caching)
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
@@ -468,6 +471,60 @@ Each role has an ordered fallback chain (`DEFAULT_MODEL_CHAINS` in `backend/agen
 planner and per-strategy chains are picked by capability and reliability history
 (`backend/agentcli/models.py`). Ids were checked against the live OpenRouter and Gemini model lists;
 `GET /models` serves them to the dashboard. Models that keep failing are skipped for a few minutes.
+
+---
+
+## Deploying
+
+Free setup: the dashboard on **Vercel**, the backend on **Render**. The backend can't go on Vercel: it
+keeps WebSocket connections open, keeps runs going after the request returns and writes projects to
+disk. Deploy the backend first, because the dashboard needs its URL.
+
+### 1. Backend on Render
+
+1. Render dashboard > **New > Blueprint** > pick this repo. `render.yaml` creates the
+   `splitterai-backend` web service (free plan) from the `Dockerfile`.
+2. Fill in the variables it asks for:
+   - `ALLOWED_ORIGINS`: the dashboard's URL, no trailing slash. Vercel's is
+     `https://<vercel-project-name>.vercel.app`, so you can set it now and fix it after step 2 if it differs.
+   - `GEMINI_API_KEY` and/or `OPENROUTER_API_KEY` (at least one). Add any other key from `.env.example`
+     under **Environment** later.
+   - `SHARED_SECRET` is generated for you. Copy it from **Environment**; the dashboard needs it.
+3. When the deploy is live, open `https://<service>.onrender.com/health`: `llm_ready` should be `true`.
+
+The server refuses to start without `ALLOWED_ORIGINS` and `SHARED_SECRET` (the image sets
+`SPLITTER_ENV=production`).
+
+What the free plan means:
+
+- **It sleeps** after about 15 minutes without traffic; the next visit waits about a minute while it
+  wakes up. A run in progress when it sleeps or redeploys is lost.
+- **The disk is wiped** on every restart, sleep and deploy: generated projects and run history go with it.
+  Download a project (zip) or push it to GitHub from the dashboard to keep it. Setting `SUPABASE_URL` and
+  `SUPABASE_KEY` syncs sessions to Supabase.
+- **No bubblewrap**, so `render.yaml` sets `SPLITTER_SANDBOX=none`: agents' shell commands run directly in
+  the container. They can't reach your machine, but they can read the server's environment, including the
+  provider keys.
+- **512 MB of memory**: `MAX_CONCURRENT_AGENTS` is 2 and the image has no Chromium, so the agents'
+  `browser_check` reports an error instead of running.
+
+### 2. Dashboard on Vercel
+
+1. Vercel > **Add New > Project** > import this repo. It is detected as Vite; `vercel.json` sends every
+   route (`/projects/...`) to the app.
+2. Add the environment variable `VITE_API_BASE=https://<service>.onrender.com`. The WebSocket URL
+   (`wss://<service>.onrender.com/ws`) is derived from it. `VITE_` values are built in, so redeploy after
+   changing one.
+3. Deploy, open the site, go to **Settings** and paste the `SHARED_SECRET`. It is kept in that browser.
+   **Don't set `VITE_SHARED_SECRET` on Vercel**: it would be built into the public JavaScript, where anyone
+   can read it.
+
+"Backend unreachable" in the dashboard means `VITE_API_BASE` is wrong, the backend is still waking up, or
+the dashboard's URL is not in `ALLOWED_ORIGINS` (exact match, comma-separated; add Vercel preview URLs
+there if you use them).
+
+The project preview is embedded from the Render domain, so it needs third-party cookies: it works in
+Chrome and Firefox, but Safari may show it unstyled; use "Open in new tab" there.
 
 ---
 

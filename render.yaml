@@ -1,0 +1,27 @@
+# Render Blueprint for the backend: Dashboard > New > Blueprint > pick this repo.
+# See "Deploying" in README.md.
+services:
+  - type: web
+    name: splitterai-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # The dashboard's URL, e.g. https://splitterai.vercel.app (no trailing slash).
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Paste the same value into the dashboard's Settings page.
+      - key: SHARED_SECRET
+        generateValue: true
+      # At least one provider key; add the others from .env.example the same way.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      # Render containers cannot run bubblewrap: commands run directly in the container.
+      - key: SPLITTER_SANDBOX
+        value: none
+      # Keeps memory inside the free plan's 512 MB.
+      - key: MAX_CONCURRENT_AGENTS
+        value: "2"

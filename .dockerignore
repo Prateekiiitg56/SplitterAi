@@ -1,0 +1,6 @@
+# The image only needs the backend.
+*
+!backend
+backend/.splitter
+**/__pycache__
+**/.pytest_cache
