@@ -161,6 +161,17 @@ def test_preview_needs_the_shared_secret_then_uses_a_cookie(roots, monkeypatch):
     assert client.get("/preview/site/app.js").text == "js"  # cookie from the first request
 
 
+def test_preview_cookie_works_cross_site_over_https(roots, monkeypatch):
+    generated, _ = roots
+    write(generated, "site/index.html", "page")
+    write(generated, "site/app.js", "js")
+    monkeypatch.setenv("SHARED_SECRET", "s3cret")
+    client = TestClient(server.app, base_url="https://testserver")
+    cookie = client.get("/preview/site/?token=s3cret").headers["set-cookie"].lower()
+    assert "samesite=none" in cookie and "secure" in cookie
+    assert client.get("/preview/site/app.js").text == "js"
+
+
 def test_project_info_and_file_content(roots):
     generated, imported = roots
     write(generated, "primes-1/primes.py", "print(2)")

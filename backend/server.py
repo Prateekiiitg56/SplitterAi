@@ -157,9 +157,11 @@ app = FastAPI(
 import os
 from fastapi import Header, Query, HTTPException, status
 
-# Credentialed CORS with a default origin list is only acceptable on a developer machine.
-if os.getenv("SPLITTER_ENV", "development").lower() != "development" and not os.getenv("ALLOWED_ORIGINS"):
-    raise RuntimeError("ALLOWED_ORIGINS must be set when SPLITTER_ENV is not 'development'.")
+# Credentialed CORS with a default origin list, or no secret at all, is only acceptable on a developer machine.
+if os.getenv("SPLITTER_ENV", "development").lower() != "development":
+    for required in ("ALLOWED_ORIGINS", "SHARED_SECRET"):
+        if not os.getenv(required):
+            raise RuntimeError(f"{required} must be set when SPLITTER_ENV is not 'development'.")
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173")
 allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 
@@ -378,7 +380,11 @@ async def preview_project(request: Request, project_id: str = "", file_name: str
 
     def respond(response):
         if secret and token == secret:
-            response.set_cookie(PREVIEW_COOKIE, secret, httponly=True, samesite="lax", path="/preview")
+            # A dashboard on another site (e.g. Vercel) embeds the preview cross-site, where only a
+            # SameSite=None cookie reaches the page's files; browsers accept that only over HTTPS.
+            https = request.url.scheme == "https"
+            response.set_cookie(PREVIEW_COOKIE, secret, httponly=True, samesite="none" if https else "lax",
+                                secure=https, path="/preview")
         return response
 
     if not project_id:
